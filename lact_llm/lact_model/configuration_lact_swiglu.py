@@ -38,7 +38,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         learnable_ttt_scale: bool = True,
         use_momentum: bool = True,
         ttt_loss_type: str = "dot_product",  # "l2"
-        ttt_prenorm: bool = False,  # pre-norm or post-norm for ttt.
+        ttt_prenorm: bool = True,  # pre-norm or post-norm for ttt.
         # prenorm ttt:  state = state + f(norm(state))
         # postnorm ttt:  state = norm(state + f(state)
         ttt_nope: bool = False,  # if True, no positional encoding for query and key used in ttt.
