@@ -85,3 +85,14 @@ Comparison stays clean: only camera-conditioning changes to the TTT layer; backb
 
 Now training (embedding-only): cone_hh (cone F21·64pi + h F42), mip_hh (per-layer half-octave stagger,
 F21/F42), omega_map (learnable 6->P phase maps, F16/F21 base), m_scale (per-scene moment whitening).
+
+## Wave 2 results (embedding knobs)
+| run | PSNR | Δ base | vs own base | LPIPS |
+|-----|------|--------|-------------|-------|
+| mip_hh (layer stagger, F21/42) | 22.862 | +0.89 (record) | +0.03 vs pra_h_hi | 0.2672 |
+| cone_hh (F21/42) | 22.845 | +0.87 | +0.01 neutral | 0.2686 |
+| omega_map (F16/21 base) | 22.793 | +0.82 | +0.05 vs pra_h | 0.2675 |
+| m_scale (F16/21 base) | 22.664 | +0.69 | −0.08 REJECTED | 0.2727 |
+- F14: embedding knobs now yield +0.03..0.05 each — second saturation plateau near +0.9.
+Wave 3 (running): stack1 = mip+omega_map (F21/42); stack2 = cone+mip+omega_map; omega_hh (attribution
+control: omega_map alone at F21/42); h_strat (depth-stratified hidden kernel — last untested geometry).

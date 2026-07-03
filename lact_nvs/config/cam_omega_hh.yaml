@@ -1,0 +1,24 @@
+patch_size: 16
+dim: 256
+layers: 6
+
+block_config:
+  - type: model.SelfAttention
+    length_dim: l
+    params:
+      head_dim: 64
+      use_qk_norm: true
+  - type: lact_ttt_cam.CamFastWeightGluMLPMultihead
+    length_dim: vl
+    params:
+      head_dim: 256
+      inter_multi: 2
+      base_lr: 0.01
+      muon_update_steps: 5
+      cam_mode: qk_rope_cam+h_pra+omega_map
+      num_freqs: 21
+      num_freqs_h: 42
+  - type: model.MLP
+    length_dim: vl
+    params:
+      inter_multi: 4

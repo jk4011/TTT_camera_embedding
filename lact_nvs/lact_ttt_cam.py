@@ -457,13 +457,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         known = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
                  "prope_ttt", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
-                 "w0_mask", "omega_map", "m_scale", "res2", "mip"}
+                 "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
-        assert len({"h_pra", "h_dpra"} & self.cam_modes) <= 1, "one hidden rotary at a time"
+        assert len({"h_pra", "h_dpra", "h_strat"} & self.cam_modes) <= 1, "one hidden rotary at a time"
         if self.cam_modes & {"ms2", "res2"}:
             assert {"h_pra", "h_dpra"} & self.cam_modes, "ms2/res2 require a hidden rotary mode"
         assert not ({"ms2", "res2"} <= self.cam_modes), "ms2 and res2 are exclusive"
@@ -516,6 +516,23 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                     self.omega.mul_(stag)
                 if hasattr(self, "omega_h"):
                     self.omega_h.mul_(stag)
+
+        if "h_strat" in self.cam_modes:
+            # Depth-stratified orthogonal 3D-point rotary in hidden space:
+            # 6 log-spaced depth slices x 3 axes x 7 freqs = 126 pairs (252/512).
+            # Sum of per-slice point kernels: rays crossing near slice t_s keep
+            # that slice coherent; others decorrelate. point_rope without the
+            # depth head; plucker_sinc without the (F3-unsafe) envelope.
+            n_sl, n_f = 6, 7
+            assert 2 * n_sl * 3 * n_f <= d_h
+            t_sl = torch.logspace(math.log10(0.05), math.log10(4.0), n_sl)
+            base = math.pi * torch.logspace(0.0, 4.0, n_f, base=2.0)  # pi*[1,16]
+            om = torch.zeros(n_sl * 3, n_f)
+            for si in range(n_sl):
+                om[si * 3 : (si + 1) * 3] = base[None] / (0.5 + t_sl[si])
+            self.register_buffer("t_strat", t_sl, persistent=False)
+            self.register_buffer("omega_strat", om, persistent=False)
+            self.gain_strat = nn.Parameter(torch.ones(n_sl * 3, n_f))
 
         if "cone_pra" in self.cam_modes:
             # Ray-cone anti-aliased line rotary: extended ladder, sinc envelope
@@ -802,11 +819,20 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 TTTOperator(ops[1].start, ops[1].end, False, True),
             ]
 
-        if {"h_pra", "h_dpra"} & modes:
-            hcos, hsin = self._rope_coeffs(
-                info, self.omega_h, self.gain_h,
-                dOmega=getattr(self, "dOmega_h", None),
-            )
+        if {"h_pra", "h_dpra", "h_strat"} & modes:
+            if "h_strat" in modes:
+                xs = info["tok_o"][:, :, None, :] + \
+                    self.t_strat[None, None, :, None] * info["tok_d"][:, :, None, :]
+                coords18 = xs.flatten(2)  # [b, L, 18]
+                wg = (self.omega_strat * self.gain_strat)[None, None]
+                theta = (coords18[..., None] * wg).flatten(2)
+                hcos = to_heads(theta.cos(), nh)
+                hsin = to_heads(theta.sin(), nh)
+            else:
+                hcos, hsin = self._rope_coeffs(
+                    info, self.omega_h, self.gain_h,
+                    dOmega=getattr(self, "dOmega_h", None),
+                )
             assert "cam_registers" not in modes, "hidden rotary + cam_registers unsupported"
             if "res2" in modes:
                 output, w0, w1, w2 = fast_weight_swish_glu_hidden_rotary_res2_apply(
