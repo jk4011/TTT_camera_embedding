@@ -27,7 +27,20 @@ Protocol (identical for all): LaCT-LVSM, 6 blocks [per-image attn(hd64) / TTT(hd
 | cam_lr | camera-conditioned per-token write lr | −0.494 | 0.3007 | 5 |
 | adaln_cam | per-layer zero-init pose FiLM on x | −0.605 | 0.3069 | 3 |
 
-In flight (R6, ~half done, same-window train PSNR vs pra_h 20.95): pra_h_hi (F21+F_h42) 20.88; pra_h_vo 20.76; pra_sinc_h, sinc_h (late window, biased) 20.73 / 20.50.
+## R6 results (evaluated)
+| run | mechanism | PSNR | Δ | LPIPS |
+|-----|-----------|------|---|-------|
+| pra_h_hi | input F21 + hidden F_h42 | 22.836 | **+0.866** | 0.2690 |
+| pra_h_vo | pra_h + c2w value transport | 22.783 | +0.813 | 0.2681 |
+| pra_sinc_h | input line+segment mix + hidden F21 | 22.711 | +0.741 | 0.2681 |
+| sinc_h | input segment-sinc + hidden F21 | 22.658 | +0.688 | 0.2671 (best LPIPS) |
+
+- F10: The HIDDEN channel is NOT saturated: F_h 21->42 = +0.09 (pra_h -> pra_h_hi). Mid-train PSNR
+  suggested regression — that was batch noise; final eval wins. Agent-F's T0-scrambling *premise*
+  (mid-train regression) was wrong, but h_dpra (delta-path rotation) remains live as a cleanliness fix.
+- F11: sinc geometry consistently best LPIPS (0.2671) at a PSNR cost; line best PSNR. Hidden-budget
+  geometry mixing (line+strat) remains a both-worlds candidate.
+- F4 reconfirmed: +vo adds +0.04 on pra_h (within noise).
 
 ## Established findings
 
@@ -48,3 +61,7 @@ In flight (R6, ~half done, same-window train PSNR vs pra_h 20.95): pra_h_hi (F21
 - lact_nvs/lact_ttt_cam.py — all variants; modes combinable via "a+b"; hidden-rotary kernel copy exists (fast_weight_swish_glu_hidden_rotary_apply)
 - lact_nvs/model.py — compute_camera_info (per-token Plucker in canonical frame, per-view mats), ttt_chunk_per_view/ttt_view_tour flags
 - Each run: 30k iters ≈ 1.6h on one B200; 4 concurrent. Implementation must be a drop-in TTT-layer variant (config-selectable), NO backbone changes.
+
+## GOAL UPDATE (2026-07-04)
+Target raised by user: beat LaCT baseline by **+1.5 dB** (PSNR >= 23.47). Current best: pra_h_hi 22.836 (+0.87).
+Comparison stays clean: only camera-conditioning changes to the TTT layer; backbone/params neutral.
