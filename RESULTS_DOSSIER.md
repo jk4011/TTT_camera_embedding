@@ -65,3 +65,23 @@ Protocol (identical for all): LaCT-LVSM, 6 blocks [per-image attn(hd64) / TTT(hd
 ## GOAL UPDATE (2026-07-04)
 Target raised by user: beat LaCT baseline by **+1.5 dB** (PSNR >= 23.47). Current best: pra_h_hi 22.836 (+0.87).
 Comparison stays clean: only camera-conditioning changes to the TTT layer; backbone/params neutral.
+
+## Wave 1 results (evaluated) + scope decision
+| run | PSNR | Δ base | Δ vs pra_h_hi (paired t) | LPIPS |
+|-----|------|--------|--------------------------|-------|
+| pra_h_ms2 (2-step write +40% cost) | 22.867 | +0.90 | +0.03 (t=+3.4) | 0.2627 |
+| cone_pra_h (anti-alias, F16/Fh21) | 22.741 | +0.77 | −0.10 | 0.2671 |
+| budget_shift (F8/Fh31) | 22.684 | +0.71 | −0.15 | 0.2705 |
+| h_dpra42 (delta-path rotation) | 22.246 | +0.28 | **−0.59 (t=−27.9)** | 0.2811 |
+
+- F12 **Leak-fix axis is DEAD**: routing the init readout around the hidden rotation loses 0.59 dB.
+  The rotated init readout (R_j h)W1^0 is not pollution — it is a *functional view-dependent prior*
+  that the slow weights exploit. w0_mask/cone_dpra killed mid-run; steer_glu deprioritized.
+- F13 ms2: statistically significant but tiny (+0.03) at +40% TTT cost → perfect control experiment:
+  "2x deeper writes buy what the free embedding already bought." Out of main line per user direction
+  (goal = optimal positional embedding at minimal overhead).
+- Aliasing (cone) neutral at F16; input budget below F16 loses (budget_shift).
+- Scope reset by user: positional-embedding-only, minimal overhead. Dynamics cards (ms2/res2/loo) out.
+
+Now training (embedding-only): cone_hh (cone F21·64pi + h F42), mip_hh (per-layer half-octave stagger,
+F21/F42), omega_map (learnable 6->P phase maps, F16/F21 base), m_scale (per-scene moment whitening).

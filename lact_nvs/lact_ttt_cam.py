@@ -343,7 +343,97 @@ def fast_weight_swish_glu_hidden_rotary_multistep_apply(
     return output, w0, w1, w2
 
 
+@torch.compile
+def fast_weight_swish_glu_hidden_rotary_res2_apply(
+    w0, w1, w2, q, k, v, lr0, lr1, lr2,
+    hcos, hsin,
+    alpha,               # scalar: residual-correction strength (zero-init)
+    step_gains,          # [2, 3] learnable post-Muon write scales
+    ttt_ua_order: list,
+    muon_update_steps: int = 0,
+):
+    """h-PRA kernel + delta-rule corrective second step (error-correcting write).
+
+    Step 1 writes (k, v) as usual. Step 2 re-reads the keys against the
+    updated memory, forms the residual target v' = v - alpha * f_{W'}(k), and
+    writes (k, v'): the memory stores what it cannot yet retrieve. At alpha=0
+    this reduces to a plain second step; with step_gains[1]=0 it is exactly
+    the single-step kernel.
+    """
+    from lact_ttt import silu_backprop, zeropower_via_newtonschulz5
+
+    w0_norm = w0.detach().norm(dim=1, keepdim=True)
+    w1_norm = w1.detach().norm(dim=1, keepdim=True)
+    w2_norm = w2.detach().norm(dim=1, keepdim=True)
+
+    def one_update(w0_now, w1_now, w2_now, ki, vi, lr0i, lr1i, lr2i, hci, hsi, gains):
+        gate_before_act = ki @ w0_now
+        hidden_before_mul = ki @ w2_now
+        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        hidden_rot = apply_rotary_pairs(hidden, hci, hsi)
+
+        dhidden_rot = vi @ w1_now.transpose(-1, -2)
+        dhidden = apply_rotary_pairs(dhidden_rot, hci, -hsi)
+        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dgate = dhidden * hidden_before_mul
+        dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+        w1_grad = zeropower_via_newtonschulz5(
+            (hidden_rot * lr1i).transpose(-1, -2) @ vi, muon_update_steps
+        )
+        w0_grad = zeropower_via_newtonschulz5(
+            (ki * lr0i).transpose(-1, -2) @ dgate_before_act, muon_update_steps
+        )
+        w2_grad = zeropower_via_newtonschulz5(
+            (ki * lr2i).transpose(-1, -2) @ dhidden_before_mul, muon_update_steps
+        )
+        w0_now = w0_now + gains[0] * w0_grad
+        w1_now = w1_now + gains[1] * w1_grad
+        w2_now = w2_now + gains[2] * w2_grad
+        w0_now = w0_now / (w0_now.norm(dim=1, keepdim=True) + 1e-5) * w0_norm
+        w1_now = w1_now / (w1_now.norm(dim=1, keepdim=True) + 1e-5) * w1_norm
+        w2_now = w2_now / (w2_now.norm(dim=1, keepdim=True) + 1e-5) * w2_norm
+        return w0_now, w1_now, w2_now
+
+    output = []
+    for start, end, update, apply in ttt_ua_order:
+        w0_now, w1_now, w2_now = w0, w1, w2
+
+        if update:
+            ki, vi = k[:, start:end, :], v[:, start:end, :]
+            lr0i = lr0[:, start:end, :]
+            lr1i = lr1[:, start:end, :]
+            lr2i = lr2[:, start:end, :]
+            hci, hsi = hcos[:, start:end, :], hsin[:, start:end, :]
+
+            w0, w1, w2 = one_update(
+                w0_now, w1_now, w2_now, ki, vi, lr0i, lr1i, lr2i, hci, hsi,
+                step_gains[0],
+            )
+
+            # Corrective step: read keys against the updated memory, write
+            # the residual target.
+            gate2 = ki @ w0
+            h2 = F.silu(gate2, inplace=False) * (ki @ w2)
+            o_k = apply_rotary_pairs(h2, hci, hsi) @ w1
+            v2 = vi - alpha * o_k
+            w0, w1, w2 = one_update(
+                w0, w1, w2, ki, v2, lr0i, lr1i, lr2i, hci, hsi, step_gains[1]
+            )
+
+        if apply:
+            qi = q[:, start:end, :]
+            hq = F.silu(qi @ w0, inplace=True) * (qi @ w2)
+            hq = apply_rotary_pairs(hq, hcos[:, start:end, :], hsin[:, start:end, :])
+            output.append(hq @ w1)
+
+    output = torch.cat(output, dim=1)
+    return output, w0, w1, w2
+
+
 class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
+    _layer_counter = 0  # construction-order depth index (mip staggering)
+
     def __init__(
         self,
         dim: int,
@@ -367,15 +457,16 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         known = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
                  "prope_ttt", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
-                 "w0_mask", "omega_map", "m_scale"}
+                 "w0_mask", "omega_map", "m_scale", "res2", "mip"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
         assert len({"h_pra", "h_dpra"} & self.cam_modes) <= 1, "one hidden rotary at a time"
-        if "ms2" in self.cam_modes:
-            assert {"h_pra", "h_dpra"} & self.cam_modes, "ms2 requires a hidden rotary mode"
+        if self.cam_modes & {"ms2", "res2"}:
+            assert {"h_pra", "h_dpra"} & self.cam_modes, "ms2/res2 require a hidden rotary mode"
+        assert not ({"ms2", "res2"} <= self.cam_modes), "ms2 and res2 are exclusive"
         self.head_dim = head_dim
         self.num_freqs = num_freqs
         d_h = int(head_dim * inter_multi)
@@ -414,6 +505,18 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.register_buffer("omega_h", omega_h, persistent=False)
             self.gain_h = nn.Parameter(torch.ones(6, num_freqs_h))
 
+        self.layer_idx = CamFastWeightGluMLPMultihead._layer_counter
+        CamFastWeightGluMLPMultihead._layer_counter += 1
+        if "mip" in self.cam_modes:
+            # Half-octave per-layer stagger of both ladders: union spectral
+            # support of the 6-layer stack becomes ~1/3-octave spaced.
+            stag = 2.0 ** (((self.layer_idx % 3) - 1) / 3.0)
+            with torch.no_grad():
+                if hasattr(self, "omega"):
+                    self.omega.mul_(stag)
+                if hasattr(self, "omega_h"):
+                    self.omega_h.mul_(stag)
+
         if "cone_pra" in self.cam_modes:
             # Ray-cone anti-aliased line rotary: extended ladder, sinc envelope
             # from the patch's per-coordinate footprint, post-rotary re-norm.
@@ -424,11 +527,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.register_buffer("omega_cone", omega_c, persistent=False)
             self.gain_cone = nn.Parameter(torch.ones(6, num_freqs))
 
-        if "ms2" in self.cam_modes:
+        if self.cam_modes & {"ms2", "res2"}:
             # Per-step, per-matrix post-Muon write gains (step 2 starts small).
             self.step_gains = nn.Parameter(
                 torch.tensor([[1.0, 1.0, 1.0], [0.3, 0.3, 0.3]])
             )
+            if "res2" in self.cam_modes:
+                self.res_alpha = nn.Parameter(torch.zeros(1))
 
         if "w0_mask" in self.cam_modes:
             # Content-only W^0: zero the rotated input rows of w0/w2 and the
@@ -703,7 +808,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 dOmega=getattr(self, "dOmega_h", None),
             )
             assert "cam_registers" not in modes, "hidden rotary + cam_registers unsupported"
-            if "ms2" in modes:
+            if "res2" in modes:
+                output, w0, w1, w2 = fast_weight_swish_glu_hidden_rotary_res2_apply(
+                    w0, w1, w2, q, k, v, lr0, lr1, lr2, hcos, hsin,
+                    self.res_alpha, self.step_gains, ttt_op_order,
+                    muon_update_steps=self.muon_update_steps,
+                )
+            elif "ms2" in modes:
                 ops = ttt_op_order
                 assert len(ops) == 2 and ops[0].update and ops[1].apply, \
                     "ms2 expects the [update, apply] pattern"
