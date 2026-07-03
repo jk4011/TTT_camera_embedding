@@ -1,0 +1,363 @@
+\begin{thebibliography}{10}
+
+\bibitem{vaswani2017attention}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan~N Gomez, {\L}ukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock {\em Advances in neural information processing systems}, 30, 2017.
+
+\bibitem{sun2024learning}
+Yu~Sun, Xinhao Li, Karan Dalal, Jiarui Xu, Arjun Vikram, Genghan Zhang, Yann Dubois, Xinlei Chen, Xiaolong Wang, Sanmi Koyejo, et~al.
+\newblock Learning to (learn at test time): Rnns with expressive hidden states.
+\newblock {\em arXiv preprint arXiv:2407.04620}, 2024.
+
+\bibitem{schlag2021linear}
+Imanol Schlag, Kazuki Irie, and J{\"u}rgen Schmidhuber.
+\newblock Linear transformers are secretly fast weight programmers.
+\newblock In {\em International Conference on Machine Learning}, pages 9355--9366. PMLR, 2021.
+
+\bibitem{wang2025testtimeregressionunifyingframework}
+Ke~Alexander Wang, Jiaxin Shi, and Emily~B. Fox.
+\newblock Test-time regression: a unifying framework for designing sequence models with associative memory, 2025.
+
+\bibitem{behrouz2024titans}
+Ali Behrouz, Peilin Zhong, and Vahab Mirrokni.
+\newblock Titans: Learning to memorize at test time.
+\newblock {\em arXiv preprint arXiv:2501.00663}, 2024.
+
+\bibitem{behrouz2025itsconnectedjourneytesttime}
+Ali Behrouz, Meisam Razaviyayn, Peilin Zhong, and Vahab Mirrokni.
+\newblock It's all connected: A journey through test-time memorization, attentional bias, retention, and online optimization, 2025.
+
+\bibitem{karami2025lattice}
+Mahdi Karami and Vahab Mirrokni.
+\newblock Lattice: Learning to efficiently compress the memory.
+\newblock {\em arXiv preprint arXiv:2504.05646}, 2025.
+
+\bibitem{jordan2024muon}
+Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse, and Jeremy Bernstein.
+\newblock Muon: An optimizer for hidden layers in neural networks, 2024.
+
+\bibitem{kerbl20233d}
+Bernhard Kerbl, Georgios Kopanas, Thomas Leimk{\"u}hler, and George Drettakis.
+\newblock 3d gaussian splatting for real-time radiance field rendering.
+\newblock {\em ACM Trans. Graph.}, 42(4):139--1, 2023.
+
+\bibitem{yang2024parallelizing}
+Songlin Yang, Bailin Wang, Yu~Zhang, Yikang Shen, and Yoon Kim.
+\newblock Parallelizing linear transformers with the delta rule over sequence length.
+\newblock {\em arXiv preprint arXiv:2406.06484}, 2024.
+
+\bibitem{sun2023retentive}
+Yutao Sun, Li~Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, and Furu Wei.
+\newblock Retentive network: A successor to transformer for large language models.
+\newblock {\em arXiv preprint arXiv:2307.08621}, 2023.
+
+\bibitem{gu2023mamba}
+Albert Gu and Tri Dao.
+\newblock Mamba: Linear-time sequence modeling with selective state spaces.
+\newblock {\em arXiv preprint arXiv:2312.00752}, 2023.
+
+\bibitem{yang2024gated}
+Songlin Yang, Bailin Wang, Yikang Shen, Rameswar Panda, and Yoon Kim.
+\newblock Gated linear attention transformers with hardware-efficient training.
+\newblock In {\em International Conference on Machine Learning}, pages 56501--56523. PMLR, 2024.
+
+\bibitem{qinvarious}
+Zhen Qin, Weigao Sun, Dong Li, Xuyang Shen, Weixuan Sun, and Yiran Zhong.
+\newblock Various lengths, constant speed: Efficient language modeling with lightning attention.
+\newblock In {\em Forty-first International Conference on Machine Learning}, 2024.
+
+\bibitem{yangparallelizing}
+Songlin Yang, Bailin Wang, Yu~Zhang, Yikang Shen, and Yoon Kim.
+\newblock Parallelizing linear transformers with the delta rule over sequence length.
+\newblock In {\em The Thirty-eighth Annual Conference on Neural Information Processing Systems}, 2024.
+
+\bibitem{dao2023flashattention}
+Tri Dao.
+\newblock Flashattention-2: Faster attention with better parallelism and work partitioning.
+\newblock {\em arXiv preprint arXiv:2307.08691}, 2023.
+
+\bibitem{milakov2018online}
+Maxim Milakov and Natalia Gimelshein.
+\newblock Online normalizer calculation for softmax.
+\newblock {\em arXiv preprint arXiv:1805.02867}, 2018.
+
+\bibitem{dao2022flashattention}
+Tri Dao, Dan Fu, Stefano Ermon, Atri Rudra, and Christopher R{\'e}.
+\newblock Flashattention: Fast and memory-efficient exact attention with io-awareness.
+\newblock {\em Advances in neural information processing systems}, 35:16344--16359, 2022.
+
+\bibitem{he2015deep}
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.
+\newblock Deep residual learning for image recognition. arxiv e-prints.
+\newblock {\em arXiv preprint arXiv:1512.03385}, 10:9, 2015.
+
+\bibitem{touvron2023llama}
+Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian~Canton Ferrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes, Jeremy Fu, Wenyin Fu, Brian Fuller, Cynthia Gao, Vedanuj Goswami, Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann, Artem Korenev, Punit~Singh Koura, Marie-Anne Lachaux, Thibaut Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao, Xavier Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie, Andrew Poulton, Jeremy Reizenstein, Rashi Rungta, Kalyan Saladi, Alan Schelten, Ruan Silva, Eric~Michael Smith, Ranjan Subramanian, Xiaoqing~Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian~Xiang Kuan, Puxin Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela Fan, Melanie Kambadur, Sharan Narang, Aurelien Rodriguez, Robert Stojnic, Sergey Edunov, and Thomas
+  Scialom.
+\newblock Llama 2: Open foundation and fine-tuned chat models, 2023.
+
+\bibitem{shazeer2020glu}
+Noam Shazeer.
+\newblock Glu variants improve transformer, 2020.
+
+\bibitem{salimans2016weight}
+Tim Salimans and Durk~P Kingma.
+\newblock Weight normalization: A simple reparameterization to accelerate training of deep neural networks.
+\newblock {\em Advances in neural information processing systems}, 29, 2016.
+
+\bibitem{dao2024transformers}
+Tri Dao and Albert Gu.
+\newblock Transformers are ssms: Generalized models and efficient algorithms through structured state space duality.
+\newblock {\em arXiv preprint arXiv:2405.21060}, 2024.
+
+\bibitem{arora2024simple}
+Simran Arora, Sabri Eyuboglu, Michael Zhang, Aman Timalsina, Silas Alberti, Dylan Zinsley, James Zou, Atri Rudra, and Christopher R{\'e}.
+\newblock Simple linear attention language models balance the recall-throughput tradeoff.
+\newblock {\em arXiv preprint arXiv:2402.18668}, 2024.
+
+\bibitem{hua2022transformer}
+Weizhe Hua, Zihang Dai, Hanxiao Liu, and Quoc Le.
+\newblock Transformer quality in linear time.
+\newblock In {\em International conference on machine learning}, pages 9099--9117. PMLR, 2022.
+
+\bibitem{munkhdalai2024leavecontextbehindefficient}
+Tsendsuren Munkhdalai, Manaal Faruqui, and Siddharth Gopal.
+\newblock Leave no context behind: Efficient infinite context transformers with infini-attention, 2024.
+
+\bibitem{mcmillan2023plenoptic}
+Leonard McMillan and Gary Bishop.
+\newblock Plenoptic modeling: An image-based rendering system.
+\newblock In {\em Seminal Graphics Papers: Pushing the Boundaries, Volume 2}, pages 433--440. 2023.
+
+\bibitem{levoy2023light}
+Marc Levoy and Pat Hanrahan.
+\newblock Light field rendering.
+\newblock In {\em Seminal Graphics Papers: Pushing the Boundaries, Volume 2}, pages 441--452. 2023.
+
+\bibitem{jin2024lvsm}
+Haian Jin, Hanwen Jiang, Hao Tan, Kai Zhang, Sai Bi, Tianyuan Zhang, Fujun Luan, Noah Snavely, and Zexiang Xu.
+\newblock Lvsm: A large view synthesis model with minimal 3d inductive bias.
+\newblock {\em arXiv preprint arXiv:2410.17242}, 2024.
+
+\bibitem{dosovitskiy2020image}
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, et~al.
+\newblock An image is worth 16x16 words: Transformers for image recognition at scale.
+\newblock {\em arXiv preprint arXiv:2010.11929}, 2020.
+
+\bibitem{deitke2023objaverse}
+Matt Deitke, Dustin Schwenk, Jordi Salvador, Luca Weihs, Oscar Michel, Eli VanderBilt, Ludwig Schmidt, Kiana Ehsani, Aniruddha Kembhavi, and Ali Farhadi.
+\newblock Objaverse: A universe of annotated 3d objects.
+\newblock In {\em Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pages 13142--13153, 2023.
+
+\bibitem{zhang2024gs}
+Kai Zhang, Sai Bi, Hao Tan, Yuanbo Xiangli, Nanxuan Zhao, Kalyan Sunkavalli, and Zexiang Xu.
+\newblock Gs-lrm: Large reconstruction model for 3d gaussian splatting.
+\newblock In {\em European Conference on Computer Vision}, pages 1--19. Springer, 2024.
+
+\bibitem{downs2022google}
+Laura Downs, Anthony Francis, Nate Koenig, Brandon Kinman, Ryan Hickman, Krista Reymann, Thomas~B McHugh, and Vincent Vanhoucke.
+\newblock Google scanned objects: A high-quality dataset of 3d scanned household items.
+\newblock In {\em 2022 International Conference on Robotics and Automation (ICRA)}, pages 2553--2560. IEEE, 2022.
+
+\bibitem{ling2024dl3dv}
+Lu~Ling, Yichen Sheng, Zhi Tu, Wentian Zhao, Cheng Xin, Kun Wan, Lantao Yu, Qianyu Guo, Zixun Yu, Yawen Lu, et~al.
+\newblock Dl3dv-10k: A large-scale scene dataset for deep learning-based 3d vision.
+\newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pages 22160--22169, 2024.
+
+\bibitem{jaegle2021perceiver}
+Andrew Jaegle, Felix Gimeno, Andy Brock, Oriol Vinyals, Andrew Zisserman, and Joao Carreira.
+\newblock Perceiver: General perception with iterative attention.
+\newblock In {\em International conference on machine learning}, pages 4651--4664. PMLR, 2021.
+
+\bibitem{ziwen2024long}
+Chen Ziwen, Hao Tan, Kai Zhang, Sai Bi, Fujun Luan, Yicong Hong, Li~Fuxin, and Zexiang Xu.
+\newblock Long-lrm: Long-sequence large reconstruction model for wide-coverage gaussian splats.
+\newblock {\em arXiv preprint arXiv:2410.12781}, 2024.
+
+\bibitem{long_data_collection}
+Together AI.
+\newblock Long data collections database, 2024.
+
+\bibitem{linforgetting}
+Zhixuan Lin, Evgenii Nikishin, Xu~He, and Aaron Courville.
+\newblock Forgetting transformer: Softmax attention with a forget gate.
+\newblock In {\em The Thirteenth International Conference on Learning Representations}, 2025.
+
+\bibitem{hsiehruler}
+Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman, Shantanu Acharya, Dima Rekesh, Fei Jia, and Boris Ginsburg.
+\newblock Ruler: What’s the real context size of your long-context language models?
+\newblock In {\em First Conference on Language Modeling}, 2024.
+
+\bibitem{xiong2023effective}
+Wenhan Xiong, Jingyu Liu, Igor Molybog, Hejia Zhang, Prajjwal Bhargava, Rui Hou, Louis Martin, Rashi Rungta, Karthik~Abinav Sankararaman, Barlas Oguz, Madian Khabsa, Han Fang, Yashar Mehdad, Sharan Narang, Kshitiz Malik, Angela Fan, Shruti Bhosale, Sergey Edunov, Mike Lewis, Sinong Wang, and Hao Ma.
+\newblock Effective long-context scaling of foundation models, 2023.
+
+\bibitem{men2024base}
+Xin Men, Mingyu Xu, Bingning Wang, Qingyu Zhang, Hongyu Lin, Xianpei Han, and Weipeng Chen.
+\newblock Base of rope bounds context length.
+\newblock {\em arXiv preprint arXiv:2405.14591}, 2024.
+
+\bibitem{su2023roformer}
+Jianlin Su, Yu~Lu, Shengfeng Pan, Ahmed Murtadha, Bo~Wen, and Yunfeng Liu.
+\newblock Roformer: Enhanced transformer with rotary position embedding, 2023.
+
+\bibitem{wang2025wan}
+Ang Wang, Baole Ai, Bin Wen, Chaojie Mao, Chen-Wei Xie, Di~Chen, Feiwu Yu, Haiming Zhao, Jianxiao Yang, Jianyuan Zeng, et~al.
+\newblock Wan: Open and advanced large-scale video generative models.
+\newblock {\em arXiv preprint arXiv:2503.20314}, 2025.
+
+\bibitem{esser2403scaling}
+Patrick Esser, Sumith Kulal, Andreas Blattmann, Rahim Entezari, Jonas M{\"u}ller, Harry Saini, Yam Levi, Dominik Lorenz, Axel Sauer, Frederic Boesel, et~al.
+\newblock Scaling rectified flow transformers for high-resolution image synthesis, 2024.
+\newblock {\em URL https://arxiv. org/abs/2403.03206}, 2, 2024.
+
+\bibitem{behrouz2025s}
+Ali Behrouz, Meisam Razaviyayn, Peilin Zhong, and Vahab Mirrokni.
+\newblock It's all connected: A journey through test-time memorization, attentional bias, retention, and online optimization.
+\newblock {\em arXiv preprint arXiv:2504.13173}, 2025.
+
+\bibitem{hua2022transformerqualitylineartime}
+Weizhe Hua, Zihang Dai, Hanxiao Liu, and Quoc~V. Le.
+\newblock Transformer quality in linear time, 2022.
+
+\bibitem{ma2023mega}
+Xuezhe Ma, Chunting Zhou, Xiang Kong, Junxian He, Liangke Gui, Graham Neubig, Jonathan May, and Luke Zettlemoyer.
+\newblock Mega: Moving average equipped gated attention.
+\newblock In {\em The Eleventh International Conference on Learning Representations}, 2023.
+
+\bibitem{ma2024megalodon}
+Xuezhe Ma, Xiaomeng Yang, Wenhan Xiong, Beidi Chen, LILI YU, Hao Zhang, Jonathan May, Luke Zettlemoyer, Omer Levy, and Chunting Zhou.
+\newblock Megalodon: Efficient {LLM} pretraining and inference with unlimited context length.
+\newblock In {\em The Thirty-eighth Annual Conference on Neural Information Processing Systems}, 2024.
+
+\bibitem{hutchins2022blockrecurrent}
+DeLesley Hutchins, Imanol Schlag, Yuhuai Wu, Ethan Dyer, and Behnam Neyshabur.
+\newblock Block-recurrent transformers.
+\newblock In Alice~H. Oh, Alekh Agarwal, Danielle Belgrave, and Kyunghyun Cho, editors, {\em Advances in Neural Information Processing Systems}, 2022.
+
+\bibitem{mildenhall2021nerf}
+Ben Mildenhall, Pratul~P Srinivasan, Matthew Tancik, Jonathan~T Barron, Ravi Ramamoorthi, and Ren Ng.
+\newblock Nerf: Representing scenes as neural radiance fields for view synthesis.
+\newblock {\em Communications of the ACM}, 65(1):99--106, 2021.
+
+\bibitem{liu2023zero}
+Ruoshi Liu, Rundi Wu, Basile Van~Hoorick, Pavel Tokmakov, Sergey Zakharov, and Carl Vondrick.
+\newblock Zero-1-to-3: Zero-shot one image to 3d object.
+\newblock In {\em Proceedings of the IEEE/CVF international conference on computer vision}, pages 9298--9309, 2023.
+
+\bibitem{videoworldsimulators2024}
+Tim Brooks, Bill Peebles, Connor Holmes, Will DePue, Yufei Guo, Li~Jing, David Schnurr, Joe Taylor, Troy Luhman, Eric Luhman, Clarence Ng, Ricky Wang, and Aditya Ramesh.
+\newblock Video generation models as world simulators.
+\newblock 2024.
+
+\bibitem{yang2024cogvideox}
+Zhuoyi Yang, Jiayan Teng, Wendi Zheng, Ming Ding, Shiyu Huang, Jiazheng Xu, Yuanming Yang, Wenyi Hong, Xiaohan Zhang, Guanyu Feng, et~al.
+\newblock Cogvideox: Text-to-video diffusion models with an expert transformer.
+\newblock {\em arXiv preprint arXiv:2408.06072}, 2024.
+
+\bibitem{polyak2410movie}
+A~Polyak, A~Zohar, A~Brown, A~Tjandra, A~Sinha, A~Lee, A~Vyas, B~Shi, CY~Ma, CY~Chuang, et~al.
+\newblock Movie gen: A cast of media foundation models, 2025.
+\newblock {\em URL https://arxiv. org/abs/2410.13720}, page~51, 2024.
+
+\bibitem{sohl2015deep}
+Jascha Sohl-Dickstein, Eric Weiss, Niru Maheswaranathan, and Surya Ganguli.
+\newblock Deep unsupervised learning using nonequilibrium thermodynamics.
+\newblock In {\em International conference on machine learning}, pages 2256--2265. pmlr, 2015.
+
+\bibitem{song2020score}
+Yang Song, Jascha Sohl-Dickstein, Diederik~P Kingma, Abhishek Kumar, Stefano Ermon, and Ben Poole.
+\newblock Score-based generative modeling through stochastic differential equations.
+\newblock {\em arXiv preprint arXiv:2011.13456}, 2020.
+
+\bibitem{lipman2022flow}
+Yaron Lipman, Ricky~TQ Chen, Heli Ben-Hamu, Maximilian Nickel, and Matt Le.
+\newblock Flow matching for generative modeling.
+\newblock {\em arXiv preprint arXiv:2210.02747}, 2022.
+
+\bibitem{alonso2024diffusion}
+Eloi Alonso, Adam Jelley, Vincent Micheli, Anssi Kanervisto, Amos~J Storkey, Tim Pearce, and Fran{\c{c}}ois Fleuret.
+\newblock Diffusion for world modeling: Visual details matter in atari.
+\newblock {\em Advances in Neural Information Processing Systems}, 37:58757--58791, 2024.
+
+\bibitem{jin2024pyramidal}
+Yang Jin, Zhicheng Sun, Ningyuan Li, Kun Xu, Hao Jiang, Nan Zhuang, Quzhe Huang, Yang Song, Yadong Mu, and Zhouchen Lin.
+\newblock Pyramidal flow matching for efficient video generative modeling.
+\newblock {\em arXiv preprint arXiv:2410.05954}, 2024.
+
+\bibitem{valevski2024diffusion}
+Dani Valevski, Yaniv Leviathan, Moab Arar, and Shlomi Fruchter.
+\newblock Diffusion models are real-time game engines.
+\newblock {\em arXiv preprint arXiv:2408.14837}, 2024.
+
+\bibitem{ruhe2024rolling}
+David Ruhe, Jonathan Heek, Tim Salimans, and Emiel Hoogeboom.
+\newblock Rolling diffusion models.
+\newblock In {\em International Conference on Machine Learning}, pages 42818--42835. PMLR, 2024.
+
+\bibitem{yin2024slow}
+Tianwei Yin, Qiang Zhang, Richard Zhang, William~T Freeman, Fredo Durand, Eli Shechtman, and Xun Huang.
+\newblock From slow bidirectional to fast causal video generators.
+\newblock {\em arXiv preprint arXiv:2412.07772}, 2024.
+
+\bibitem{song2025history}
+Kiwhan Song, Boyuan Chen, Max Simchowitz, Yilun Du, Russ Tedrake, and Vincent Sitzmann.
+\newblock History-guided video diffusion.
+\newblock {\em arXiv preprint arXiv:2502.06764}, 2025.
+
+\bibitem{chen2024diffusion}
+Boyuan Chen, Diego Mart{\'\i}~Mons{\'o}, Yilun Du, Max Simchowitz, Russ Tedrake, and Vincent Sitzmann.
+\newblock Diffusion forcing: Next-token prediction meets full-sequence diffusion.
+\newblock {\em Advances in Neural Information Processing Systems}, 37:24081--24125, 2024.
+
+\bibitem{magi1}
+Sand-AI.
+\newblock Magi-1: Autoregressive video generation at scale, 2025.
+
+\bibitem{zhang2018unreasonable}
+Richard Zhang, Phillip Isola, Alexei~A Efros, Eli Shechtman, and Oliver Wang.
+\newblock The unreasonable effectiveness of deep features as a perceptual metric.
+\newblock In {\em Proceedings of the IEEE conference on computer vision and pattern recognition}, pages 586--595, 2018.
+
+\bibitem{henry2020query}
+Alex Henry, Prudhvi~Raj Dachapally, Shubham~Shantaram Pawar, and Yuxuan Chen.
+\newblock Query-key normalization for transformers.
+\newblock In {\em Findings of the Association for Computational Linguistics: EMNLP 2020}, pages 4246--4253, 2020.
+
+\bibitem{gao2020pile}
+Leo Gao, Stella Biderman, Sid Black, Laurence Golding, Travis Hoppe, Charles Foster, Jason Phang, Horace He, Anish Thite, Noa Nabeshima, Shawn Presser, and Connor Leahy.
+\newblock The pile: An 800gb dataset of diverse text for language modeling.
+\newblock {\em arXiv preprint arXiv:2101.00027}, 2020.
+
+\bibitem{chen2024internvl}
+Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo Chen, Sen Xing, Muyan Zhong, Qinglong Zhang, Xizhou Zhu, Lewei Lu, et~al.
+\newblock Internvl: Scaling up vision foundation models and aligning for generic visual-linguistic tasks.
+\newblock In {\em Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pages 24185--24198, 2024.
+
+\bibitem{wang2024mambainllama}
+Junxiong Wang, Daniele Paliotta, Avner May, Alexander Rush, and Tri Dao.
+\newblock The mamba in the llama: Distilling and accelerating hybrid models.
+\newblock {\em Advances in Neural Information Processing Systems}, 37:62432--62457, 2024.
+
+\bibitem{he2024flexattention}
+Horace He, Driss Guessous, Yanbo Liang, and Joy Dong.
+\newblock Flexattention: The flexibility of pytorch with the performance of flashattention.
+\newblock {\em PyTorch Blog}, 8, 2024.
+
+\bibitem{zhao2023unipc}
+Wenliang Zhao, Lujia Bai, Yongming Rao, Jie Zhou, and Jiwen Lu.
+\newblock Unipc: A unified predictor-corrector framework for fast sampling of diffusion models.
+\newblock {\em Advances in Neural Information Processing Systems}, 36:49842--49869, 2023.
+
+\bibitem{jacobs2023deepspeed}
+Sam~Ade Jacobs, Masahiro Tanaka, Chengming Zhang, Minjia Zhang, Shuaiwen~Leon Song, Samyam Rajbhandari, and Yuxiong He.
+\newblock Deepspeed ulysses: System optimizations for enabling training of extreme long sequence transformer models.
+\newblock {\em arXiv preprint arXiv:2309.14509}, 2023.
+
+\bibitem{fang2024usp}
+Jiarui Fang and Shangchun Zhao.
+\newblock Usp: A unified sequence parallelism approach for long context generative ai.
+\newblock {\em arXiv preprint arXiv:2405.07719}, 2024.
+
+\end{thebibliography}

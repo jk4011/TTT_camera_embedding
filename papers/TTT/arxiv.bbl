@@ -1,0 +1,422 @@
+\begin{thebibliography}{10}
+
+\bibitem{achiam2023gpt}
+Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia~Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et~al.
+\newblock Gpt-4 technical report.
+\newblock {\em arXiv preprint arXiv:2303.08774}, 2023.
+
+\bibitem{andrychowicz2016learning}
+Marcin Andrychowicz, Misha Denil, Sergio Gomez, Matthew~W Hoffman, David Pfau, Tom Schaul, Brendan Shillingford, and Nando De~Freitas.
+\newblock Learning to learn by gradient descent by gradient descent.
+\newblock {\em Advances in neural information processing systems}, 29, 2016.
+
+\bibitem{authorsguild2023}
+{Authors Guild}.
+\newblock You just found out your book was used to train ai. now what?, 2023.
+\newblock Accessed: 2024-06-24.
+
+\bibitem{beck2024xlstm}
+Maximilian Beck, Korbinian P{\"o}ppel, Markus Spanring, Andreas Auer, Oleksandra Prudnikova, Michael Kopp, G{\"u}nter Klambauer, Johannes Brandstetter, and Sepp Hochreiter.
+\newblock xlstm: Extended long short-term memory.
+\newblock {\em arXiv preprint arXiv:2405.04517}, 2024.
+
+\bibitem{bengio1990learning}
+Yoshua Bengio, Samy Bengio, and Jocelyn Cloutier.
+\newblock {\em Learning a synaptic learning rule}.
+\newblock Citeseer, 1990.
+
+\bibitem{bierens1988nadaraya}
+Hermanus~Josephus Bierens.
+\newblock The nadaraya-watson kernel regression function estimator.
+\newblock {\em (Serie Research Memoranda; No. 1988-58). Faculty of Economics and Business Administration, Vrije Universiteit Amsterdam.}, 1988.
+
+\bibitem{bishop2006pattern}
+Christopher~M Bishop and Nasser~M Nasrabadi.
+\newblock {\em Pattern recognition and machine learning}, volume~4.
+\newblock Springer, 2006.
+
+\bibitem{black2022gpt}
+Sid Black, Stella Biderman, Eric Hallahan, Quentin Anthony, Leo Gao, Laurence Golding, Horace He, Connor Leahy, Kyle McDonell, Jason Phang, et~al.
+\newblock Gpt-neox-20b: An open-source autoregressive language model.
+\newblock {\em arXiv preprint arXiv:2204.06745}, 2022.
+
+\bibitem{bottou1992local}
+L{\'e}on Bottou and Vladimir Vapnik.
+\newblock Local learning algorithms.
+\newblock {\em Neural computation}, 4(6):888--900, 1992.
+
+\bibitem{breiman1977variable}
+Leo Breiman, William Meisel, and Edward Purcell.
+\newblock Variable kernel estimates of multivariate densities.
+\newblock {\em Technometrics}, 19(2):135--144, 1977.
+
+\bibitem{cai2001weighted}
+Zongwu Cai.
+\newblock Weighted nadaraya--watson regression estimation.
+\newblock {\em Statistics \& probability letters}, 51(3):307--318, 2001.
+
+\bibitem{chen2016training}
+Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
+\newblock Training deep nets with sublinear memory cost, 2016.
+
+\bibitem{chen2020improved}
+Xinlei Chen, Haoqi Fan, Ross Girshick, and Kaiming He.
+\newblock Improved baselines with momentum contrastive learning.
+\newblock {\em arXiv preprint arXiv:2003.04297}, 2020.
+
+\bibitem{chen2017tutorial}
+Yen-Chi Chen.
+\newblock A tutorial on kernel density estimation and recent advances.
+\newblock {\em Biostatistics \& Epidemiology}, 1(1):161--187, 2017.
+
+\bibitem{clark2022meta}
+Kevin Clark, Kelvin Guu, Ming-Wei Chang, Panupong Pasupat, Geoffrey Hinton, and Mohammad Norouzi.
+\newblock Meta-learning fast weight language models.
+\newblock {\em arXiv preprint arXiv:2212.02475}, 2022.
+
+\bibitem{collobert2006large}
+Ronan Collobert, Fabian Sinz, Jason Weston, L{\'e}on Bottou, and Thorsten Joachims.
+\newblock Large scale transductive svms.
+\newblock {\em Journal of Machine Learning Research}, 7(8), 2006.
+
+\bibitem{dao2024transformers}
+Tri Dao and Albert Gu.
+\newblock Transformers are ssms: Generalized models and efficient algorithms through structured state space duality.
+\newblock {\em arXiv preprint arXiv:2405.21060}, 2024.
+
+\bibitem{de2024griffin}
+Soham De, Samuel~L Smith, Anushan Fernando, Aleksandar Botev, George Cristian-Muraru, Albert Gu, Ruba Haroun, Leonard Berrada, Yutian Chen, Srivatsan Srinivasan, et~al.
+\newblock Griffin: Mixing gated linear recurrences with local attention for efficient language models.
+\newblock {\em arXiv preprint arXiv:2402.19427}, 2024.
+
+\bibitem{devries2023contextlength}
+Harm de~Vries.
+\newblock In the long (context) run, 2023.
+\newblock Accessed: 2024-06-24.
+
+\bibitem{feldman1982dynamic}
+Jerome~A Feldman.
+\newblock Dynamic connections in neural networks.
+\newblock {\em Biological cybernetics}, 46(1):27--39, 1982.
+
+\bibitem{finn2017model}
+Chelsea Finn, Pieter Abbeel, and Sergey Levine.
+\newblock Model-agnostic meta-learning for fast adaptation of deep networks.
+\newblock In {\em International conference on machine learning}, pages 1126--1135. PMLR, 2017.
+
+\bibitem{Gammerman98learningby}
+A.~Gammerman, V.~Vovk, and V.~Vapnik.
+\newblock Learning by transduction.
+\newblock In {\em In Uncertainty in Artificial Intelligence}, pages 148--155. Morgan Kaufmann, 1998.
+
+\bibitem{ttt-mae}
+Yossi Gandelsman, Yu~Sun, Xinlei Chen, and Alexei~A. Efros.
+\newblock Test-time training with masked autoencoders.
+\newblock {\em Advances in Neural Information Processing Systems}, 2022.
+
+\bibitem{gao2020pile}
+Leo Gao, Stella Biderman, Sid Black, Laurence Golding, Travis Hoppe, Charles Foster, Jason Phang, Horace He, Anish Thite, Noa Nabeshima, Shawn Presser, and Connor Leahy.
+\newblock The pile: An 800gb dataset of diverse text for language modeling, 2020.
+
+\bibitem{geng2023easylm}
+Xinyang Geng.
+\newblock {EasyLM: A Simple And Scalable Training Framework for Large Language Models}.
+\newblock \url{https://github.com/young-geng/EasyLM}, mar 2023.
+\newblock \url{https://github.com/young-geng/EasyLM}.
+
+\bibitem{grazzi2024unlocking}
+Riccardo Grazzi, Julien Siems, Arber Zela, J{\"o}rg~KH Franke, Frank Hutter, and Massimiliano Pontil.
+\newblock Unlocking state-tracking in linear rnns through negative eigenvalues.
+\newblock {\em International Conference on Learning Representations (ICLR)}, 2024.
+
+\bibitem{gu2023mamba}
+Albert Gu and Tri Dao.
+\newblock Mamba: Linear-time sequence modeling with selective state spaces.
+\newblock {\em arXiv preprint arXiv:2312.00752}, 2023.
+
+\bibitem{hansen2020self}
+Nicklas Hansen, Rishabh Jangir, Yu~Sun, Guillem Aleny{\`a}, Pieter Abbeel, Alexei~A Efros, Lerrel Pinto, and Xiaolong Wang.
+\newblock Self-supervised policy adaptation during deployment.
+\newblock {\em arXiv preprint arXiv:2007.04309}, 2020.
+
+\bibitem{hardt2023test}
+Moritz Hardt and Yu~Sun.
+\newblock Test-time training on nearest neighbors for large language models.
+\newblock {\em arXiv preprint arXiv:2305.18466}, 2023.
+
+\bibitem{horace2024}
+Horace He.
+\newblock Strangely, matrix multiplications on gpus run faster when given "predictable" data! [short], 2024.
+\newblock Accessed: 2024-06-30.
+
+\bibitem{hendrycks2016gaussian}
+Dan Hendrycks and Kevin Gimpel.
+\newblock Gaussian error linear units (gelus).
+\newblock {\em arXiv preprint arXiv:1606.08415}, 2016.
+
+\bibitem{hinton1987using}
+Geoffrey~E Hinton and David~C Plaut.
+\newblock Using fast weights to deblur old memories.
+\newblock In {\em Proceedings of the ninth annual conference of the Cognitive Science Society}, pages 177--186, 1987.
+
+\bibitem{hochreiter1997long}
+Sepp Hochreiter and J{\"u}rgen Schmidhuber.
+\newblock Long short-term memory.
+\newblock {\em Neural computation}, 9(8):1735--1780, 1997.
+
+\bibitem{hoffmann2022training}
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford, Diego de~Las~Casas, Lisa~Anne Hendricks, Johannes Welbl, Aidan Clark, Tom Hennigan, Eric Noland, Katie Millican, George van~den Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karen Simonyan, Erich Elsen, Jack~W. Rae, Oriol Vinyals, and Laurent Sifre.
+\newblock Training compute-optimal large language models, 2022.
+
+\bibitem{irie2022dual}
+Kazuki Irie, R{\'o}bert Csord{\'a}s, and J{\"u}rgen Schmidhuber.
+\newblock The dual form of neural networks revisited: Connecting test time predictions to training patterns via spotlights of attention.
+\newblock In {\em International Conference on Machine Learning}, pages 9639--9659. PMLR, 2022.
+
+\bibitem{irie2023practical}
+Kazuki Irie, R{\'o}bert Csord{\'a}s, and J{\"u}rgen Schmidhuber.
+\newblock Practical computational power of linear transformers and their recurrent and self-referential extensions.
+\newblock {\em Conference on Empirical Methods in Natural Language Processing (EMNLP)}, 2023.
+
+\bibitem{irie2022neural}
+Kazuki Irie, Francesco Faccio, and J{\"u}rgen Schmidhuber.
+\newblock Neural differential equations for learning to program neural nets through continuous learning rules.
+\newblock {\em Advances in Neural Information Processing Systems}, 35:38614--38628, 2022.
+
+\bibitem{irie2021going}
+Kazuki Irie, Imanol Schlag, R{\'o}bert Csord{\'a}s, and J{\"u}rgen Schmidhuber.
+\newblock Going beyond linear transformers with recurrent fast weight programmers.
+\newblock {\em Advances in Neural Information Processing Systems}, 34:7703--7717, 2021.
+
+\bibitem{irie2022modern}
+Kazuki Irie, Imanol Schlag, R{\'o}bert Csord{\'a}s, and J{\"u}rgen Schmidhuber.
+\newblock A modern self-referential weight matrix that learns to modify itself.
+\newblock In {\em International Conference on Machine Learning}, pages 9660--9677. PMLR, 2022.
+
+\bibitem{irie2022images}
+Kazuki Irie and J{\"u}rgen Schmidhuber.
+\newblock Images as weight matrices: Sequential image generation through synaptic learning rules.
+\newblock {\em International Conference on Learning Representations (ICLR)}, 2022.
+
+\bibitem{jain2011online}
+Vidit Jain and Erik Learned-Miller.
+\newblock Online domain adaptation of a pre-trained cascade of classifiers.
+\newblock In {\em CVPR 2011}, pages 577--584. IEEE, 2011.
+
+\bibitem{joachims2002learning}
+Thorsten Joachims.
+\newblock {\em Learning to classify text using support vector machines}, volume 668.
+\newblock Springer Science \& Business Media, 2002.
+
+\bibitem{kaplan2020scaling}
+Jared Kaplan, Sam McCandlish, Tom Henighan, Tom~B Brown, Benjamin Chess, Rewon Child, Scott Gray, Alec Radford, Jeffrey Wu, and Dario Amodei.
+\newblock Scaling laws for neural language models.
+\newblock {\em arXiv preprint arXiv:2001.08361}, 2020.
+
+\bibitem{katharopoulos2020transformers}
+Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, and Fran{\c{c}}ois Fleuret.
+\newblock Transformers are rnns: Fast autoregressive transformers with linear attention.
+\newblock In {\em International conference on machine learning}, pages 5156--5165. PMLR, 2020.
+
+\bibitem{kingma2014adam}
+Diederik~P Kingma and Jimmy Ba.
+\newblock Adam: A method for stochastic optimization.
+\newblock {\em arXiv preprint arXiv:1412.6980}, 2014.
+
+\bibitem{kirsch2021meta}
+Louis Kirsch and J{\"u}rgen Schmidhuber.
+\newblock Meta learning backpropagation and improving it.
+\newblock {\em Advances in Neural Information Processing Systems}, 34:14122--14134, 2021.
+
+\bibitem{krause2018dynamic}
+Ben Krause, Emmanuel Kahembwe, Iain Murray, and Steve Renals.
+\newblock Dynamic evaluation of neural sequence models.
+\newblock In {\em International Conference on Machine Learning}, pages 2766--2775. PMLR, 2018.
+
+\bibitem{krause2019dynamic}
+Ben Krause, Emmanuel Kahembwe, Iain Murray, and Steve Renals.
+\newblock Dynamic evaluation of transformer language models.
+\newblock {\em arXiv preprint arXiv:1904.08378}, 2019.
+
+\bibitem{kwon2023efficient}
+Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody~Hao Yu, Joseph Gonzalez, Hao Zhang, and Ion Stoica.
+\newblock Efficient memory management for large language model serving with pagedattention.
+\newblock In {\em Proceedings of the 29th Symposium on Operating Systems Principles}, pages 611--626, 2023.
+
+\bibitem{lake2017building}
+Brenden~M Lake, Tomer~D Ullman, Joshua~B Tenenbaum, and Samuel~J Gershman.
+\newblock Building machines that learn and think like people.
+\newblock {\em Behavioral and brain sciences}, 40:e253, 2017.
+
+\bibitem{le2013building}
+Quoc~V Le.
+\newblock Building high-level features using large scale unsupervised learning.
+\newblock In {\em 2013 IEEE international conference on acoustics, speech and signal processing}, pages 8595--8598. IEEE, 2013.
+
+\bibitem{liu2024world}
+Hao Liu, Wilson Yan, Matei Zaharia, and Pieter Abbeel.
+\newblock World model on million-length video and language with blockwise ringattention.
+\newblock {\em arXiv preprint arXiv:2402.08268}, 2024.
+
+\bibitem{luo2020consistent}
+Xuan Luo, Jia-Bin Huang, Richard Szeliski, Kevin Matzen, and Johannes Kopf.
+\newblock Consistent video depth estimation.
+\newblock {\em ACM Transactions on Graphics (ToG)}, 39(4):71--1, 2020.
+
+\bibitem{maclaurin2015gradient}
+Dougal Maclaurin, David Duvenaud, and Ryan Adams.
+\newblock Gradient-based hyperparameter optimization through reversible learning.
+\newblock In {\em International conference on machine learning}, pages 2113--2122. PMLR, 2015.
+
+\bibitem{metz2018meta}
+Luke Metz, Niru Maheswaranathan, Brian Cheung, and Jascha Sohl-Dickstein.
+\newblock Meta-learning update rules for unsupervised representation learning.
+\newblock {\em arXiv preprint arXiv:1804.00222}, 2018.
+
+\bibitem{mullapudi2018online}
+Ravi~Teja Mullapudi, Steven Chen, Keyi Zhang, Deva Ramanan, and Kayvon Fatahalian.
+\newblock Online model distillation for efficient video inference.
+\newblock {\em arXiv preprint arXiv:1812.02699}, 2018.
+
+\bibitem{scikit-learn}
+F.~Pedregosa, G.~Varoquaux, A.~Gramfort, V.~Michel, B.~Thirion, O.~Grisel, M.~Blondel, P.~Prettenhofer, R.~Weiss, V.~Dubourg, J.~Vanderplas, A.~Passos, D.~Cournapeau, M.~Brucher, M.~Perrot, and E.~Duchesnay.
+\newblock Scikit-learn: Machine learning in {P}ython.
+\newblock {\em Journal of Machine Learning Research}, 12:2825--2830, 2011.
+
+\bibitem{peng2023rwkv}
+Bo~Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, Huanqi Cao, Xin Cheng, Michael Chung, Matteo Grella, et~al.
+\newblock Rwkv: Reinventing rnns for the transformer era.
+\newblock {\em arXiv preprint arXiv:2305.13048}, 2023.
+
+\bibitem{peng2024eagle}
+Bo~Peng, Daniel Goldstein, Quentin Anthony, Alon Albalak, Eric Alcaide, Stella Biderman, Eugene Cheah, Teddy Ferdinan, Haowen Hou, Przemys{\l}aw Kazienko, et~al.
+\newblock Eagle and finch: Rwkv with matrix-valued states and dynamic recurrence.
+\newblock {\em arXiv preprint arXiv:2404.05892}, 2024.
+
+\bibitem{qin2022devil}
+Zhen Qin, Xiaodong Han, Weixuan Sun, Dongxu Li, Lingpeng Kong, Nick Barnes, and Yiran Zhong.
+\newblock The devil in linear transformer.
+\newblock {\em arXiv preprint arXiv:2210.10340}, 2022.
+
+\bibitem{rosenblatt1958perceptron}
+Frank Rosenblatt.
+\newblock The perceptron: a probabilistic model for information storage and organization in the brain.
+\newblock {\em Psychological review}, 65(6):386, 1958.
+
+\bibitem{schlag2021linear}
+Imanol Schlag, Kazuki Irie, and J{\"u}rgen Schmidhuber.
+\newblock Linear transformers are secretly fast weight programmers.
+\newblock In {\em International Conference on Machine Learning}, pages 9355--9366. PMLR, 2021.
+
+\bibitem{schlag2020learning}
+Imanol Schlag, Tsendsuren Munkhdalai, and J{\"u}rgen Schmidhuber.
+\newblock Learning associative inference using fast weight memory.
+\newblock {\em arXiv preprint arXiv:2011.07831}, 2020.
+
+\bibitem{schmidhuber1987evolutionary}
+J{\"u}rgen Schmidhuber.
+\newblock {\em Evolutionary principles in self-referential learning, or on learning how to learn: the meta-meta-... hook}.
+\newblock PhD thesis, Technische Universit{\"a}t M{\"u}nchen, 1987.
+
+\bibitem{schmidhuber1992learning}
+J{\"u}rgen Schmidhuber.
+\newblock Learning to control fast-weight memories: An alternative to dynamic recurrent networks.
+\newblock {\em Neural Computation}, 4(1):131--139, 1992.
+
+\bibitem{shazeer2020glu}
+Noam Shazeer.
+\newblock Glu variants improve transformer, 2020.
+
+\bibitem{shleifer2021normformer}
+Sam Shleifer, Jason Weston, and Myle Ott.
+\newblock Normformer: Improved transformer pretraining with extra normalization.
+\newblock {\em arXiv preprint arXiv:2110.09456}, 2021.
+
+\bibitem{shocher2018zero}
+Assaf Shocher, Nadav Cohen, and Michal Irani.
+\newblock “zero-shot” super-resolution using deep internal learning.
+\newblock In {\em Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition}, pages 3118--3126, 2018.
+
+\bibitem{su2023roformer}
+Jianlin Su, Yu~Lu, Shengfeng Pan, Ahmed Murtadha, Bo~Wen, and Yunfeng Liu.
+\newblock Roformer: Enhanced transformer with rotary position embedding, 2023.
+
+\bibitem{sun2023learning}
+Yu~Sun, Xinhao Li, Karan Dalal, Chloe Hsu, Sanmi Koyejo, Carlos Guestrin, Xiaolong Wang, Tatsunori Hashimoto, and Xinlei Chen.
+\newblock Learning to (learn at test time).
+\newblock {\em arXiv preprint arXiv:2310.13807}, 2023.
+
+\bibitem{sun2021online}
+Yu~Sun, Wyatt~L Ubellacker, Wen-Loong Ma, Xiang Zhang, Changhao Wang, Noel~V Csomay-Shanklin, Masayoshi Tomizuka, Koushil Sreenath, and Aaron~D Ames.
+\newblock Online learning of unknown dynamics for model-based controllers in legged locomotion.
+\newblock {\em IEEE Robotics and Automation Letters}, 6(4):8442--8449, 2021.
+
+\bibitem{sun2020test}
+Yu~Sun, Xiaolong Wang, Zhuang Liu, John Miller, Alexei Efros, and Moritz Hardt.
+\newblock Test-time training with self-supervision for generalization under distribution shifts.
+\newblock In {\em International Conference on Machine Learning}, pages 9229--9248. PMLR, 2020.
+
+\bibitem{thrun1998learning}
+Sebastian Thrun and Lorien Pratt.
+\newblock Learning to learn: Introduction and overview.
+\newblock In {\em Learning to learn}, pages 3--17. Springer, 1998.
+
+\bibitem{tieleman2009using}
+Tijmen Tieleman and Geoffrey Hinton.
+\newblock Using fast weights to improve persistent contrastive divergence.
+\newblock In {\em Proceedings of the 26th annual international conference on machine learning}, pages 1033--1040, 2009.
+
+\bibitem{touvron2023llama}
+Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian~Canton Ferrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes, Jeremy Fu, Wenyin Fu, Brian Fuller, Cynthia Gao, Vedanuj Goswami, Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann, Artem Korenev, Punit~Singh Koura, Marie-Anne Lachaux, Thibaut Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao, Xavier Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie, Andrew Poulton, Jeremy Reizenstein, Rashi Rungta, Kalyan Saladi, Alan Schelten, Ruan Silva, Eric~Michael Smith, Ranjan Subramanian, Xiaoqing~Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian~Xiang Kuan, Puxin Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela Fan, Melanie Kambadur, Sharan Narang, Aurelien Rodriguez, Robert Stojnic, Sergey Edunov, and Thomas
+  Scialom.
+\newblock Llama 2: Open foundation and fine-tuned chat models, 2023.
+
+\bibitem{vapnik2013nature}
+Vladimir Vapnik.
+\newblock {\em The nature of statistical learning theory}.
+\newblock Springer science \& business media, 2013.
+
+\bibitem{denoisingautoencoder}
+Pascal Vincent, Hugo Larochelle, Yoshua Bengio, and Pierre-Antoine Manzagol.
+\newblock Extracting and composing robust features with denoising autoencoders.
+\newblock In {\em ICML}, page 1096–1103, 2008.
+
+\bibitem{von1994correlation}
+Christoph Von Der~Malsburg.
+\newblock The correlation theory of brain function.
+\newblock In {\em Models of neural networks: Temporal aspects of coding and information processing in biological systems}, pages 95--119. Springer, 1994.
+
+\bibitem{wang2023test}
+Renhao Wang, Yu~Sun, Yossi Gandelsman, Xinlei Chen, Alexei~A Efros, and Xiaolong Wang.
+\newblock Test-time training on video streams.
+\newblock {\em arXiv preprint arXiv:2307.05014}, 2023.
+
+\bibitem{wolf2019huggingface}
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pierric Cistac, Tim Rault, R{\'e}mi Louf, Morgan Funtowicz, et~al.
+\newblock Huggingface's transformers: State-of-the-art natural language processing.
+\newblock {\em arXiv preprint arXiv:1910.03771}, 2019.
+
+\bibitem{xiong2023effective}
+Wenhan Xiong, Jingyu Liu, Igor Molybog, Hejia Zhang, Prajjwal Bhargava, Rui Hou, Louis Martin, Rashi Rungta, Karthik~Abinav Sankararaman, Barlas Oguz, Madian Khabsa, Han Fang, Yashar Mehdad, Sharan Narang, Kshitiz Malik, Angela Fan, Shruti Bhosale, Sergey Edunov, Mike Lewis, Sinong Wang, and Hao Ma.
+\newblock Effective long-context scaling of foundation models, 2023.
+
+\bibitem{yang2023gated}
+Songlin Yang, Bailin Wang, Yikang Shen, Rameswar Panda, and Yoon Kim.
+\newblock Gated linear attention transformers with hardware-efficient training.
+\newblock {\em arXiv preprint arXiv:2312.06635}, 2023.
+
+\bibitem{yang2024parallelizing}
+Songlin Yang, Bailin Wang, Yu~Zhang, Yikang Shen, and Yoon Kim.
+\newblock Parallelizing linear transformers with the delta rule over sequence length.
+\newblock {\em arXiv preprint arXiv:2406.06484}, 2024.
+
+\bibitem{zhang2019root}
+Biao Zhang and Rico Sennrich.
+\newblock Root mean square layer normalization, 2019.
+
+\bibitem{zhang2006svm}
+Hao Zhang, Alexander~C Berg, Michael Maire, and Jitendra Malik.
+\newblock Svm-knn: Discriminative nearest neighbor classification for visual category recognition.
+\newblock In {\em 2006 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR'06)}, volume~2, pages 2126--2136. IEEE, 2006.
+
+\end{thebibliography}

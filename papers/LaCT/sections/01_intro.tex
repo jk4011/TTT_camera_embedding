@@ -1,0 +1,47 @@
+\section{Introduction} \label{sec:Introduction}
+
+The demand for handling long contexts is rapidly growing. While softmax attention~\cite{vaswani2017attention} has become the de facto solution for modeling various types of data, its computational cost grows quadratically with sequence length, motivating extensive research into more 
+efficient long-context modeling.
+
+Recently, Test-Time Training (TTT)~\cite{sun2024learning} has emerged as a promising approach for efficient sub-quadratic sequence modeling. TTT extends the concept of recurrent states in RNNs to a small, online-adapted sub-network.
+The parameters of this sub-network also referred to as fast weight~\cite{schlag2021linear}, as they are rapidly adapted online via self-supervised objectives to memorize in-context information. 
+Numerous recent studies~\cite{wang2025testtimeregressionunifyingframework,behrouz2024titans,behrouz2025itsconnectedjourneytesttime, karami2025lattice} have explored various online objectives, optimizers, and architectures for fast weight networks.
+
+Despite these efforts, existing TTT methods struggle to scale effectively to long contexts, primarily due to extremely low hardware utilization in their TTT layers (often below 5\% peak FLOPS on modern GPUs). 
+This inefficiency is because of the usage of
+small mini-batch sizes, i.e. updating fast weights every token or every 16 to 64 tokens, which is conventionally assumed to be more effective for in-context learning.
+Such small mini-batch results in poor parallelism and low compute intensity, and presents significant challenges for hardware-efficient 
+implementation, especially when using large, nonlinear fast weights, making it difficult to achieve non-trivial (above 10\%) FLOPs utilization. 
+
+
+In this paper, we adopt the opposite strategy and introduce Large Chunk Test-Time Training (\methodname). 
+\methodname{} leverages extremely large chunk (from 2048 to 1M tokens) as the basic unit to update the fast weight.
+Since the tokens within each large chunk are treated as an unordered set, we further integrate window attention
+into \methodname{} to capture local dependencies within the chunk.
+\methodname{} significantly enhances parallelism, leading to substantially improved GPU utilization (up to 70\% on NVIDIA A100s)  with just a few dozen lines of pure PyTorch code (see Appendix~\ref{sec:ttt_pseudocode}).
+This efficiency enables the scaling of non-linear fast weights to enhance the memory capacity. And simple implementation allows easy integration of more effective test-time optimizers, such as Muon~\cite{jordan2024muon}.
+
+Furthermore, \methodname's large-chunk design is also natural to model diverse N-dimensional data as we can align chunk-size with the internal structure of the data (e.g., grouping tokens within an image or consecutive video frames as a chunk).
+
+
+
+
+
+
+We extensively  validate \methodname{} on three tasks spanning different modalities and data structures: 
+\begin{itemize}
+\item \em{Novel View Synthesis}.
+Our model is capable of processing up to $128$ input images 
+at a resolution of $960\!\times\!536$ leading to a maximum of $1$M tokens, and  outperforms 3D Gaussian Splatting~\cite{kerbl20233d} in terms of rendering quality under such input scale.
+\item \em{Language Modeling}.
+Our model achieves competitive performance compared to SoTA methods such as DeltaNet~\cite{yang2024parallelizing}, even though a chunk structure is not explicitly present in language data.
+\item \em{Autoregressive Video Diffusion}. 
+We adapt a 14-billion-parameter bidirectional video diffusion transformer into an autoregressive model by incorporating \methodname{} with sliding window attention. This adapted model generates consistent videos up to 56,000 visual tokens.
+\end{itemize}
+
+
+To summarize, our approach establishes an efficient, scalable, and highly performant framework for long 
+sequence modeling across diverse modalities. 
+By removing the dependency on low-level, hardware-specific implementations, \methodname{} enables broader exploration of the architectural design space. We believe this can democratize research in efficient long-context modeling and inspire the development of more novel and effective designs.  
+
+

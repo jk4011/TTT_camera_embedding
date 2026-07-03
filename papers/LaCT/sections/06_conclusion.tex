@@ -1,0 +1,44 @@
+
+
+\section{Limitation}
+One limitation of our method is the absence of rotation invariance. Unlike softmax attention and linear attention, which remain invariant under uniform rotations of queries and keys (a property leveraged by relative positional encodings such as RoPE~\cite{su2023roformer}), our SwiGLU and Linear Fast Weight components do not exhibit this property. The practical implications of this absence remain underexplored.
+
+We conduct our experiments on three tasks.
+Although the tasks are diverse and cover different modalities, the effectiveness of our method would request of more tasks.
+For example, the novel-view synthesis task is essentially a 3D reconstruction with input pose information.
+The task of unposed reconstruction is more challenging and is not explored in this paper.
+
+On the language modeling task, some key aspects are not explored due to computation limitation.
+These aspects include the reasoning capacity of our \methodname{} model and also the scalability regarding the parameter size.
+Previous papers showed that a main weakness of the state-based model (where \methodname{} belongs to) is its reasoning ability.
+However, the reasoning ability is only gained with certain amount of training compute thus it is beyond our budget.
+
+Lastly, for the autoregressive video diffusion, it is hard to find a reliable and distinguishable metric to measure the model's scalability.
+It is in contrast to the language modeling with perplexity (i.e., log likelihood loss) and the novel-view synthesis with PSNR.
+We show the validation loss in our paper and it is a common choice in evaluating the scalability of video generation.
+This is a general problem for the video generation evaluation and is not specific to our paper.
+
+
+
+\section{Conclusion} \label{sec:conclusion}
+% \hao{
+We presented \methodname{}, a novel model architecture that integrates large-chunk test-time training for capturing long context with window attention for modeling local structure. 
+We validated \methodname{} across three diverse tasks spanning different modalities---novel view synthesis, language modeling, and autoregressive video diffusion---and demonstrate its effectiveness  
+by achieving superior or competitive performance when compared to state-of-the-art baselines.
+% \methodname{} empirically achieves competitive results on all  tasks.
+% Different from previous methods, 
+% \methodname{} high GPU utilization with native PyTorch implementation and it can effectively scale the state size.
+% \sai{
+\methodname{} achieves high GPU efficiency even with native PyTorch implementation with dozens of lines of code and supports efficient scaling
+up of the state size and more flexible designs in test-time training models and optimizers.  
+% }
+By open-sourcing the code and weights, we hope that \methodname{} can advocate future research explorations 
+into more performant architectures for long-context modeling.
+% }
+
+\section*{Acknowledgment}
+
+We thank Ziwen Chen for processing the DL3DV dataset and providing the K-means clustering.
+We thank Nathan Carr, Feng Liu, Jianming Zhang, and Hailin Jin for their generous support on this project. 
+We thank Haian Jin and Zexiang Xu for leading the LVSM project. 
+We thank Baqiao Liu and Haoran Cai for the video data loader. We thank Guo Han for details on the language dataset. We thank Jeremy Bernstein for discussions on Muon. 

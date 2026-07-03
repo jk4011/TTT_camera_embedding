@@ -1,0 +1,16 @@
+
+\begin{abstract}
+
+Test-Time Training (TTT) models context dependencies by adapting part of the model's weights (often referred to as fast weights) at inference time. This adapted fast weight, similar to recurrent states in RNNs, stores temporary memories of past tokens in the current sequence. Existing TTT methods have struggled to demonstrate effectiveness in handling long-sequence data, due to their computational inefficiency on modern GPUs. The TTT layers in
+many of these approaches operate with extremely low FLOPs utilization (often below 5\%) because they deliberately apply small online mini-batch sizes (e.g., updating fast weights every 16 or 64 tokens).
+Moreover, a small mini-batch implies fine-grained block-wise causal dependencies in the data, making them unsuitable for data beyond 1D ordered sequences, like sets or N-dimensional grids such as images or videos.
+In contrast, we pursue the opposite direction by proposing an extremely large chunk update, ranging from 2K to 1M tokens across tasks of varying modalities, which we refer to as Large Chunk Test-Time Training (LaCT). 
+This approach improves hardware utilization by orders of magnitude, and more importantly, facilitates scaling of nonlinear state size (up to 40\% of model parameter size), hence
+substantially improving state capacity, all without requiring cumbersome and error-prone custom kernel implementations.
+It also allows easy integration of sophisticated optimizers like Muon for online memory updates.
+We validate our approach across diverse data modalities and tasks, including novel view synthesis from image sets, language models, and auto-regressive video diffusion models. 
+Our approach can scale up to 14-billion-parameter auto-regressive video diffusion models handling sequences of up to 56K tokens. 
+In our longest sequence experiment, we perform novel view synthesis with more than one million context length. Our results highlight the computational and performance benefits of large-chunk test-time training, paving the way for more efficient and scalable long-context sequence modeling. We hope that this work will inspire and accelerate new research in the field of long-context modeling and test-time training.  See visual results on project website \url{https://tianyuanzhang.com/projects/ttt-done-right/}.
+
+
+\end{abstract}
