@@ -26,6 +26,12 @@ parser.add_argument("--load", type=str, default=None)
 parser.add_argument("--save_every", type=int, default=1000)
 parser.add_argument("--log_every", type=int, default=100)
 
+# Data
+parser.add_argument("--data_path", type=str, required=True,
+                    help="NVSDataset json or Re10K *_index.json (see --dataset)")
+parser.add_argument("--dataset", type=str, default="re10k", choices=["nvs", "re10k"])
+parser.add_argument("--num_workers", type=int, default=16)
+
 # Training
 parser.add_argument("--compile", action="store_true")
 parser.add_argument("--actckpt", action="store_true")
@@ -136,14 +142,18 @@ def remove_module_prefix(state_dict):
     return new_state_dict
 
 # Data
-dataset = NVSDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize)
+if args.dataset == "re10k":
+    from data_re10k import Re10KDataset
+    dataset = Re10KDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize)
+else:
+    dataset = NVSDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize)
 datasampler = DistributedSampler(dataset)
 
 dataloader = DataLoader(
     dataset,
     batch_size=args.bs_per_gpu,
     shuffle=False,
-    num_workers=4,
+    num_workers=args.num_workers,
     persistent_workers=True,
     pin_memory=True,
     drop_last=False,
@@ -198,7 +208,12 @@ for epoch in range((remaining_steps - 1) // len(dataloader) + 1):
 
         if dist.get_rank() == 0:
             if now_iters % args.log_every == 0 or now_iters <= 100:
-                print(f"Iter {now_iters:07d}, PSNR: {psnr:.2f}, LPIPS: {lpips_loss:.4f}")
+                import time
+                elapsed = time.time() - globals().get("_last_log_time", time.time())
+                globals()["_last_log_time"] = time.time()
+                ips = args.log_every / elapsed if elapsed > 0 and now_iters > 100 else 0.0
+                lpips_val = lpips_loss.item() if isinstance(lpips_loss, torch.Tensor) else lpips_loss
+                print(f"Iter {now_iters:07d}, PSNR: {psnr:.2f}, LPIPS: {lpips_val:.4f}, it/s: {ips:.2f}", flush=True)
             if now_iters % args.save_every == 0:
                 torch.save({
                     "model": remove_module_prefix(model.state_dict()),

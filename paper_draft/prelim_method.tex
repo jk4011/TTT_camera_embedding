@@ -1,0 +1,392 @@
+% ==========================================================================
+% Preliminaries + Method for: Plücker Rotary Addressing for Test-Time-Training
+% Camera Conditioning (Idea 2: qk_rope_cam)
+% Written to be \input{} into an ICLR-style template.
+% ==========================================================================
+
+\newcommand{\ours}{PRA\xspace}   % Plücker Rotary Addressing
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\ip}[2]{\left\langle #1, #2 \right\rangle}
+\newcommand{\silu}{\mathrm{silu}}
+\newcommand{\NS}{\mathrm{NS}}
+
+\section{Preliminaries}
+\label{sec:prelim}
+
+We first fix notation for the multi-view synthesis setting
+(\S\ref{sec:prelim-nvs}), review how rotary embeddings achieve
+\emph{relative} conditioning in attention (\S\ref{sec:prelim-rope}), and then
+describe the large-chunk test-time-training (LaCT) layer that our method
+targets (\S\ref{sec:prelim-lact}). Finally we recall Plücker coordinates,
+the ray parameterization on which our encoding is built
+(\S\ref{sec:prelim-plucker}).
+
+\subsection{Multi-view novel view synthesis with LVSM}
+\label{sec:prelim-nvs}
+
+Given $V_{\mathrm{in}}$ posed input images
+$\{(I_v, K_v, E_v)\}_{v=1}^{V_{\mathrm{in}}}$ with intrinsics
+$K_v \in \R^{3\times3}$ and camera-to-world extrinsics
+$E_v \in \mathrm{SE}(3)$, the task is to render the scene from
+$V_{\mathrm{tg}}$ novel target poses. LVSM-style models
+cast this as sequence modeling: every image is split into
+$P$ non-overlapping patches, and each patch becomes a token. Input-view
+tokens carry the patch RGB concatenated with a per-pixel ray map; target-view
+tokens carry only the ray map. A transformer-like backbone processes the
+concatenated sequence of $L = (V_{\mathrm{in}} + V_{\mathrm{tg}})\,P$ tokens,
+and target tokens are linearly decoded to RGB patches.
+
+Throughout, each token $i$ is associated with the viewing ray of its patch
+center: the ray origin $\mathbf{o}_i \in \R^3$ (the camera center of the view
+that produced the token) and the unit direction $\mathbf{d}_i \in \R^3$,
+both expressed in a \emph{canonical scene frame} obtained by normalizing the
+camera set (mean pose to identity, positions scaled into the unit box).
+We use row-vector convention: features $x \in \R^{1 \times d}$ multiply
+weights from the right, matching common implementations.
+
+\subsection{Relative conditioning via rotary embeddings in attention}
+\label{sec:prelim-rope}
+
+Rotary position embeddings (RoPE) inject positions
+into attention logits so that only \emph{relative} positions survive.
+For a scalar position $t_i$, RoPE partitions the head dimension into 2D
+pairs and rotates each pair by a position-proportional angle. Writing
+$R(\theta) \in \mathrm{SO}(2)$ for the rotation of one pair and
+$\theta_i = \omega t_i$,
+\begin{equation}
+\label{eq:rope-identity}
+\ip{R(\omega t_j)\, q}{R(\omega t_i)\, k}
+  \;=\;
+\ip{q}{R\big(\omega (t_i - t_j)\big)\, k},
+\end{equation}
+i.e., rotations meet inside the inner product and compose into a function of
+the \emph{difference} $t_i - t_j$ alone. Absolute inputs, relative
+interactions: this identity is the entire mechanism.
+
+Camera-pose extensions replace scalar positions by per-view transforms. GTA
+and PRoPE apply block-diagonal matrix representations
+of the camera transform to queries, keys, and values, so that attention
+logits contain $q^\top G_j^\top G_i k$: for orthogonal (or appropriately
+inverted projective) $G$, the product $G_j^\top G_i$ encodes the relative
+pose between the views of tokens $i$ and $j$. These constructions are
+attention-specific: they rely on the fact that every query--key interaction
+in attention is \emph{exactly} a bilinear form. Whether an analogous
+guarantee can be obtained for nonlinear fast-weight layers is the question
+addressed in this work.
+
+\subsection{Test-time training layers and LaCT}
+\label{sec:prelim-lact}
+
+A test-time-training (TTT) layer replaces the
+attention operator with a small \emph{fast-weight} network $f_W$ whose
+parameters $W$ are updated \emph{during the forward pass} by gradient
+descent on a self-supervised regression loss, then queried. LaCT
+scales this recipe with (i) a large SwiGLU
+fast-weight network and (ii) \emph{large-chunk} updates: all key--value
+pairs of the input views form a single chunk and contribute to one
+(or few) gradient step(s), which keeps GPU utilization high.
+
+Concretely, per attention head the LaCT layer used in LVSM maintains
+$W = (W_0, W_2, W_1)$ with $W_0, W_2 \in \R^{d \times d_h}$,
+$W_1 \in \R^{d_h \times d}$, and computes
+\begin{equation}
+\label{eq:swiglu-fw}
+f_W(x) \;=\; \big(\, \silu(x W_0) \odot (x W_2) \,\big)\, W_1 ,
+\end{equation}
+where $\odot$ is the elementwise product. Queries, keys and values are
+produced from the token stream by a learned projection
+$(q, k, v) = \silu(x\, W_{qkv})$, and $q, k$ are $\ell_2$-normalized per
+token. The layer executes two phases:
+
+\textbf{Update (write).} For the chunk of input-view tokens
+$\{(k_i, v_i)\}_{i \in \mathcal{I}}$, the fast weights take one gradient
+step on the negative-inner-product regression loss
+$\mathcal{L}(W) = -\sum_{i \in \mathcal{I}} \ell r_i \ip{v_i}{f_W(k_i)}$,
+where $\ell r_i > 0$ are per-token learning rates predicted from the token
+content by a small head. Writing $h(x) = \silu(x W_0) \odot (x W_2)$ for
+the hidden activation, the resulting updates are outer products
+\begin{align}
+\Delta W_1 &\;\propto\; \textstyle\sum_{i} \big(\ell r_{1,i}\, h(k_i)\big)^{\!\top} v_i,
+\label{eq:w1-update}\\
+\Delta W_0 &\;\propto\; \textstyle\sum_{i} \big(\ell r_{0,i}\, k_i\big)^{\!\top} g_i,
+\qquad
+\Delta W_2 \;\propto\; \textstyle\sum_{i} \big(\ell r_{2,i}\, k_i\big)^{\!\top} u_i,
+\label{eq:w0w2-update}
+\end{align}
+with $g_i, u_i \in \R^{1 \times d_h}$ the backpropagated signals of the
+SwiGLU gate and hidden branches (functions of $k_i$, $v_i$, and the
+pre-update weights). LaCT additionally orthogonalizes each update with a
+few Newton--Schulz iterations (Muon) and renormalizes
+weight columns to their initial norms; both operations preserve the
+outer-product \emph{structure} of \eqref{eq:w1-update}--\eqref{eq:w0w2-update}
+in the sense that the update remains a sum over tokens of rank-one terms in
+the $k$- (resp.\ $h(k)$-) direction, reweighted across tokens.
+
+\textbf{Apply (read).} Every token $j$ (input and target) queries the
+updated weights: $o_j = f_{W + \Delta W}(q_j)$.
+
+In the LaCT-LVSM architecture, camera information enters the network
+\emph{only once}, through the ray map concatenated to the RGB input at
+patchification. The TTT layer itself---the only module that exchanges
+information across views---is pose-blind: neither the write
+\eqref{eq:w1-update}--\eqref{eq:w0w2-update} nor the read has any explicit
+notion of which view a token came from, or where its ray lives in space.
+
+\subsection{Plücker coordinates}
+\label{sec:prelim-plucker}
+
+A ray $\{\mathbf{o} + t\,\mathbf{d} : t \ge 0\}$ with unit direction
+$\mathbf{d}$ determines the \emph{Plücker coordinates}
+\begin{equation}
+\label{eq:plucker}
+\pi \;=\; (\mathbf{d},\, \mathbf{m}) \in \R^6,
+\qquad
+\mathbf{m} \;=\; \mathbf{o} \times \mathbf{d}.
+\end{equation}
+The moment $\mathbf{m}$ is invariant to sliding $\mathbf{o}$ along the ray,
+so $\pi$ identifies the underlying \emph{line} irrespective of
+parameterization. Two geometric facts make Plücker coordinates a natural
+token address for multi-view synthesis. First, $\pi$ separates rays: two
+tokens see the world along the same line iff their coordinates agree.
+Second, rays that intersect at a common scene point $\mathbf{p}$ satisfy
+$\mathbf{m}_i = \mathbf{p} \times \mathbf{d}_i$, hence for two such rays
+\begin{equation}
+\label{eq:moment-bound}
+\mathbf{m}_i - \mathbf{m}_j \;=\; \mathbf{p} \times (\mathbf{d}_i - \mathbf{d}_j),
+\qquad
+\|\mathbf{m}_i - \mathbf{m}_j\| \;\le\; \|\mathbf{p}\|\, \|\mathbf{d}_i - \mathbf{d}_j\|,
+\end{equation}
+i.e., rays observing the same 3D point from nearby directions are provably
+close in Plücker space, with the moment discrepancy controlled by the scene
+radius. This is the property that will let a memory addressed by $\pi$
+associate content across views.
+
+% ==========================================================================
+\section{Method: Plücker Rotary Addressing for Fast Weights}
+\label{sec:method}
+
+Our goal is to make every LaCT layer camera-aware while (i) preserving the
+relative-encoding guarantees that make RoPE-style methods effective in
+attention, (ii) exploiting---rather than fighting---the structure of the
+fast-weight update, and (iii) leaving the architecture, the compiled update
+kernel, and the optimization dynamics untouched. We first show that the
+LaCT layer, despite its nonlinearity, reads its newly written memory
+exclusively through inner products (\S\ref{sec:method-memory}); this single
+observation transplants the RoPE identity \eqref{eq:rope-identity} to fast
+weights. We then construct the encoding (\S\ref{sec:method-pra}), analyze
+what is and is not relative (\S\ref{sec:method-analysis}), and discuss
+stability and implementation (\S\ref{sec:method-impl}).
+
+\subsection{Fast weights are inner-product-addressed memories}
+\label{sec:method-memory}
+
+Consider one LaCT layer operating in the single-chunk regime of
+\S\ref{sec:prelim-lact}: all input tokens are written in one gradient step
+taken at the pre-update weights $W^0 = (W_0^0, W_2^0, W_1^0)$, after which
+every token reads. Expanding the read of token $j$ to first order in the
+updates \eqref{eq:w1-update}--\eqref{eq:w0w2-update} gives
+\begin{equation}
+\label{eq:readout}
+o_j
+\;=\;
+\underbrace{h^0(q_j)\, W_1^0}_{\text{init readout}}
+\;+\;
+\underbrace{\sum_{i \in \mathcal{I}} \ell r_{1,i}\,
+   \ip{h^0(q_j)}{h^0(k_i)}\, v_i}_{\text{value retrieval}}
+\;+\;
+\underbrace{\sum_{i \in \mathcal{I}}
+   \ip{q_j}{k_i}\; c_{ij}}_{\text{gate/hidden corrections}}
+\;+\; O(\Delta W^2),
+\end{equation}
+where $c_{ij} \in \R^{1 \times d}$ collects the (token-dependent)
+coefficients arising from $\Delta W_0$ and $\Delta W_2$ passing through the
+SwiGLU. The derivation is elementary: every update is a sum of outer
+products $a_i^\top b_i$ with $a_i \in \{k_i,\, h^0(k_i)\}$
+(Eqs.~\ref{eq:w1-update}--\ref{eq:w0w2-update}), and a row vector meeting an
+outer product contracts through an inner product,
+$x\, (a^\top b) = \ip{x}{a}\, b$.
+
+Equation~\eqref{eq:readout} is the structural fact our method rests on, so
+we state its consequence explicitly:
+
+\begin{lemma}[Inner-product addressing]
+\label{lem:addressing}
+In the single-chunk regime, every interaction between a query $q_j$ and the
+content written by a key $k_i$---through any of $\Delta W_0, \Delta W_1,
+\Delta W_2$, at any order of the expansion---enters exclusively through the
+inner products $\ip{q_j}{k_i}$ or $\ip{h(q_j)}{h(k_i)}$. The pre-update
+weights $W^0$ are the only path by which $q_j$ affects the output not
+through an inner product with some $k_i$.
+\end{lemma}
+
+The lemma says that a LaCT layer is an associative memory with a
+\emph{kernel} readout: writes deposit rank-one payloads indexed by keys, and
+reads retrieve them weighted by query--key inner products---exactly the
+algebraic situation \eqref{eq:rope-identity} was designed for. Attention
+needed no such analysis because its logits are bilinear by definition; here
+the same property holds for the \emph{update-induced} part of a nonlinear
+layer, which is what test-time training adds to the network.
+
+\subsection{Plücker rotary addressing}
+\label{sec:method-pra}
+
+\ours{} equips every token with camera-geometry-dependent rotations applied
+to $q$ and $k$ in every TTT layer. Let $\pi_i = (\mathbf{d}_i, \mathbf{m}_i)
+\in \R^6$ be the Plücker coordinates \eqref{eq:plucker} of token $i$'s
+patch-center ray in the canonical scene frame, and let
+$\omega_1 < \dots < \omega_F$ be a geometric ladder of frequencies. Define
+$6F$ phases per token,
+\begin{equation}
+\label{eq:phases}
+\theta_i^{(a,f)} \;=\; \gamma_{a,f}\;\omega_f\; \pi_i^{(a)},
+\qquad a = 1, \dots, 6,\quad f = 1, \dots, F,
+\end{equation}
+where $\pi_i^{(a)}$ is the $a$-th Plücker coordinate and $\gamma_{a,f}$ are
+learnable per-coordinate, per-frequency gains initialized to $1$. Collect
+the phases into the block-diagonal rotation
+\begin{equation}
+\label{eq:block-rot}
+G_i \;=\;
+\mathrm{blockdiag}\Big(
+R\big(\theta_i^{(1,1)}\big), \dots, R\big(\theta_i^{(6,F)}\big),\,
+I_{d - 12F}
+\Big) \;\in\; \mathrm{SO}(d),
+\end{equation}
+which rotates the first $12F$ feature dimensions in independent 2D planes
+and leaves the remaining $d - 12F$ dimensions untouched as a pure content
+channel. After the layer's usual $\ell_2$ normalization of queries and
+keys, \ours{} applies
+\begin{equation}
+\label{eq:pra-apply}
+\tilde q_j \;=\; q_j\, G_{j}^{\top},
+\qquad
+\tilde k_i \;=\; k_i\, G_{i}^{\top},
+\end{equation}
+and the layer proceeds \emph{unchanged}: the same update kernel
+\eqref{eq:w1-update}--\eqref{eq:w0w2-update} writes $\tilde k_i$ against
+$v_i$, and reads with $\tilde q_j$. Values, learning rates, Muon, and
+weight normalization are untouched. In our instantiation $d = 256$,
+$F = 16$, so $12F = 192$ dimensions are rotated and $64$ remain
+content-only; the frequencies span
+$\omega_f \in \pi \cdot [0.5,\, 16]$, geometrically spaced, matched to the
+canonical scene scale in which camera positions lie in the unit box (so the
+lowest frequency disambiguates coarse ray orientation while the highest
+resolves sub-degree, sub-percent-of-scene ray offsets).
+
+The computation is a single fused elementwise operation--- $O(LF)$
+multiply-adds on top of an $O(L d\, d_h)$ layer---and adds $6F = 96$
+learnable scalars per layer. No new modules, losses, or kernel changes are
+introduced.
+
+\subsection{What is relative, and what is not}
+\label{sec:method-analysis}
+
+\paragraph{The update-induced kernel is exactly relative.}
+Substituting \eqref{eq:pra-apply} into the retrieval terms of
+Lemma~\ref{lem:addressing} and using orthogonality of $G$,
+\begin{equation}
+\label{eq:relative-kernel}
+\ip{\tilde q_j}{\tilde k_i}
+\;=\;
+q_j\, G_j^\top G_i\, k_i^\top
+\;=\;
+\ip{q_j}{\,k_i\,\big(G_j^\top G_i\big)^{\!\top}}
+,
+\qquad
+G_j^\top G_i
+=
+\mathrm{blockdiag}\Big( R\big(\theta_i^{(a,f)} - \theta_j^{(a,f)}\big) \Big)_{a,f},
+\end{equation}
+so every phase enters the memory readout only through the
+\emph{differences} $\theta_i^{(a,f)} - \theta_j^{(a,f)} =
+\gamma_{a,f}\,\omega_f\,(\pi_i^{(a)} - \pi_j^{(a)})$: the write/read kernel
+depends on camera geometry exclusively through the relative Plücker offset
+$\pi_i - \pi_j$ between the writing and reading rays. The same argument
+applies verbatim to the $\ip{h(\tilde q_j)}{h(\tilde k_i)}$ channel
+whenever the hidden nonlinearity is evaluated on rotated inputs whose
+interaction is mediated by the $\Delta W$ outer products
+(Lemma~\ref{lem:addressing}). In particular, by
+\eqref{eq:moment-bound}, two tokens in different views observing the same
+scene point have phase offsets bounded by scene radius times their
+directional parallax across \emph{all} frequencies simultaneously---the
+memory retrieves content written by rays through the same 3D region, which
+is precisely the inductive bias multi-view synthesis needs.
+
+\paragraph{The initial-weight residue.}
+By Lemma~\ref{lem:addressing} the only non-relative path is the pre-update
+weights: terms of the form $\tilde q_j W_0^0$ (and analogously through
+$W_2^0$, $W_1^0$) expose the \emph{absolute} phase $G_j$. Two properties
+render this residue benign. First, at initialization the columns of
+$W_0^0, W_2^0$ are isotropic Gaussian, whose distribution is invariant under
+the orthogonal maps $G_j$; the encoding therefore leaves the forward
+statistics of the network exactly unchanged at the start of training, and
+the slow weights co-adapt to the rotated input distribution thereafter.
+Second, the fast weight is a \emph{per-scene} state: because all rays are
+expressed in a canonical frame fixed by the input camera set, ``absolute''
+phases are already relative to the scene gauge---across scenes, no global
+frame is shared for the slow weights to overfit to. This argument, which
+has no analogue in attention (where the shared slow weights mediate
+\emph{all} token interactions), is particular to test-time training and is
+the reason an orthogonal, RoPE-style construction suffices where attention
+required projective machinery.
+
+\paragraph{Multi-view consistency of the memory.}
+It is instructive to read \eqref{eq:relative-kernel} as a statement about
+what the fast weight stores. With \ours{}, the rank-one payloads
+$\tilde k_i^\top(\cdot)$ deposited by the update live on phase-modulated
+key directions; a query retrieves a superposition in which each
+contribution is weighted by a product of cosines of relative Plücker
+offsets across the frequency ladder,
+\begin{equation}
+\label{eq:kernel-shape}
+\kappa(\pi_i, \pi_j) \;=\; \textstyle\sum_{c} \prod_{(a,f) \in c}
+\cos\!\big(\gamma_{a,f}\,\omega_f\,(\pi_i^{(a)} - \pi_j^{(a)})\big)\,(\dots),
+\end{equation}
+a translation-invariant kernel on Plücker space, sharply peaked at
+$\pi_i = \pi_j$ and decaying with ray disparity at a rate set by the learned
+gains. The fast weight thus behaves as a memory over the scene's
+\emph{ray space}: input views write appearance along their rays; a target
+pixel reads along its own ray and aggregates content from geometrically
+consistent writes. Cross-view association---previously the burden of
+content similarity alone---is provided by geometry at every layer.
+
+\subsection{Stability and implementation}
+\label{sec:method-impl}
+
+\paragraph{Orthogonality is load-bearing.}
+$G_i \in \mathrm{SO}(d)$ preserves the $\ell_2$ normalization of $q$ and
+$k$ exactly, so the calibration of the inner-loop loss, the per-token
+learning rates, the Muon orthogonalization, and the weight-norm constraint
+are all numerically identical to the baseline. This is what allows \ours{}
+to be inserted into the compiled update kernel's inputs without touching
+the kernel: the encoding commutes with everything downstream of the
+projections. (Non-orthogonal alternatives---e.g., projective PRoPE
+transforms---rescale tokens and act as uncontrolled perturbations of the
+write strengths; we evaluate such a variant in our experiments.)
+
+\paragraph{Where to inject.}
+\ours{} is applied \emph{after} the $\ell_2$ normalization, in every TTT
+layer, to $q$ and $k$ only. Applying it before normalization would let the
+normalization partially undo the rotation only if norms varied per block,
+which they do not; the post-norm placement makes the invariance exact and
+keeps the implementation a two-line change. Values are deliberately left
+untouched: the value pathway admits its own exact relative treatment,
+which is orthogonal to (and composable with) \ours{}.
+
+\paragraph{Learnable gains.}
+The gains $\gamma_{a,f}$ (initialized to 1) let training reweight---or
+switch off---individual coordinate/frequency channels. This subsumes
+frequency-selection heuristics: if a moment coordinate at a high frequency
+aliases for a given scene-scale distribution, its gain can decay toward
+zero, recovering the baseline behavior for that channel. At
+$\gamma \equiv 0$ the layer is exactly the pose-blind baseline, so the
+baseline is contained in \ours{}'s hypothesis class.
+
+\paragraph{Complexity and integration.}
+Per layer, \ours{} costs one elementwise rotation of $2 \times 12F$
+dimensions per token ($<0.1\%$ of layer FLOPs) and $6F$ parameters; the
+phases are computed once per forward pass from the patch-center rays
+already produced by the input pipeline, and are shared across layers up to
+the per-layer gains. Training requires no schedule changes, no auxiliary
+losses, and no modification of the LaCT kernel, checkpoint format, or
+inference-time reconstruct/render split.

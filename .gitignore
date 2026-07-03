@@ -47,3 +47,8 @@ build/
 dist/
 *.egg-info/
 .eggs/
+
+# experiment outputs (checkpoints/logs) and the Overleaf clone
+lact_nvs/outputs/
+overleaf_paper/
+*.swp

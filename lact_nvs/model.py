@@ -171,11 +171,107 @@ def compute_rays(fxfycxcy, c2w, h, w):
     return ray_o, ray_d
 
 
+def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input_views):
+    """Per-token / per-view camera tensors for camera-conditioned TTT layers.
+
+    All views (input + target) are covered; token order matches the
+    patchify rearrange "b v c (hh ph) (ww pw) -> b (v hh ww) ...".
+
+    Returns dict with:
+        tok_o, tok_d, tok_m: [b, L, 3]  patch-center Plucker (canonical frame)
+        cam_feat:            [b, L, 11] (o, d, m, fx/w, fy/h)
+        cam_feat_lr:         [b, L, 12] cam_feat + view novelty
+        view_rot:            [b, v, 3, 3] c2w rotations
+        view_w2c:            [b, v, 4, 4]
+        view_K_norm:         [b, v, 4]  (fx/w, fy/h, cx/w - 0.5, cy/h - 0.5)
+        view_pose11:         [b, v, 11] per-view pose summary
+        tokens_per_view, num_views, num_input_views
+    """
+    b, v = fxfycxcy.size(0), fxfycxcy.size(1)
+    p = patch_size
+
+    # Patch-center rays: pool pixel rays, renormalize the direction.
+    tok_d = F.avg_pool2d(ray_d.flatten(0, 1), p).unflatten(0, (b, v))  # [b,v,3,hh,ww]
+    tok_d = tok_d / (tok_d.norm(dim=2, keepdim=True) + 1e-8)
+    tok_o = c2w[:, :, :3, 3][..., None, None].expand_as(tok_d)         # cam center
+    tok_m = torch.cross(tok_o, tok_d, dim=2)
+
+    tok_o = rearrange(tok_o, "b v c hh ww -> b (v hh ww) c")
+    tok_d = rearrange(tok_d, "b v c hh ww -> b (v hh ww) c")
+    tok_m = rearrange(tok_m, "b v c hh ww -> b (v hh ww) c")
+
+    # Per-token patch footprint (half-range of each Plucker coordinate over
+    # the patch's pixel rays) for ray-cone anti-aliased phases.
+    def patch_half_range(x):  # [b, v, 3, h, w] -> [b, L, 3]
+        xf = x.flatten(0, 1)
+        half = 0.5 * (F.max_pool2d(xf, p) + F.max_pool2d(-xf, p))
+        return rearrange(half.unflatten(0, (b, v)), "b v c hh ww -> b (v hh ww) c")
+
+    ray_d_n = ray_d / (ray_d.norm(dim=2, keepdim=True) + 1e-8)
+    m_pix = torch.cross(ray_o, ray_d_n, dim=2)
+    tok_d_delta = patch_half_range(ray_d_n)
+    tok_m_delta = patch_half_range(m_pix)
+
+    K_norm = torch.stack([
+        fxfycxcy[..., 0] / w,
+        fxfycxcy[..., 1] / h,
+        fxfycxcy[..., 2] / w - 0.5,
+        fxfycxcy[..., 3] / h - 0.5,
+    ], dim=-1)  # [b, v, 4]
+
+    tokens_per_view = tok_o.size(1) // v
+    K_tok = K_norm[:, :, :2].repeat_interleave(tokens_per_view, dim=1)  # [b, L, 2]
+    cam_feat = torch.cat([tok_o, tok_d, tok_m, K_tok], dim=-1)          # [b, L, 11]
+
+    # Per-view pose summary: camera center, forward axis, its moment, fx, fy.
+    rot = c2w[:, :, :3, :3]
+    center = c2w[:, :, :3, 3]
+    forward = rot[:, :, :, 2]
+    view_pose11 = torch.cat(
+        [center, forward, torch.cross(center, forward, dim=-1), K_norm[:, :, :2]], dim=-1
+    )
+
+    # View novelty: distance to nearest *input* view (self excluded).
+    tdist = torch.cdist(center, center[:, :num_input_views])            # [b, v, v_in]
+    rel = torch.einsum("bvij,bwik->bvwjk", rot, rot[:, :num_input_views])
+    tr = rel.diagonal(dim1=-2, dim2=-1).sum(-1)
+    rdist = torch.arccos(((tr - 1) / 2).clamp(-1 + 1e-6, 1 - 1e-6)) / math.pi
+    pose_dist = tdist + rdist
+    eye_mask = torch.zeros_like(pose_dist)
+    eye_mask[:, :num_input_views] = torch.eye(num_input_views, device=c2w.device) * 1e6
+    novelty = (pose_dist + eye_mask).min(dim=-1, keepdim=True).values   # [b, v, 1]
+    novelty_tok = novelty.repeat_interleave(tokens_per_view, dim=1)
+    cam_feat_lr = torch.cat([cam_feat, novelty_tok], dim=-1)            # [b, L, 12]
+
+    # Analytic SE(3) inverse (avoids CUDA cusolver): w2c = [[R^T, -R^T t],[0,1]]
+    w2c = torch.zeros_like(c2w)
+    w2c[..., 3, 3] = 1.0
+    w2c[..., :3, :3] = rot.transpose(-1, -2)
+    w2c[..., :3, 3] = -torch.einsum("bvji,bvj->bvi", rot, center)
+
+    return {
+        "tok_o": tok_o, "tok_d": tok_d, "tok_m": tok_m,
+        "tok_d_delta": tok_d_delta, "tok_m_delta": tok_m_delta,
+        "cam_feat": cam_feat, "cam_feat_lr": cam_feat_lr,
+        "view_rot": rot, "view_w2c": w2c, "view_c2w": c2w,
+        "view_K_norm": K_norm, "view_pose11": view_pose11,
+        "tokens_per_view": tokens_per_view,
+        "num_views": v, "num_input_views": num_input_views,
+    }
+
+
 class LaCTLVSM(nn.Module):
-    def __init__(self, patch_size, dim, layers, block_config):
+    def __init__(self, patch_size, dim, layers, block_config,
+                 ttt_chunk_per_view=False, ttt_view_tour=False):
         super().__init__()
         self.patch_size = patch_size
         self.dim = dim
+        # Camera-scheduled TTT updates: one update chunk per input view
+        # (multi-step inner optimization), optionally ordered far-from-target
+        # -> near-target so that target-adjacent views are written last
+        # (weight-norm recency works in our favor).
+        self.ttt_chunk_per_view = ttt_chunk_per_view
+        self.ttt_view_tour = ttt_view_tour
 
         self.pose_keys = ["ray_o", "ray_d", "o_cross_d"]
         self.posed_image_keys = self.pose_keys + ["normalized_image"]
@@ -206,6 +302,18 @@ class LaCTLVSM(nn.Module):
             batch_size, num_input_views, _, h, w = input_data_dict["image"].size()
             num_target_views = target_data_dict["c2w"].size(1)
 
+            if self.ttt_view_tour:
+                # Order input views by decreasing pose distance to the target
+                # camera centroid: target-adjacent views are written last.
+                in_pos = input_data_dict["c2w"][:, :, :3, 3]
+                tgt_center = target_data_dict["c2w"][:, :, :3, 3].mean(dim=1, keepdim=True)
+                dist = (in_pos - tgt_center).norm(dim=-1)          # [b, v_in]
+                perm = dist.argsort(dim=1, descending=True)        # far -> near
+                bidx = torch.arange(batch_size, device=perm.device)[:, None]
+                input_data_dict = {
+                    key: value[bidx, perm] for key, value in input_data_dict.items()
+                }
+
             for data_dict in [input_data_dict, target_data_dict]:
                 fxfycxcy = data_dict["fxfycxcy"]
                 c2w = data_dict["c2w"]
@@ -226,23 +334,46 @@ class LaCTLVSM(nn.Module):
             
             transformer_input = input_data_dict["image"].new_zeros(
                 batch_size, num_input_views + num_target_views, self.input_dim, h, w
-            )  
+            )
             transformer_input[:, :num_input_views, :, :, :] = input_data_dict["posed_image"]
             pose_only_dim = target_data_dict["pose_only"].size(2)
             transformer_input[:, num_input_views:, :pose_only_dim, :, :] = target_data_dict["pose_only"]
+
+            # Camera tensors for camera-conditioned TTT layers (all views,
+            # token order matches the patchify rearrange below).
+            all_fxfycxcy = torch.cat([input_data_dict["fxfycxcy"], target_data_dict["fxfycxcy"]], dim=1)
+            all_c2w = torch.cat([input_data_dict["c2w"], target_data_dict["c2w"]], dim=1)
+            all_ray_o = torch.cat([input_data_dict["ray_o"], target_data_dict["ray_o"]], dim=1)
+            all_ray_d = torch.cat([input_data_dict["ray_d"], target_data_dict["ray_d"]], dim=1)
+            camera_info = compute_camera_info(
+                all_fxfycxcy, all_c2w, h, w, self.patch_size,
+                all_ray_o, all_ray_d, num_input_views,
+            )
 
         # Running the model
         num_img_tokens = h * w // (self.patch_size**2)
         num_input_tokens = num_input_views * num_img_tokens
         num_target_tokens = num_target_views * num_img_tokens
-        ttt_op_order = [
-            TTTOperator(start=0, end=num_input_tokens, update=True, apply=False),
-            TTTOperator(start=0, end=num_input_tokens + num_target_tokens, update=False, apply=True),
-        ]
+        if self.ttt_chunk_per_view:
+            # One inner-loop gradient step per input view (camera-scheduled).
+            ttt_op_order = [
+                TTTOperator(start=v * num_img_tokens, end=(v + 1) * num_img_tokens,
+                            update=True, apply=False)
+                for v in range(num_input_views)
+            ] + [
+                TTTOperator(start=0, end=num_input_tokens + num_target_tokens,
+                            update=False, apply=True),
+            ]
+        else:
+            ttt_op_order = [
+                TTTOperator(start=0, end=num_input_tokens, update=True, apply=False),
+                TTTOperator(start=0, end=num_input_tokens + num_target_tokens, update=False, apply=True),
+            ]
         info = {
             "ttt_op_order": ttt_op_order,
             "num_img_tokens": num_img_tokens,
         }
+        info.update(camera_info)
 
         x = rearrange(
             transformer_input,
