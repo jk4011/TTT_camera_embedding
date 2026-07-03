@@ -1,0 +1,37 @@
+
+\vspace{-3mm}
+\section{Related Work}
+\label{related}
+\vspace{-3mm}
+\textbf{View Synthesis.} 
+Novel view synthesis (NVS) has been studied for decades.
+Image-based rendering (IBR) methods perform view synthesis by weighted blending of input reference images using proxy geometry~\citep{debevec2023modeling, heigl1999plenoptic, sinha2009piecewise}. Light field methods build a slice of the 4D plenoptic function from dense view inputs~\citep{gortler2023lumigraph, levoy2023light, davis2012unstructured}. Recent learning-based IBR methods incorporate convolutional networks to predict blending weights~\citep{hedman2018deep, zhou2016view, realestate10k_zhou2018stereo} or use predicted depth maps~\citep{choi2019extreme}. However, the renderable region is usually constrained to be near the input views. Other work leverages multiview-stereo reconstructions to render larger viewpoint changes~\citep{jancosek2011multi, chaurasia2013depth, penner2017soft}. 
+In contrast, we use more scalable network designs to learn generalizable priors from larger, real-world data. Moreover, we perform rendering at the image patch level, achieving better model efficiency and rendering quality. 
+
+
+\textbf{Optimizing 3D Representations.}
+NeRF~\citep{mildenhall2020nerfrepresentingscenesneural} introduced a neural volumetric 3D representation with differentiable volume rendering, enabling neural scene reconstruction by minimizing rendering losses and setting a new standard in NVS.
+% novel view synthesis. 
+Later work improved NeRF with better rendering quality~\citep{barron2021mipnerf, verbin2022refnerf, barron2023zipnerf}, faster optimization or rendering speed~\citep{reiser2021kilonerf, hedman2021baking, reiser2023merf}, and looser requirements on the input views~\citep{niemeyer2022regnerf, martin2021nerfinthewild, wang2021nerfmm}. 
+Other work has explored hybrid representations that combine implicit NeRF content with explicit 3D information, e.g., in the form of voxels, as in DVGO~\citep{sun2022dvgo}. Spatial complexity can be further decreased by using sparse voxels~\citep{liu2020nsvf, fridovich2022plenoxels}, volume decomposition~\citep{chan2022eg3d, chen2022tensorf,chen2023factor}, and hashing techniques~\citep{M_ller_2022_instant_npg}. 
+Another line of work investigates explicit point-based representations~\citep{xu2022pointnerf, zhang2022differentiablepoint, feng2022neuralpoints}. 
+Gaussian Splatting~\citep{kerbl3Dgaussians} extends these 3D points to 3D Gaussians, improving both rendering quality and speed. In contrast, we perform NVS using large transformer models (optionally with a learned latent scene representation) without requiring the inductive bias of using prior 3D representations, nor any per-scene optimization process.
+
+% \vspace{-1.5mm}
+\textbf{Generalizable View Synthesis Methods.} 
+Generalizable methods enable fast NVS inference by using neural networks, trained across scenes, to predict novel views or an underlying 3D representation in a feed-forward manner. 
+For example, PixelNeRF~\citep{yu2021pixelnerfneuralradiancefields}, MVSNeRF~\citep{chen2021mvsnerffastgeneralizableradiance} and IBRNet~\citep{wang2021ibrnetlearningmultiviewimagebased} predict volumetric 3D representations from input views, utilizing 3D-specific priors like epipolar lines or plane sweep cost volumes. 
+Later methods improve performance under (unposed) sparse views~\citep{liu2022neuralray, johari2022geonerfgeneralizingnerfgeometry,jiang2024forge, szymanowicz2024splatter_image,jiang2023leap},
+while other work extends to 3DGS representations~\cite{charatan2024pixelsplat, szymanowicz2024flash3d,chen2024mvsplatefficient3dgaussian,tang2024lgm}.
+On the other hand, approaches that attempt to directly learn a geometry-free rendering function~\citep{suhail2022gpnr, sajjadi2022srt, sitzmann2021lightfieldnetwork, rombach2021geometry, kulhanek2022viewformer} lack model capacity and scalability, preventing them from capturing high-frequency detail. 
+Specifically, Scene Representation Transformers (SRT)~\citep{sajjadi2022srt} also aims to avoid explicit, handcrafted 3D representations and instead learns a latent representation via a transformer, similar to our encoder-decoder model. However, some of SRT's model and rendering designs lead to less effective performance, such as the CNN-based token extractor and the use of cross-attention in the decoder. In contrast, our models are fully transformer-based with bidirectional self-attention (see detailed discussion in Sec.~\ref{sec: exp_ablation}).
+Additionally, we introduce a more scalable decoder-only architecture that effectively learns the NVS function with minimal 3D inductive bias, without an intermediate latent representation.
+
+Recently, 3D large reconstruction models (LRMs) have emerged~\citep{hong2024lrmlargereconstructionmodel,li2023instant3d, wang2023pflrm,xu2023dmv3d, wei2024meshlrm,zhang2024gslrmlargereconstructionmodel,xie2024lrmzero}, utilizing scalable transformer architectures~\citep{vaswani2017transformer} trained on large datasets to learn generic 3D priors. While these methods avoid using epipolar projection or cost volumes in their architectures, they still rely on existing 3D representations like tri-plane NeRFs, meshes, or 3DGS, along with their corresponding rendering equations, limiting their flexibility.
+% potential. 
+In contrast, our approach eliminates these 3D inductive biases, aiming to learn a rendering function (and optionally a scene representation) directly from data. This leads to more scalable models and significantly improved rendering quality. 
+
+In addition to the deterministic methods mentioned above, recent generative NVS models support NVS using image/video diffusion models \citep{watson2022novel, liu2023zero1to3,gao2024cat3d,zheng2024free3d,kong2024eschernet,voleti2025sv3d}. Note that our LVSM models are deterministic, and thus are fundamentally different from these generative models.
+We discuss this in detail in the Appendix.~\ref{appendix: diff_from_generative_model}.
+
+

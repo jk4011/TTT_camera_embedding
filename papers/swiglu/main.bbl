@@ -1,0 +1,81 @@
+\begin{thebibliography}{11}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Dauphin et~al.(2016)Dauphin, Fan, Auli, and Grangier]{dauphin2016}
+Yann~N. Dauphin, Angela Fan, Michael Auli, and David Grangier.
+\newblock Language modeling with gated convolutional networks.
+\newblock \emph{CoRR}, abs/1612.08083, 2016.
+\newblock URL \url{http://arxiv.org/abs/1612.08083}.
+
+\bibitem[Glorot et~al.(2011)Glorot, Bordes, and Bengio]{glorot2011deep}
+Xavier Glorot, Antoine Bordes, and Yoshua Bengio.
+\newblock Deep sparse rectifier neural networks.
+\newblock In \emph{Proceedings of the fourteenth international conference on
+  artificial intelligence and statistics}, pages 315--323, 2011.
+
+\bibitem[Hendrycks and Gimpel(2016)]{hendrycks2016}
+Dan Hendrycks and Kevin Gimpel.
+\newblock Bridging nonlinearities and stochastic regularizers with gaussian
+  error linear units.
+\newblock \emph{CoRR}, abs/1606.08415, 2016.
+\newblock URL \url{http://arxiv.org/abs/1606.08415}.
+
+\bibitem[Mnih and Hinton(2007)]{mnih2007three}
+Andriy Mnih and Geoffrey Hinton.
+\newblock Three new graphical models for statistical language modelling.
+\newblock In \emph{Proceedings of the 24th international conference on Machine
+  learning}, pages 641--648, 2007.
+
+\bibitem[Raffel et~al.(2019)Raffel, Shazeer, Roberts, Lee, Narang, Matena,
+  Zhou, Li, and Liu]{raffel2019exploring}
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael
+  Matena, Yanqi Zhou, Wei Li, and Peter Liu.
+\newblock Exploring the limits of transfer learning with a unified text-to-text
+  transformer.
+\newblock \emph{arXiv e-prints}, 2019.
+
+\bibitem[Rajpurkar et~al.(2016)Rajpurkar, Zhang, Lopyrev, and
+  Liang]{rajpurkar2016squad}
+Pranav Rajpurkar, Jian Zhang, Konstantin Lopyrev, and Percy Liang.
+\newblock Squad: 100,000+ questions for machine comprehension of text.
+\newblock \emph{arXiv preprint arXiv:1606.05250}, 2016.
+
+\bibitem[Ramachandran et~al.(2017)Ramachandran, Zoph, and
+  Le]{ramachandran2017searching}
+Prajit Ramachandran, Barret Zoph, and Quoc~V Le.
+\newblock Searching for activation functions.
+\newblock \emph{arXiv preprint arXiv:1710.05941}, 2017.
+
+\bibitem[Shazeer and Stern(2018)]{shazeer2018adafactor}
+Noam Shazeer and Mitchell Stern.
+\newblock Adafactor: Adaptive learning rates with sublinear memory cost.
+\newblock \emph{arXiv preprint arXiv:1804.04235}, 2018.
+
+\bibitem[Vaswani et~al.(2017)Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez,
+  Kaiser, and Polosukhin]{Vas17}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In \emph{NIPS}, 2017.
+
+\bibitem[Wang et~al.(2018)Wang, Singh, Michael, Hill, Levy, and
+  Bowman]{wang2018glue}
+Alex Wang, Amapreet Singh, Julian Michael, Felix Hill, Omer Levy, and Samuel~R.
+  Bowman.
+\newblock {GLUE}: A multi-task benchmark and analysis platform for natural
+  language understanding.
+\newblock \emph{arXiv preprint arXiv:1804.07461}, 2018.
+
+\bibitem[Wang et~al.(2019)Wang, Pruksachatkun, Nangia, Singh, Michael, Hill,
+  Levy, and Bowman]{wang2019superglue}
+Alex Wang, Yada Pruksachatkun, Nikita Nangia, Amanpreet Singh, Julian Michael,
+  Felix Hill, Omer Levy, and Samuel~R. Bowman.
+\newblock Superglue: A stickier benchmark for general-purpose language
+  understanding systems.
+\newblock \emph{arXiv preprint arXiv:1905.00537}, 2019.
+
+\end{thebibliography}

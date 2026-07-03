@@ -1,0 +1,64 @@
+\definecolor{lightyellow}{rgb}{1,1, 0.8}
+\definecolor{yellow}{rgb}{1,0.97, 0.65}
+\definecolor{orange}{rgb}{1, 0.85, 0.7}
+\definecolor{tablered}{rgb}{1, 0.7, 0.7}
+
+
+\begin{table}[t!]
+\caption{\small{
+\textbf{Quantitative comparisons on object-level (left) and scene-level (right) view synthesis.}
+For the object-level comparison, we matched the baseline settings with GS-LRM~\citep{zhang2024gslrmlargereconstructionmodel} in both input and rendering under both resolution of $256$ (Res-256) and $512$ (Res-512).
+For the scene-level comparison, we use the same validation dataset used by pixelSplat~\citep{charatan2024pixelsplat}, which has $256$ resolution.
+}
+}
+\vspace{-0.05in}
+\begin{minipage}{.6\textwidth}
+\resizebox{0.99\linewidth}{!}{
+\begin{tabular}{r|ccc|ccc } 
+    & \multicolumn{3}{c|} {ABO~\citep{collins2022abodatasetbenchmarksrealworld}} &  \multicolumn{3}{c} {GSO~\citep{downs2022gso}} \\ 
+    & PSNR \(\uparrow\) & SSIM \(\uparrow\)  & LPIPS \(\downarrow\) & PSNR \(\uparrow\) & SSIM \(\uparrow\) & LPIPS \(\downarrow\) \\ 
+    \midrule
+    Triplane-LRM~\citep{li2023instant3d} (Res-512)  & \cellcolor{lightyellow}27.50 & \cellcolor{lightyellow}0.896  & \cellcolor{lightyellow}0.093 &  \cellcolor{lightyellow}26.54 & \cellcolor{lightyellow}0.893 & \cellcolor{lightyellow}0.064 \\
+    GS-LRM~\citep{zhang2024gslrmlargereconstructionmodel} (Res-512)  &  \cellcolor{yellow}29.09  &  \cellcolor{orange}0.925 &  \cellcolor{yellow}0.085 & \cellcolor{orange}30.52 & \cellcolor{orange}0.952 & \cellcolor{orange}0.050  \\
+    Ours Encoder-Decoder (Res-512) &   \cellcolor{orange}29.81 &   \cellcolor{yellow}0.913 &  \cellcolor{orange}0.065 &  \cellcolor{yellow}29.32 &  \cellcolor{yellow}0.933 &  \cellcolor{yellow}0.052   \\
+    Ours Decoder-Only (Res-512) &  \cellcolor{tablered}32.10 &  \cellcolor{tablered}0.938 &  \cellcolor{tablered}0.045 &   \cellcolor{tablered}32.36  &   \cellcolor{tablered}0.962 &  \cellcolor{tablered}0.028  \\
+    \midrule
+    LGM~\citep{tang2024lgm} (Res-256) & \cellcolor{lightyellow}20.79 & \cellcolor{lightyellow}0.813  & \cellcolor{lightyellow}0.158 & \cellcolor{lightyellow}21.44  & \cellcolor{lightyellow}0.832 & \cellcolor{lightyellow}0.122 \\
+    GS-LRM~\citep{zhang2024gslrmlargereconstructionmodel} (Res-256) &   \cellcolor{yellow}28.98  &  \cellcolor{orange}0.926 &  \cellcolor{yellow}0.074  &  \cellcolor{orange}29.59 &  \cellcolor{orange}0.944 &  \cellcolor{yellow}0.051 \\
+    
+     Ours Encoder-Decoder (Res-256)  &  \cellcolor{orange}30.35  &  \cellcolor{yellow}0.923 &  \cellcolor{orange}0.052 &  \cellcolor{yellow}29.19 &  \cellcolor{yellow}0.932 &  \cellcolor{orange}0.046 \\
+     Ours Decoder-Only (Res-256)  & \cellcolor{tablered}32.47  &   \cellcolor{tablered}0.944 &  \cellcolor{tablered}0.037 &  \cellcolor{tablered}31.71 &  \cellcolor{tablered}0.957 &  \cellcolor{tablered}0.027  \\
+\end{tabular}
+}
+\label{tab:compare_objects}
+\hfill
+\end{minipage}%
+\begin{minipage}{.42\textwidth}
+\resizebox{0.99\linewidth}{!}{
+\begin{tabular}{r|ccc} 
+    &  \multicolumn{3}{c}{RealEstate10k~\citep{realestate10k_zhou2018stereo}}  \\ 
+    & PSNR \(\uparrow\) & SSIM \(\uparrow\)  & LPIPS \(\downarrow\)  \\ 
+    \midrule
+    pixelNeRF~\citep{yu2021pixelnerfneuralradiancefields} & 20.43 & 0.589  & 0.550 \\
+    GPNR~\citep{suhail2022gpnr} & 24.11 & 0.793 &  0.255 \\
+    Du et. al~\citep{du2023learningrendernovelviews} & 24.78 & 0.820  & 0.213 \\
+    pixelSplat~\citep{charatan2024pixelsplat} & 26.09 & 0.863  & 0.136 \\
+    MVSplat~\citep{chen2024mvsplatefficient3dgaussian} & \cellcolor{lightyellow}26.39 & \cellcolor{lightyellow}0.869  & \cellcolor{lightyellow}0.128 \\
+    GS-LRM~\citep{zhang2024gslrmlargereconstructionmodel} & \cellcolor{yellow}28.10 & \cellcolor{yellow}0.892  & \cellcolor{yellow}0.114 \\
+     Ours Encoder-Decoder  &  \cellcolor{orange}28.58 &   \cellcolor{orange}0.893 &  \cellcolor{orange}0.114  \\
+     Ours Decoder-Only & \cellcolor{tablered}29.67 & \cellcolor{tablered}0.906 & \cellcolor{tablered}0.098 \\
+\end{tabular}
+}
+\label{tab:compare_scenes}
+
+\end{minipage}%
+\vspace{-0.05in}
+\end{table}
+
+
+
+
+
+
+
+

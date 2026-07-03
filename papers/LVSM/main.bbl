@@ -1,0 +1,512 @@
+\begin{thebibliography}{100}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Barron et~al.(2021)Barron, Mildenhall, Tancik, Hedman, Martin-Brualla, and Srinivasan]{barron2021mipnerf}
+Jonathan~T. Barron, Ben Mildenhall, Matthew Tancik, Peter Hedman, Ricardo Martin-Brualla, and Pratul~P. Srinivasan.
+\newblock Mip-nerf: A multiscale representation for anti-aliasing neural radiance fields.
+\newblock \emph{ICCV}, 2021.
+
+\bibitem[Barron et~al.(2023)Barron, Mildenhall, Verbin, Srinivasan, and Hedman]{barron2023zipnerf}
+Jonathan~T. Barron, Ben Mildenhall, Dor Verbin, Pratul~P. Srinivasan, and Peter Hedman.
+\newblock Zip-nerf: Anti-aliased grid-based neural radiance fields.
+\newblock \emph{ICCV}, 2023.
+
+\bibitem[Bruce et~al.(2024)Bruce, Dennis, Edwards, Parker-Holder, Shi, Hughes, Lai, Mavalankar, Steigerwald, Apps, et~al.]{bruce2024genie}
+Jake Bruce, Michael~D Dennis, Ashley Edwards, Jack Parker-Holder, Yuge Shi, Edward Hughes, Matthew Lai, Aditi Mavalankar, Richie Steigerwald, Chris Apps, et~al.
+\newblock Genie: Generative interactive environments.
+\newblock In \emph{Forty-first International Conference on Machine Learning}, 2024.
+
+\bibitem[Chan et~al.(2022)Chan, Lin, Chan, Nagano, Pan, De~Mello, Gallo, Guibas, Tremblay, Khamis, et~al.]{chan2022eg3d}
+Eric~R Chan, Connor~Z Lin, Matthew~A Chan, Koki Nagano, Boxiao Pan, Shalini De~Mello, Orazio Gallo, Leonidas~J Guibas, Jonathan Tremblay, Sameh Khamis, et~al.
+\newblock Efficient geometry-aware 3d generative adversarial networks.
+\newblock In \emph{Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pp.\  16123--16133, 2022.
+
+\bibitem[Charatan et~al.(2024)Charatan, Li, Tagliasacchi, and Sitzmann]{charatan2024pixelsplat}
+David Charatan, Sizhe~Lester Li, Andrea Tagliasacchi, and Vincent Sitzmann.
+\newblock pixelsplat: 3d gaussian splats from image pairs for scalable generalizable 3d reconstruction.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  19457--19467, 2024.
+
+\bibitem[Chaurasia et~al.(2013)Chaurasia, Duchene, Sorkine-Hornung, and Drettakis]{chaurasia2013depth}
+Gaurav Chaurasia, Sylvain Duchene, Olga Sorkine-Hornung, and George Drettakis.
+\newblock Depth synthesis and local warps for plausible image-based navigation.
+\newblock \emph{ACM transactions on graphics (TOG)}, 32\penalty0 (3):\penalty0 1--12, 2013.
+
+\bibitem[Chen et~al.(2021)Chen, Xu, Zhao, Zhang, Xiang, Yu, and Su]{chen2021mvsnerffastgeneralizableradiance}
+Anpei Chen, Zexiang Xu, Fuqiang Zhao, Xiaoshuai Zhang, Fanbo Xiang, Jingyi Yu, and Hao Su.
+\newblock Mvsnerf: Fast generalizable radiance field reconstruction from multi-view stereo, 2021.
+\newblock URL \url{https://arxiv.org/abs/2103.15595}.
+
+\bibitem[Chen et~al.(2022)Chen, Xu, Geiger, Yu, and Su]{chen2022tensorf}
+Anpei Chen, Zexiang Xu, Andreas Geiger, Jingyi Yu, and Hao Su.
+\newblock Tensorf: Tensorial radiance fields.
+\newblock In \emph{European conference on computer vision}, pp.\  333--350. Springer, 2022.
+
+\bibitem[Chen et~al.(2023)Chen, Xu, Wei, Tang, Su, and Geiger]{chen2023factor}
+Anpei Chen, Zexiang Xu, Xinyue Wei, Siyu Tang, Hao Su, and Andreas Geiger.
+\newblock Factor fields: A unified framework for neural fields and beyond.
+\newblock \emph{arXiv preprint arXiv:2302.01226}, 2023.
+
+\bibitem[Chen et~al.(2016)Chen, Xu, Zhang, and Guestrin]{chen2016gradcheckpointing}
+Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
+\newblock Training deep nets with sublinear memory cost.
+\newblock \emph{arXiv preprint arXiv:1604.06174}, 2016.
+
+\bibitem[Chen et~al.(2024)Chen, Xu, Zheng, Zhuang, Pollefeys, Geiger, Cham, and Cai]{chen2024mvsplatefficient3dgaussian}
+Yuedong Chen, Haofei Xu, Chuanxia Zheng, Bohan Zhuang, Marc Pollefeys, Andreas Geiger, Tat-Jen Cham, and Jianfei Cai.
+\newblock Mvsplat: Efficient 3d gaussian splatting from sparse multi-view images, 2024.
+\newblock URL \url{https://arxiv.org/abs/2403.14627}.
+
+\bibitem[Choi et~al.(2019)Choi, Gallo, Troccoli, Kim, and Kautz]{choi2019extreme}
+Inchang Choi, Orazio Gallo, Alejandro Troccoli, Min~H Kim, and Jan Kautz.
+\newblock Extreme view synthesis.
+\newblock In \emph{Proceedings of the IEEE/CVF International Conference on Computer Vision}, pp.\  7781--7790, 2019.
+
+\bibitem[Collins et~al.(2022{\natexlab{a}})Collins, Goel, Deng, Luthra, Xu, Gundogdu, Zhang, Vicente, Dideriksen, Arora, Guillaumin, and Malik]{collins2022abodatasetbenchmarksrealworld}
+Jasmine Collins, Shubham Goel, Kenan Deng, Achleshwar Luthra, Leon Xu, Erhan Gundogdu, Xi~Zhang, Tomas F.~Yago Vicente, Thomas Dideriksen, Himanshu Arora, Matthieu Guillaumin, and Jitendra Malik.
+\newblock Abo: Dataset and benchmarks for real-world 3d object understanding, 2022{\natexlab{a}}.
+\newblock URL \url{https://arxiv.org/abs/2110.06199}.
+
+\bibitem[Collins et~al.(2022{\natexlab{b}})Collins, Goel, Deng, Luthra, Xu, Gundogdu, Zhang, Vicente, Dideriksen, Arora, et~al.]{collins2022abo}
+Jasmine Collins, Shubham Goel, Kenan Deng, Achleshwar Luthra, Leon Xu, Erhan Gundogdu, Xi~Zhang, Tomas F~Yago Vicente, Thomas Dideriksen, Himanshu Arora, et~al.
+\newblock Abo: Dataset and benchmarks for real-world 3d object understanding.
+\newblock In \emph{Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pp.\  21126--21136, 2022{\natexlab{b}}.
+
+\bibitem[Dao(2023)]{dao2023flashattention}
+Tri Dao.
+\newblock Flashattention-2: Faster attention with better parallelism and work partitioning.
+\newblock \emph{arXiv preprint arXiv:2307.08691}, 2023.
+
+\bibitem[Davis et~al.(2012)Davis, Levoy, and Durand]{davis2012unstructured}
+Abe Davis, Marc Levoy, and Fredo Durand.
+\newblock Unstructured light fields.
+\newblock In \emph{Computer Graphics Forum}, pp.\  305--314, 2012.
+
+\bibitem[Debevec et~al.(1996)Debevec, Taylor, and Malik]{debevec2023modeling}
+Paul~E. Debevec, Camillo~Jose Taylor, and Jitendra Malik.
+\newblock Modeling and rendering architecture from photographs: A hybrid geometry- and image-based approach.
+\newblock \emph{Seminal Graphics Papers: Pushing the Boundaries, Volume 2}, 1996.
+\newblock URL \url{https://api.semanticscholar.org/CorpusID:2609415}.
+
+\bibitem[Deitke et~al.(2023)Deitke, Schwenk, Salvador, Weihs, Michel, VanderBilt, Schmidt, Ehsani, Kembhavi, and Farhadi]{deitke2023objaverse}
+Matt Deitke, Dustin Schwenk, Jordi Salvador, Luca Weihs, Oscar Michel, Eli VanderBilt, Ludwig Schmidt, Kiana Ehsani, Aniruddha Kembhavi, and Ali Farhadi.
+\newblock Objaverse: A universe of annotated 3d objects.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  13142--13153, 2023.
+
+\bibitem[Devlin et~al.(2019)Devlin, Chang, Lee, and Toutanova]{devlin2018bert}
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
+\newblock Bert: Pre-training of deep bidirectional transformers for language understanding, 2019.
+\newblock URL \url{https://arxiv.org/abs/1810.04805}.
+
+\bibitem[Dosovitskiy et~al.(2020)Dosovitskiy, Beyer, Kolesnikov, Weissenborn, Zhai, Unterthiner, Dehghani, Minderer, Heigold, Gelly, Uszkoreit, and Houlsby]{dosovitskiy2020image}
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby.
+\newblock An image is worth 16x16 words: Transformers for image recognition at scale.
+\newblock \emph{ArXiv}, abs/2010.11929, 2020.
+\newblock URL \url{https://api.semanticscholar.org/CorpusID:225039882}.
+
+\bibitem[Downs et~al.(2022)Downs, Francis, Koenig, Kinman, Hickman, Reymann, McHugh, and Vanhoucke]{downs2022gso}
+Laura Downs, Anthony Francis, Nate Koenig, Brandon Kinman, Ryan Hickman, Krista Reymann, Thomas~B. McHugh, and Vincent Vanhoucke.
+\newblock Google scanned objects: A high-quality dataset of 3d scanned household items, 2022.
+\newblock URL \url{https://arxiv.org/abs/2204.11918}.
+
+\bibitem[Du et~al.(2023)Du, Smith, Tewari, and Sitzmann]{du2023learningrendernovelviews}
+Yilun Du, Cameron Smith, Ayush Tewari, and Vincent Sitzmann.
+\newblock Learning to render novel views from wide-baseline stereo pairs, 2023.
+\newblock URL \url{https://arxiv.org/abs/2304.08463}.
+
+\bibitem[Esser et~al.(2024)Esser, Kulal, Blattmann, Entezari, M{\"u}ller, Saini, Levi, Lorenz, Sauer, Boesel, et~al.]{esser2024sd3}
+Patrick Esser, Sumith Kulal, Andreas Blattmann, Rahim Entezari, Jonas M{\"u}ller, Harry Saini, Yam Levi, Dominik Lorenz, Axel Sauer, Frederic Boesel, et~al.
+\newblock Scaling rectified flow transformers for high-resolution image synthesis.
+\newblock In \emph{Forty-first International Conference on Machine Learning}, 2024.
+
+\bibitem[Feng et~al.(2022)Feng, Li, Cai, Luo, and Zhang]{feng2022neuralpoints}
+Wanquan Feng, Jin Li, Hongrui Cai, Xiaonan Luo, and Juyong Zhang.
+\newblock Neural points: Point cloud representation with neural fields for arbitrary upsampling.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  18633--18642, 2022.
+
+\bibitem[Fridovich-Keil et~al.(2022)Fridovich-Keil, Yu, Tancik, Chen, Recht, and Kanazawa]{fridovich2022plenoxels}
+Sara Fridovich-Keil, Alex Yu, Matthew Tancik, Qinhong Chen, Benjamin Recht, and Angjoo Kanazawa.
+\newblock Plenoxels: Radiance fields without neural networks.
+\newblock In \emph{Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pp.\  5501--5510, 2022.
+
+\bibitem[Gao* et~al.(2024)Gao*, Holynski*, Henzler, Brussee, Martin-Brualla, Srinivasan, Barron, and Poole*]{gao2024cat3d}
+Ruiqi Gao*, Aleksander Holynski*, Philipp Henzler, Arthur Brussee, Ricardo Martin-Brualla, Pratul~P. Srinivasan, Jonathan~T. Barron, and Ben Poole*.
+\newblock Cat3d: Create anything in 3d with multi-view diffusion models.
+\newblock \emph{Advances in Neural Information Processing Systems}, 2024.
+
+\bibitem[Gortler et~al.(1996)Gortler, Grzeszczuk, Szeliski, and Cohen]{gortler2023lumigraph}
+Steven~J. Gortler, Radek Grzeszczuk, Richard Szeliski, and Michael~F. Cohen.
+\newblock The lumigraph.
+\newblock \emph{Proceedings of the 23rd annual conference on Computer graphics and interactive techniques}, 1996.
+\newblock URL \url{https://api.semanticscholar.org/CorpusID:2036193}.
+
+\bibitem[He et~al.(2024)He, Xu, Guo, Wetzstein, Dai, Li, and Yang]{he2024cameractrl}
+Hao He, Yinghao Xu, Yuwei Guo, Gordon Wetzstein, Bo~Dai, Hongsheng Li, and Ceyuan Yang.
+\newblock Cameractrl: Enabling camera control for text-to-video generation, 2024.
+
+\bibitem[Hedman et~al.(2018)Hedman, Philip, Price, Frahm, Drettakis, and Brostow]{hedman2018deep}
+Peter Hedman, Julien Philip, True Price, Jan-Michael Frahm, George Drettakis, and Gabriel Brostow.
+\newblock Deep blending for free-viewpoint image-based rendering.
+\newblock \emph{ACM Transactions on Graphics (ToG)}, 37\penalty0 (6):\penalty0 1--15, 2018.
+
+\bibitem[Hedman et~al.(2021)Hedman, Srinivasan, Mildenhall, Barron, and Debevec]{hedman2021baking}
+Peter Hedman, Pratul~P Srinivasan, Ben Mildenhall, Jonathan~T Barron, and Paul Debevec.
+\newblock Baking neural radiance fields for real-time view synthesis.
+\newblock In \emph{Proceedings of the IEEE/CVF international conference on computer vision}, pp.\  5875--5884, 2021.
+
+\bibitem[Heigl et~al.(1999)Heigl, Koch, Pollefeys, Denzler, and Van~Gool]{heigl1999plenoptic}
+Benno Heigl, Reinhard Koch, Marc Pollefeys, Joachim Denzler, and Luc Van~Gool.
+\newblock Plenoptic modeling and rendering from image sequences taken by a hand-held camera.
+\newblock In \emph{Mustererkennung 1999: 21. DAGM-Symposium Bonn, 15.--17. September 1999}, pp.\  94--101. Springer, 1999.
+
+\bibitem[Henry et~al.(2020)Henry, Dachapally, Pawar, and Chen]{henry2020qknorm}
+Alex Henry, Prudhvi~Raj Dachapally, Shubham Pawar, and Yuxuan Chen.
+\newblock Query-key normalization for transformers.
+\newblock \emph{arXiv preprint arXiv:2010.04245}, 2020.
+
+\bibitem[Hong et~al.(2024)Hong, Zhang, Gu, Bi, Zhou, Liu, Liu, Sunkavalli, Bui, and Tan]{hong2024lrmlargereconstructionmodel}
+Yicong Hong, Kai Zhang, Jiuxiang Gu, Sai Bi, Yang Zhou, Difan Liu, Feng Liu, Kalyan Sunkavalli, Trung Bui, and Hao Tan.
+\newblock Lrm: Large reconstruction model for single image to 3d, 2024.
+\newblock URL \url{https://arxiv.org/abs/2311.04400}.
+
+\bibitem[Jaegle et~al.(2021)Jaegle, Borgeaud, Alayrac, Doersch, Ionescu, Ding, Koppula, Zoran, Brock, Shelhamer, et~al.]{jaegle2021perceiver}
+Andrew Jaegle, Sebastian Borgeaud, Jean-Baptiste Alayrac, Carl Doersch, Catalin Ionescu, David Ding, Skanda Koppula, Daniel Zoran, Andrew Brock, Evan Shelhamer, et~al.
+\newblock Perceiver io: A general architecture for structured inputs \& outputs.
+\newblock \emph{arXiv preprint arXiv:2107.14795}, 2021.
+
+\bibitem[Jancosek \& Pajdla(2011)Jancosek and Pajdla]{jancosek2011multi}
+Michal Jancosek and Tomas Pajdla.
+\newblock Multi-view reconstruction preserving weakly-supported surfaces.
+\newblock In \emph{CVPR 2011}, pp.\  3121--3128. IEEE, 2011.
+
+\bibitem[Jiang et~al.(2023)Jiang, Jiang, Zhao, and Huang]{jiang2023leap}
+Hanwen Jiang, Zhenyu Jiang, Yue Zhao, and Qixing Huang.
+\newblock Leap: Liberate sparse-view 3d modeling from camera poses.
+\newblock \emph{arXiv preprint arXiv:2310.01410}, 2023.
+
+\bibitem[Jiang et~al.(2024)Jiang, Jiang, Grauman, and Zhu]{jiang2024forge}
+Hanwen Jiang, Zhenyu Jiang, Kristen Grauman, and Yuke Zhu.
+\newblock Few-view object reconstruction with unknown categories and camera poses.
+\newblock In \emph{2024 International Conference on 3D Vision (3DV)}, pp.\  31--41. IEEE, 2024.
+
+\bibitem[Johari et~al.(2022)Johari, Lepoittevin, and Fleuret]{johari2022geonerfgeneralizingnerfgeometry}
+Mohammad~Mahdi Johari, Yann Lepoittevin, and François Fleuret.
+\newblock Geonerf: Generalizing nerf with geometry priors, 2022.
+\newblock URL \url{https://arxiv.org/abs/2111.13539}.
+
+\bibitem[Johnson et~al.(2016)Johnson, Alahi, and Fei-Fei]{johnson2016perceptual}
+Justin Johnson, Alexandre Alahi, and Li~Fei-Fei.
+\newblock Perceptual losses for real-time style transfer and super-resolution.
+\newblock In \emph{Computer Vision--ECCV 2016: 14th European Conference, Amsterdam, The Netherlands, October 11-14, 2016, Proceedings, Part II 14}, pp.\  694--711. Springer, 2016.
+
+\bibitem[Kerbl et~al.(2023)Kerbl, Kopanas, Leimk{\"u}hler, and Drettakis]{kerbl3Dgaussians}
+Bernhard Kerbl, Georgios Kopanas, Thomas Leimk{\"u}hler, and George Drettakis.
+\newblock 3d gaussian splatting for real-time radiance field rendering.
+\newblock \emph{ACM Transactions on Graphics}, 42\penalty0 (4), July 2023.
+\newblock URL \url{https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/}.
+
+\bibitem[Kingma(2014)]{kingma2014adam}
+Diederik~P Kingma.
+\newblock Adam: A method for stochastic optimization.
+\newblock \emph{arXiv preprint arXiv:1412.6980}, 2014.
+
+\bibitem[Kong et~al.(2024)Kong, Liu, Lyu, Taher, Qi, and Davison]{kong2024eschernet}
+Xin Kong, Shikun Liu, Xiaoyang Lyu, Marwan Taher, Xiaojuan Qi, and Andrew~J Davison.
+\newblock Eschernet: A generative model for scalable view synthesis.
+\newblock \emph{arXiv preprint arXiv:2402.03908}, 2024.
+
+\bibitem[Kulh{\'a}nek et~al.(2022)Kulh{\'a}nek, Derner, Sattler, and Babu{\v{s}}ka]{kulhanek2022viewformer}
+Jon{\'a}{\v{s}} Kulh{\'a}nek, Erik Derner, Torsten Sattler, and Robert Babu{\v{s}}ka.
+\newblock Viewformer: Nerf-free neural rendering from few images using transformers.
+\newblock In \emph{European Conference on Computer Vision (ECCV)}, 2022.
+
+\bibitem[Lefaudeux et~al.(2022)Lefaudeux, Massa, Liskovich, Xiong, Caggiano, Naren, Xu, Hu, Tintore, Zhang, et~al.]{lefaudeux2022xformers}
+Benjamin Lefaudeux, Francisco Massa, Diana Liskovich, Wenhan Xiong, Vittorio Caggiano, Sean Naren, Min Xu, Jieru Hu, Marta Tintore, Susan Zhang, et~al.
+\newblock xformers: A modular and hackable transformer modelling library, 2022.
+
+\bibitem[Levoy \& Hanrahan(1996)Levoy and Hanrahan]{levoy2023light}
+Marc Levoy and Pat Hanrahan.
+\newblock Light field rendering.
+\newblock \emph{Proceedings of the 23rd annual conference on Computer graphics and interactive techniques}, 1996.
+\newblock URL \url{https://api.semanticscholar.org/CorpusID:1363510}.
+
+\bibitem[Li et~al.(2023)Li, Tan, Zhang, Xu, Luan, Xu, Hong, Sunkavalli, Shakhnarovich, and Bi]{li2023instant3d}
+Jiahao Li, Hao Tan, Kai Zhang, Zexiang Xu, Fujun Luan, Yinghao Xu, Yicong Hong, Kalyan Sunkavalli, Greg Shakhnarovich, and Sai Bi.
+\newblock Instant3d: Fast text-to-3d with sparse-view generation and large reconstruction model, 2023.
+\newblock URL \url{https://arxiv.org/abs/2311.06214}.
+
+\bibitem[Liu et~al.(2020)Liu, Gu, Zaw~Lin, Chua, and Theobalt]{liu2020nsvf}
+Lingjie Liu, Jiatao Gu, Kyaw Zaw~Lin, Tat-Seng Chua, and Christian Theobalt.
+\newblock Neural sparse voxel fields.
+\newblock \emph{Advances in Neural Information Processing Systems}, 33:\penalty0 15651--15663, 2020.
+
+\bibitem[Liu et~al.(2023{\natexlab{a}})Liu, Wu, Hoorick, Tokmakov, Zakharov, and Vondrick]{liu2023zero1to3}
+Ruoshi Liu, Rundi Wu, Basile~Van Hoorick, Pavel Tokmakov, Sergey Zakharov, and Carl Vondrick.
+\newblock Zero-1-to-3: Zero-shot one image to 3d object, 2023{\natexlab{a}}.
+
+\bibitem[Liu et~al.(2022)Liu, Peng, Liu, Wang, Wang, Theobalt, Zhou, and Wang]{liu2022neuralray}
+Yuan Liu, Sida Peng, Lingjie Liu, Qianqian Wang, Peng Wang, Christian Theobalt, Xiaowei Zhou, and Wenping Wang.
+\newblock Neural rays for occlusion-aware image-based rendering.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  7824--7833, 2022.
+
+\bibitem[Liu et~al.(2023{\natexlab{b}})Liu, Lin, Zeng, Long, Liu, Komura, and Wang]{liu2023syncdreamer}
+Yuan Liu, Cheng Lin, Zijiao Zeng, Xiaoxiao Long, Lingjie Liu, Taku Komura, and Wenping Wang.
+\newblock Syncdreamer: Generating multiview-consistent images from a single-view image.
+\newblock \emph{arXiv preprint arXiv:2309.03453}, 2023{\natexlab{b}}.
+
+\bibitem[Long et~al.(2023)Long, Guo, Lin, Liu, Dou, Liu, Ma, Zhang, Habermann, Theobalt, et~al.]{long2023wonder3d}
+Xiaoxiao Long, Yuan-Chen Guo, Cheng Lin, Yuan Liu, Zhiyang Dou, Lingjie Liu, Yuexin Ma, Song-Hai Zhang, Marc Habermann, Christian Theobalt, et~al.
+\newblock Wonder3d: Single image to 3d using cross-domain diffusion.
+\newblock \emph{arXiv preprint arXiv:2310.15008}, 2023.
+
+\bibitem[Martin-Brualla et~al.(2021)Martin-Brualla, Radwan, Sajjadi, Barron, Dosovitskiy, and Duckworth]{martin2021nerfinthewild}
+Ricardo Martin-Brualla, Noha Radwan, Mehdi~SM Sajjadi, Jonathan~T Barron, Alexey Dosovitskiy, and Daniel Duckworth.
+\newblock Nerf in the wild: Neural radiance fields for unconstrained photo collections.
+\newblock In \emph{Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pp.\  7210--7219, 2021.
+
+\bibitem[Mildenhall et~al.(2020)Mildenhall, Srinivasan, Tancik, Barron, Ramamoorthi, and Ng]{mildenhall2020nerfrepresentingscenesneural}
+Ben Mildenhall, Pratul~P. Srinivasan, Matthew Tancik, Jonathan~T. Barron, Ravi Ramamoorthi, and Ren Ng.
+\newblock Nerf: Representing scenes as neural radiance fields for view synthesis, 2020.
+\newblock URL \url{https://arxiv.org/abs/2003.08934}.
+
+\bibitem[Müller et~al.(2022)Müller, Evans, Schied, and Keller]{M_ller_2022_instant_npg}
+Thomas Müller, Alex Evans, Christoph Schied, and Alexander Keller.
+\newblock Instant neural graphics primitives with a multiresolution hash encoding.
+\newblock \emph{ACM Transactions on Graphics}, 41\penalty0 (4):\penalty0 1–15, July 2022.
+\newblock ISSN 1557-7368.
+\newblock \doi{10.1145/3528223.3530127}.
+\newblock URL \url{http://dx.doi.org/10.1145/3528223.3530127}.
+
+\bibitem[Niemeyer et~al.(2022)Niemeyer, Barron, Mildenhall, Sajjadi, Geiger, and Radwan]{niemeyer2022regnerf}
+Michael Niemeyer, Jonathan~T Barron, Ben Mildenhall, Mehdi~SM Sajjadi, Andreas Geiger, and Noha Radwan.
+\newblock Regnerf: Regularizing neural radiance fields for view synthesis from sparse inputs.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  5480--5490, 2022.
+
+\bibitem[Penner \& Zhang(2017)Penner and Zhang]{penner2017soft}
+Eric Penner and Li~Zhang.
+\newblock Soft 3d reconstruction for view synthesis.
+\newblock \emph{ACM Transactions on Graphics (TOG)}, 36\penalty0 (6):\penalty0 1--11, 2017.
+
+\bibitem[Plucker(1865)]{plucker1865xvii}
+Julius Plucker.
+\newblock Xvii. on a new geometry of space.
+\newblock \emph{Philosophical Transactions of the Royal Society of London}, pp.\  725--791, 1865.
+
+\bibitem[Radford et~al.(2019)Radford, Wu, Child, Luan, Amodei, Sutskever, et~al.]{radford2019language}
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, Ilya Sutskever, et~al.
+\newblock Language models are unsupervised multitask learners.
+\newblock \emph{OpenAI blog}, 1\penalty0 (8):\penalty0 9, 2019.
+
+\bibitem[Ramesh et~al.(2022)Ramesh, Dhariwal, Nichol, Chu, and Chen]{ramesh2022hierarchical}
+Aditya Ramesh, Prafulla Dhariwal, Alex Nichol, Casey Chu, and Mark Chen.
+\newblock Hierarchical text-conditional image generation with clip latents.
+\newblock \emph{arXiv preprint arXiv:2204.06125}, 1\penalty0 (2):\penalty0 3, 2022.
+
+\bibitem[Reiser et~al.(2021)Reiser, Peng, Liao, and Geiger]{reiser2021kilonerf}
+Christian Reiser, Songyou Peng, Yiyi Liao, and Andreas Geiger.
+\newblock Kilonerf: Speeding up neural radiance fields with thousands of tiny mlps.
+\newblock In \emph{Proceedings of the IEEE/CVF international conference on computer vision}, pp.\  14335--14345, 2021.
+
+\bibitem[Reiser et~al.(2023)Reiser, Szeliski, Verbin, Srinivasan, Mildenhall, Geiger, Barron, and Hedman]{reiser2023merf}
+Christian Reiser, Rick Szeliski, Dor Verbin, Pratul Srinivasan, Ben Mildenhall, Andreas Geiger, Jon Barron, and Peter Hedman.
+\newblock Merf: Memory-efficient radiance fields for real-time view synthesis in unbounded scenes.
+\newblock \emph{ACM Transactions on Graphics (TOG)}, 42\penalty0 (4):\penalty0 1--12, 2023.
+
+\bibitem[Rombach et~al.(2021)Rombach, Esser, and Ommer]{rombach2021geometry}
+Robin Rombach, Patrick Esser, and Bj{\"o}rn Ommer.
+\newblock Geometry-free view synthesis: Transformers and no 3d priors.
+\newblock In \emph{Proceedings of the IEEE/CVF International Conference on Computer Vision}, pp.\  14356--14366, 2021.
+
+\bibitem[Saharia et~al.(2022{\natexlab{a}})Saharia, Chan, Chang, Lee, Ho, Salimans, Fleet, and Norouzi]{saharia2022palette}
+Chitwan Saharia, William Chan, Huiwen Chang, Chris Lee, Jonathan Ho, Tim Salimans, David Fleet, and Mohammad Norouzi.
+\newblock Palette: Image-to-image diffusion models.
+\newblock In \emph{ACM SIGGRAPH 2022 conference proceedings}, pp.\  1--10, 2022{\natexlab{a}}.
+
+\bibitem[Saharia et~al.(2022{\natexlab{b}})Saharia, Ho, Chan, Salimans, Fleet, and Norouzi]{saharia2022image}
+Chitwan Saharia, Jonathan Ho, William Chan, Tim Salimans, David~J Fleet, and Mohammad Norouzi.
+\newblock Image super-resolution via iterative refinement.
+\newblock \emph{IEEE transactions on pattern analysis and machine intelligence}, 45\penalty0 (4):\penalty0 4713--4726, 2022{\natexlab{b}}.
+
+\bibitem[Sajjadi et~al.(2022)Sajjadi, Meyer, Pot, Bergmann, Greff, Radwan, Vora, Lu{\v{c}}i{\'c}, Duckworth, Dosovitskiy, et~al.]{sajjadi2022srt}
+Mehdi~SM Sajjadi, Henning Meyer, Etienne Pot, Urs Bergmann, Klaus Greff, Noha Radwan, Suhani Vora, Mario Lu{\v{c}}i{\'c}, Daniel Duckworth, Alexey Dosovitskiy, et~al.
+\newblock Scene representation transformer: Geometry-free novel view synthesis through set-latent scene representations.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  6229--6238, 2022.
+
+\bibitem[Shi et~al.(2023{\natexlab{a}})Shi, Chen, Zhang, Liu, Xu, Wei, Chen, Zeng, and Su]{shi2023zero123plus}
+Ruoxi Shi, Hansheng Chen, Zhuoyang Zhang, Minghua Liu, Chao Xu, Xinyue Wei, Linghao Chen, Chong Zeng, and Hao Su.
+\newblock Zero123++: a single image to consistent multi-view diffusion base model, 2023{\natexlab{a}}.
+
+\bibitem[Shi et~al.(2023{\natexlab{b}})Shi, Wang, Ye, Mai, Li, and Yang]{shi2023MVDream}
+Yichun Shi, Peng Wang, Jianglong Ye, Long Mai, Kejie Li, and Xiao Yang.
+\newblock Mvdream: Multi-view diffusion for 3d generation.
+\newblock \emph{arXiv:2308.16512}, 2023{\natexlab{b}}.
+
+\bibitem[Sinha et~al.(2009)Sinha, Steedly, and Szeliski]{sinha2009piecewise}
+Sudipta Sinha, Drew Steedly, and Rick Szeliski.
+\newblock Piecewise planar stereo for image-based rendering.
+\newblock In \emph{2009 International Conference on Computer Vision}, pp.\  1881--1888, 2009.
+
+\bibitem[Sitzmann et~al.(2019)Sitzmann, Zollh{\"o}fer, and Wetzstein]{sitzmann2019scene}
+Vincent Sitzmann, Michael Zollh{\"o}fer, and Gordon Wetzstein.
+\newblock Scene representation networks: Continuous 3d-structure-aware neural scene representations.
+\newblock \emph{Advances in Neural Information Processing Systems}, 32, 2019.
+
+\bibitem[Sitzmann et~al.(2021)Sitzmann, Rezchikov, Freeman, Tenenbaum, and Durand]{sitzmann2021lightfieldnetwork}
+Vincent Sitzmann, Semon Rezchikov, Bill Freeman, Josh Tenenbaum, and Fredo Durand.
+\newblock Light field networks: Neural scene representations with single-evaluation rendering.
+\newblock \emph{Advances in Neural Information Processing Systems}, 34:\penalty0 19313--19325, 2021.
+
+\bibitem[Suhail et~al.(2022{\natexlab{a}})Suhail, Esteves, Sigal, and Makadia]{suhail2022gpnr}
+Mohammed Suhail, Carlos Esteves, Leonid Sigal, and Ameesh Makadia.
+\newblock Generalizable patch-based neural rendering.
+\newblock In \emph{European Conference on Computer Vision}, pp.\  156--174. Springer, 2022{\natexlab{a}}.
+
+\bibitem[Suhail et~al.(2022{\natexlab{b}})Suhail, Esteves, Sigal, and Makadia]{suhail2022lightfieldneuralrendering}
+Mohammed Suhail, Carlos Esteves, Leonid Sigal, and Ameesh Makadia.
+\newblock Light field neural rendering, 2022{\natexlab{b}}.
+\newblock URL \url{https://arxiv.org/abs/2112.09687}.
+
+\bibitem[Sun et~al.(2022)Sun, Sun, and Chen]{sun2022dvgo}
+Cheng Sun, Min Sun, and Hwann-Tzong Chen.
+\newblock Direct voxel grid optimization: Super-fast convergence for radiance fields reconstruction.
+\newblock In \emph{Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pp.\  5459--5469, 2022.
+
+\bibitem[Szymanowicz et~al.(2024{\natexlab{a}})Szymanowicz, Insafutdinov, Zheng, Campbell, Henriques, Rupprecht, and Vedaldi]{szymanowicz2024flash3d}
+Stanislaw Szymanowicz, Eldar Insafutdinov, Chuanxia Zheng, Dylan Campbell, Joao Henriques, Christian Rupprecht, and Andrea Vedaldi.
+\newblock Flash3d: Feed-forward generalisable 3d scene reconstruction from a single image.
+\newblock \emph{arxiv}, 2024{\natexlab{a}}.
+
+\bibitem[Szymanowicz et~al.(2024{\natexlab{b}})Szymanowicz, Rupprecht, and Vedaldi]{szymanowicz2024splatter_image}
+Stanislaw Szymanowicz, Christian Rupprecht, and Andrea Vedaldi.
+\newblock Splatter image: Ultra-fast single-view 3d reconstruction.
+\newblock \emph{Conference on Computer Vision and Pattern Recognition (CVPR)}, 2024{\natexlab{b}}.
+
+\bibitem[Tang et~al.(2024)Tang, Chen, Chen, Wang, Zeng, and Liu]{tang2024lgm}
+Jiaxiang Tang, Zhaoxi Chen, Xiaokang Chen, Tengfei Wang, Gang Zeng, and Ziwei Liu.
+\newblock Lgm: Large multi-view gaussian model for high-resolution 3d content creation.
+\newblock \emph{arXiv preprint arXiv:2402.05054}, 2024.
+
+\bibitem[Tung et~al.(2024)Tung, Chou, Cai, Yang, Zhang, Wetzstein, Hariharan, and Snavely]{tung2024megascenes}
+Joseph Tung, Gene Chou, Ruojin Cai, Guandao Yang, Kai Zhang, Gordon Wetzstein, Bharath Hariharan, and Noah Snavely.
+\newblock Megascenes: Scene-level view synthesis at scale.
+\newblock In \emph{ECCV}, 2024.
+
+\bibitem[Vaswani et~al.(2017)Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, and Polosukhin]{vaswani2017transformer}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan~N Gomez, \L~ukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In I.~Guyon, U.~Von Luxburg, S.~Bengio, H.~Wallach, R.~Fergus, S.~Vishwanathan, and R.~Garnett (eds.), \emph{Advances in Neural Information Processing Systems}, volume~30. Curran Associates, Inc., 2017.
+\newblock URL \url{https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf}.
+
+\bibitem[Verbin et~al.(2022)Verbin, Hedman, Mildenhall, Zickler, Barron, and Srinivasan]{verbin2022refnerf}
+Dor Verbin, Peter Hedman, Ben Mildenhall, Todd Zickler, Jonathan~T. Barron, and Pratul~P. Srinivasan.
+\newblock {Ref-NeRF}: Structured view-dependent appearance for neural radiance fields.
+\newblock \emph{CVPR}, 2022.
+
+\bibitem[Voleti et~al.(2025)Voleti, Yao, Boss, Letts, Pankratz, Tochilkin, Laforte, Rombach, and Jampani]{voleti2025sv3d}
+Vikram Voleti, Chun-Han Yao, Mark Boss, Adam Letts, David Pankratz, Dmitry Tochilkin, Christian Laforte, Robin Rombach, and Varun Jampani.
+\newblock Sv3d: Novel multi-view synthesis and 3d generation from a single image using latent video diffusion.
+\newblock In \emph{European Conference on Computer Vision}, pp.\  439--457. Springer, 2025.
+
+\bibitem[Wang et~al.(2023{\natexlab{a}})Wang, Tan, Bi, Xu, Luan, Sunkavalli, Wang, Xu, and Zhang]{wang2023pflrm}
+Peng Wang, Hao Tan, Sai Bi, Yinghao Xu, Fujun Luan, Kalyan Sunkavalli, Wenping Wang, Zexiang Xu, and Kai Zhang.
+\newblock Pf-lrm: Pose-free large reconstruction model for joint pose and shape prediction.
+\newblock \emph{arXiv preprint arXiv:2311.12024}, 2023{\natexlab{a}}.
+
+\bibitem[Wang et~al.(2021{\natexlab{a}})Wang, Wang, Genova, Srinivasan, Zhou, Barron, Martin-Brualla, Snavely, and Funkhouser]{wang2021ibrnetlearningmultiviewimagebased}
+Qianqian Wang, Zhicheng Wang, Kyle Genova, Pratul Srinivasan, Howard Zhou, Jonathan~T. Barron, Ricardo Martin-Brualla, Noah Snavely, and Thomas Funkhouser.
+\newblock Ibrnet: Learning multi-view image-based rendering, 2021{\natexlab{a}}.
+\newblock URL \url{https://arxiv.org/abs/2102.13090}.
+
+\bibitem[Wang et~al.(2023{\natexlab{b}})Wang, Yuan, Wang, Li, Chen, Xia, Luo, and Shan]{wang2024motionctrl}
+Zhouxia Wang, Ziyang Yuan, Xintao Wang, Yaowei Li, Tianshui Chen, Menghan Xia, Ping Luo, and Ying Shan.
+\newblock Motionctrl: A unified and flexible motion controller for video generation.
+\newblock 2023{\natexlab{b}}.
+
+\bibitem[Wang et~al.(2021{\natexlab{b}})Wang, Wu, Xie, Chen, and Prisacariu]{wang2021nerfmm}
+Zirui Wang, Shangzhe Wu, Weidi Xie, Min Chen, and Victor~Adrian Prisacariu.
+\newblock Nerf--: Neural radiance fields without known camera parameters.
+\newblock \emph{arXiv preprint arXiv:2102.07064}, 2021{\natexlab{b}}.
+
+\bibitem[Watson et~al.(2022)Watson, Chan, Martin-Brualla, Ho, Tagliasacchi, and Norouzi]{watson2022novel}
+Daniel Watson, William Chan, Ricardo Martin-Brualla, Jonathan Ho, Andrea Tagliasacchi, and Mohammad Norouzi.
+\newblock Novel view synthesis with diffusion models.
+\newblock \emph{arXiv preprint arXiv:2210.04628}, 2022.
+
+\bibitem[Wei et~al.(2024)Wei, Zhang, Bi, Tan, Luan, Deschaintre, Sunkavalli, Su, and Xu]{wei2024meshlrm}
+Xinyue Wei, Kai Zhang, Sai Bi, Hao Tan, Fujun Luan, Valentin Deschaintre, Kalyan Sunkavalli, Hao Su, and Zexiang Xu.
+\newblock Meshlrm: Large reconstruction model for high-quality mesh.
+\newblock \emph{arXiv preprint arXiv:2404.12385}, 2024.
+
+\bibitem[Xie et~al.(2024)Xie, Bi, Shu, Zhang, Xu, Zhou, Pirk, Kaufman, Sun, and Tan]{xie2024lrmzero}
+Desai Xie, Sai Bi, Zhixin Shu, Kai Zhang, Zexiang Xu, Yi~Zhou, S{\"o}ren Pirk, Arie Kaufman, Xin Sun, and Hao Tan.
+\newblock Lrm-zero: Training large reconstruction models with synthesized data.
+\newblock \emph{arXiv preprint arXiv:2406.09371}, 2024.
+
+\bibitem[Xu et~al.(2022)Xu, Xu, Philip, Bi, Shu, Sunkavalli, and Neumann]{xu2022pointnerf}
+Qiangeng Xu, Zexiang Xu, Julien Philip, Sai Bi, Zhixin Shu, Kalyan Sunkavalli, and Ulrich Neumann.
+\newblock Point-nerf: Point-based neural radiance fields.
+\newblock In \emph{Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pp.\  5438--5448, 2022.
+
+\bibitem[Xu et~al.(2023)Xu, Tan, Luan, Bi, Wang, Li, Shi, Sunkavalli, Wetzstein, Xu, and Zhang]{xu2023dmv3d}
+Yinghao Xu, Hao Tan, Fujun Luan, Sai Bi, Peng Wang, Jiahao Li, Zifan Shi, Kalyan Sunkavalli, Gordon Wetzstein, Zexiang Xu, and Kai Zhang.
+\newblock Dmv3d: Denoising multi-view diffusion using 3d large reconstruction model, 2023.
+
+\bibitem[Yan et~al.(2024)Yan, Xu, Lin, Jin, Guo, Wang, Zhan, Lang, Bao, Zhou, and Peng]{yan2024streetcrafterstreetviewsynthesis}
+Yunzhi Yan, Zhen Xu, Haotong Lin, Haian Jin, Haoyu Guo, Yida Wang, Kun Zhan, Xianpeng Lang, Hujun Bao, Xiaowei Zhou, and Sida Peng.
+\newblock Streetcrafter: Street view synthesis with controllable video diffusion models, 2024.
+\newblock URL \url{https://arxiv.org/abs/2412.13188}.
+
+\bibitem[Yang et~al.(2023)Yang, Cheng, Duan, Ji, and Li]{yang2023consistnet}
+Jiayu Yang, Ziang Cheng, Yunfei Duan, Pan Ji, and Hongdong Li.
+\newblock Consistnet: Enforcing 3d consistency for multi-view images diffusion.
+\newblock \emph{arXiv}, 2023.
+
+\bibitem[Ye et~al.(2023)Ye, Wang, Li, Shi, and Wang]{ye2023consistent}
+Jianglong Ye, Peng Wang, Kejie Li, Yichun Shi, and Heng Wang.
+\newblock Consistent-1-to-3: Consistent image to 3d view synthesis via geometry-aware diffusion models.
+\newblock \emph{arXiv preprint arXiv:2310.03020}, 2023.
+
+\bibitem[Yu et~al.(2021)Yu, Ye, Tancik, and Kanazawa]{yu2021pixelnerfneuralradiancefields}
+Alex Yu, Vickie Ye, Matthew Tancik, and Angjoo Kanazawa.
+\newblock pixelnerf: Neural radiance fields from one or few images, 2021.
+\newblock URL \url{https://arxiv.org/abs/2012.02190}.
+
+\bibitem[Yu et~al.(2024{\natexlab{a}})Yu, Xing, Yuan, Hu, Li, Huang, Gao, Wong, Shan, and Tian]{yu2024viewcrafter}
+Wangbo Yu, Jinbo Xing, Li~Yuan, Wenbo Hu, Xiaoyu Li, Zhipeng Huang, Xiangjun Gao, Tien-Tsin Wong, Ying Shan, and Yonghong Tian.
+\newblock Viewcrafter: Taming video diffusion models for high-fidelity novel view synthesis.
+\newblock \emph{arXiv preprint arXiv:2409.02048}, 2024{\natexlab{a}}.
+
+\bibitem[Yu et~al.(2024{\natexlab{b}})Yu, Chen, Huang, Sattler, and Geiger]{yu2024mipsplatting}
+Zehao Yu, Anpei Chen, Binbin Huang, Torsten Sattler, and Andreas Geiger.
+\newblock Mip-splatting: Alias-free 3d gaussian splatting.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  19447--19456, 2024{\natexlab{b}}.
+
+\bibitem[Zhang et~al.(2024)Zhang, Bi, Tan, Xiangli, Zhao, Sunkavalli, and Xu]{zhang2024gslrmlargereconstructionmodel}
+Kai Zhang, Sai Bi, Hao Tan, Yuanbo Xiangli, Nanxuan Zhao, Kalyan Sunkavalli, and Zexiang Xu.
+\newblock Gs-lrm: Large reconstruction model for 3d gaussian splatting, 2024.
+\newblock URL \url{https://arxiv.org/abs/2404.19702}.
+
+\bibitem[Zhang et~al.(2022)Zhang, Baek, Rusinkiewicz, and Heide]{zhang2022differentiablepoint}
+Qiang Zhang, Seung-Hwan Baek, Szymon Rusinkiewicz, and Felix Heide.
+\newblock Differentiable point-based radiance fields for efficient view synthesis.
+\newblock In \emph{SIGGRAPH Asia 2022 Conference Papers}, pp.\  1--12, 2022.
+
+\bibitem[Zheng \& Vedaldi(2024)Zheng and Vedaldi]{zheng2024free3d}
+Chuanxia Zheng and Andrea Vedaldi.
+\newblock Free3d: Consistent novel view synthesis without 3d representation.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  9720--9731, 2024.
+
+\bibitem[Zhou et~al.(2016)Zhou, Tulsiani, Sun, Malik, and Efros]{zhou2016view}
+Tinghui Zhou, Shubham Tulsiani, Weilun Sun, Jitendra Malik, and Alexei~A Efros.
+\newblock View synthesis by appearance flow.
+\newblock In \emph{Computer Vision--ECCV 2016: 14th European Conference, Amsterdam, The Netherlands, October 11--14, 2016, Proceedings, Part IV 14}, pp.\  286--301. Springer, 2016.
+
+\bibitem[Zhou et~al.(2018)Zhou, Tucker, Flynn, Fyffe, and Snavely]{realestate10k_zhou2018stereo}
+Tinghui Zhou, Richard Tucker, John Flynn, Graham Fyffe, and Noah Snavely.
+\newblock Stereo magnification: Learning view synthesis using multiplane images.
+\newblock In \emph{SIGGRAPH}, 2018.
+
+\end{thebibliography}
