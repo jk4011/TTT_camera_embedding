@@ -448,6 +448,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         num_freqs_h: int = 21,
         num_registers: int = 4,
         rank: int = 8,
+        omega_tilt: float = 0.0,
         t_near: float = 0.05,
         t_far: float = 4.0,
     ):
@@ -570,10 +571,18 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if "omega_map" in self.cam_modes:
             # Learnable 6->P linear phase maps (zero-init delta): atoms may
             # leave the coordinate axes; relativity exact by construction.
+            # omega_tilt > 0: random off-axis init, scaled per-row by the
+            # base atom radius (breaks axis alignment immediately).
+            def d_omega(P_rows, omega, gain):
+                d = torch.zeros(P_rows, 6)
+                if omega_tilt > 0:
+                    radius = (omega[None, :] * gain).reshape(-1, 1)  # [P, 1]
+                    d = torch.randn(P_rows, 6) * omega_tilt * radius
+                return nn.Parameter(d)
             if "qk_rope_cam" in self.cam_modes:
-                self.dOmega = nn.Parameter(torch.zeros(6 * num_freqs, 6))
+                self.dOmega = d_omega(6 * num_freqs, self.omega, torch.ones(6, num_freqs))
             if {"h_pra", "h_dpra"} & self.cam_modes:
-                self.dOmega_h = nn.Parameter(torch.zeros(6 * num_freqs_h, 6))
+                self.dOmega_h = d_omega(6 * num_freqs_h, self.omega_h, torch.ones(6, num_freqs_h))
 
         if self.cam_modes & {"plucker_sinc", "point_rope"}:
             # 3 spatial coords x num_freqs pairs, sinc-enveloped segment rotary.

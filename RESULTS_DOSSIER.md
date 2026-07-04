@@ -96,3 +96,16 @@ F21/F42), omega_map (learnable 6->P phase maps, F16/F21 base), m_scale (per-scen
 - F14: embedding knobs now yield +0.03..0.05 each — second saturation plateau near +0.9.
 Wave 3 (running): stack1 = mip+omega_map (F21/42); stack2 = cone+mip+omega_map; omega_hh (attribution
 control: omega_map alone at F21/42); h_strat (depth-stratified hidden kernel — last untested geometry).
+
+## Wave 3 results
+| run | PSNR | Δ base | LPIPS |
+|-----|------|--------|-------|
+| omega_hh (omega_map alone, F21/42) | 22.901 | **+0.93** (record) | **0.2651** (record) |
+| stack1 (mip+omega) | 22.898 | +0.93 | 0.2663 |
+| stack2 (cone+mip+omega) | 22.805 | +0.84 | 0.2704 |
+| h_strat (depth-sliced hidden) | 22.602 | +0.63 | 0.2743 |
+- F15: learnable phase maps (omega_map) = only knob that added on champion (+0.065). Stacks NOT
+  additive (mip+omega = omega); cone slightly negative in stack; h_strat rejected (line kernel wins).
+- F16: embedding-knob axis plateaus at ~+0.93. User scope decision: TTT-layer only (no attention ext).
+Wave 4 (running): omega_hh seeds 137/211, baseline seed 137 (seed variance for the delta claim),
+omega_r (random-tilt dOmega init).

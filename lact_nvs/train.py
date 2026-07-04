@@ -48,6 +48,7 @@ parser.add_argument("--warmup", type=int, default=4000)
 parser.add_argument("--steps", type=int, default=80000)
 parser.add_argument("--weight_decay", type=float, default=0.05)
 parser.add_argument("--lpips_start", type=int, default=5000, help="Iteration to start LPIPS loss")
+parser.add_argument("--seed", type=int, default=95)
 
 args = parser.parse_args()
 model_config = omegaconf.OmegaConf.load(args.config)
@@ -59,7 +60,7 @@ ddp_local_rank = int(os.environ.get("LOCAL_RANK", dist.get_rank() % 8))
 torch.cuda.set_device(ddp_local_rank)
 
 # Seed everything
-rank_specific_seed = 95 + dist.get_rank()
+rank_specific_seed = args.seed + dist.get_rank()
 torch.manual_seed(rank_specific_seed)
 np.random.seed(rank_specific_seed)
 random.seed(rank_specific_seed)
