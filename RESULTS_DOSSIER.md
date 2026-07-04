@@ -133,3 +133,15 @@ Wave 5 (running): omega_r seeds 137/211, baseline_s3 (seed 211), omega_r2 (tilt 
 - Tilt 0.2 > 0.1 on seed 95 (23.049 vs 23.010).
 Wave 6 (running): omega_r2 seeds 137/211; omega_r3 (tilt 0.3); omega_rb (tilt 0.2 + learnable
 per-pair phase bias — cancels in differences, re-frames the functional W^0 absolute-phase path per F12).
+
+## Cross-task validation: LLM (lact_llm, 200M params, 3B tokens fineweb-edu, matched data order)
+| variant | val loss | ppl | Δ vs original |
+|---------|----------|-----|---------------|
+| base_nope (no fw pos enc) | 2.9735 | 19.56 | +0.0125 |
+| base_rope (original: fw-RoPE on) | 2.9610 | 19.32 | 0 |
+| **h_pra (hidden rotary, 1D)** | **2.9513** | **19.13** | **−0.0097 (−1.0% ppl)** |
+| full (+learnable freqs) | 2.9628 | 19.35 | +0.0018 |
+- F19: h-PRA generalizes to language modeling: gain equals the entire nope→rope gap, additive on top
+  of it, stable from step 4k to 91k. Original authors' "fw-RoPE ~ NoPE" observation reproduced.
+- F20: omega_map degenerates in 1D (no direction to learn) — its power is multi-dimensional phase
+  direction learning (6D NVS: +0.11; 1D LLM: ~0). Boundary condition for the paper.
