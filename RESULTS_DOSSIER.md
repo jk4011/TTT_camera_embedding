@@ -145,3 +145,9 @@ per-pair phase bias — cancels in differences, re-frames the functional W^0 abs
   of it, stable from step 4k to 91k. Original authors' "fw-RoPE ~ NoPE" observation reproduced.
 - F20: omega_map degenerates in 1D (no direction to learn) — its power is multi-dimensional phase
   direction learning (6D NVS: +0.11; 1D LLM: ~0). Boundary condition for the paper.
+
+## Cross-task validation: AR video (Wan1.3B attn-only finetune, MultiCamVideo, 4100 steps, deterministic noise)
+Paired per-step loss over last 2500 steps: h_pra Δ=+0.000000 (t=0.0), full Δ=+0.000027 (t=1.2, n.s.)
+- F21: h-PRA NEUTRAL on short-budget video finetune (no gain, no harm). Caveats: 4100 samples at
+  batch 1; ~2 TTT update chunks per sequence (memory role small); noisy diffusion objective.
+  Honest verdict: 2 of 3 tasks improve (NVS +1.22 dB, LLM −1.0% ppl), video unaffected.
