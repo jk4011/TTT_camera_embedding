@@ -583,8 +583,10 @@ class Trainer:
             wandb.log(wandb_loss_dict, step=self.step)
             print_rank0(f"step {self.step} loss: {loss.item():03f} time: {time.time() - tic:02f}s total grad norm: {total_grad_norm:02f} lr: {self.optimizer.param_groups[0]['lr']:06f} extra loss: {extra_loss:03f}")
 
-            # Log videos at a reduced frequency
-            if self.step % (self.config.wandb_log_every * 50) == 0:
+            # Log videos at a reduced frequency (skip entirely when wandb is
+            # disabled: wandb.Video would require moviepy and waste encode time)
+            if self.step % (self.config.wandb_log_every * 50) == 0 \
+                    and self.config.get("wandb_mode", "online") != "disabled":
                 # Get videos from data batch - shape [B, f, c, h, w]
                 videos = data_batch["video_rgb"]
 
