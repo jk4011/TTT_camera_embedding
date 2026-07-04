@@ -96,37 +96,49 @@ def init_logging_folder(args, output_path):
     """
     os.makedirs(output_path, exist_ok=True)
 
+    # wandb_mode: "online" (default), "offline", or "disabled".
+    wandb_mode = args.get("wandb_mode", "online")
+
     wandb_id = None
     if os.path.exists(os.path.join(output_path, "wandb_id.txt")):
         with open(os.path.join(output_path, "wandb_id.txt"), "r") as f:
             wandb_id = f.read().strip()
         print(f"Resuming wandb run with id {wandb_id}")
-    
-    wandb.login(host=args.wandb_host, key=args.wandb_key)
+
     wandb_save_dir = args.get("wandb_save_dir", "/mnt/localssd/wandb/")
-    run = wandb.init(
-        config=args,
-        resume="allow",
-        **{
-            "mode": "online",
-            "entity": args.wandb_entity,
-            "project": args.wandb_project,
-        },
-        id=wandb_id,
-        dir=wandb_save_dir
-    )
-    wandb.run.log_code(".")
-    wandb.run.name = args.wandb_name
-    print(f"run dir: {run.dir}")
-    wandb_folder = run.dir
+    if wandb_mode == "disabled":
+        # No login / no network. wandb.init(mode="disabled") returns a
+        # no-op run so all later wandb.log() calls are safe.
+        os.makedirs(wandb_save_dir, exist_ok=True)
+        run = wandb.init(config=args, mode="disabled", dir=wandb_save_dir)
+        print("Wandb disabled (wandb_mode=disabled)")
+    else:
+        if wandb_mode == "online":
+            wandb.login(host=args.wandb_host, key=args.wandb_key)
+        run = wandb.init(
+            config=args,
+            resume="allow",
+            **{
+                "mode": wandb_mode,
+                "entity": args.wandb_entity,
+                "project": args.wandb_project,
+            },
+            id=wandb_id,
+            dir=wandb_save_dir
+        )
+        wandb.run.log_code(".")
+        wandb.run.name = args.wandb_name
+        print(f"run dir: {run.dir}")
+
+        # save wandb id if a new run for later resuming wandb
+        if wandb_id is None:
+            wandb_id = wandb.run.id
+            with open(os.path.join(output_path, "wandb_id.txt"), "w") as f:
+                f.write(wandb_id)
+
+    wandb_folder = run.dir if run.dir is not None else os.path.join(wandb_save_dir, "wandb_disabled")
     os.makedirs(wandb_folder, exist_ok=True)
 
-    # save wandb id if a new run for later resuming wandb
-    if wandb_id is None:
-        wandb_id = wandb.run.id
-        with open(os.path.join(output_path, "wandb_id.txt"), "w") as f:
-            f.write(wandb_id)
-    
     print("Wandb setup done")
     
     import omegaconf

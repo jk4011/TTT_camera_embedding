@@ -550,8 +550,11 @@ class Trainer:
                 gathered_unnormalized_loss, unnormalized_loss)
             dist.all_gather_into_tensor(gathered_timestep, timestep)
         else:
-            gathered_unnormalized_loss = unnormalized_loss
-            gathered_timestep = timestep
+            # world_size == 1: keep the same rank-stacked layout as the
+            # all_gather branch ([world_size, ...]) so the code below
+            # (iteration / indexing) works for single-GPU runs too.
+            gathered_unnormalized_loss = unnormalized_loss.unsqueeze(0)
+            gathered_timestep = timestep.unsqueeze(0)
 
         loss_breakdown = defaultdict(list)
         stats = {}
@@ -612,6 +615,9 @@ class Trainer:
         self.model.train()
         start_time = time.time()
         while self.step < self.config.max_fwdbwd_passes:
+            if self.config.get("deterministic_noise", False):
+                # identical timestep/noise draws across ablation variants
+                torch.manual_seed(123457 + self.step)
             data_batch = next(self.dataloader)
             text_prompts = data_batch["caption"]
             if self.config.get("profile", False):

@@ -168,6 +168,126 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     return output, w0, w1, w2
 
 
+def apply_rotary_cols(x, cos, sin):
+    """Rotate adjacent row-pairs of column-major tokens.
+
+    x: [b, d, l]; cos/sin: [P, l] with 2P <= d. Rotates rows [0:2P].
+    """
+    P = cos.shape[0]
+    x_rot = x[:, : 2 * P, :].float().reshape(x.shape[0], P, 2, x.shape[2])
+    x1, x2 = x_rot[:, :, 0], x_rot[:, :, 1]
+    c, s_ = cos[None], sin[None]
+    y = torch.stack((x1 * c - x2 * s_, x1 * s_ + x2 * c), dim=2)
+    y = y.reshape(x.shape[0], 2 * P, x.shape[2]).type_as(x)
+    if 2 * P == x.shape[1]:
+        return y
+    return torch.cat([y, x[:, 2 * P :, :]], dim=1)
+
+
+@torch.compile()
+def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
+    w0: torch.Tensor,
+    w1: torch.Tensor,
+    w2: torch.Tensor,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    lr0: torch.Tensor,
+    lr1: torch.Tensor,
+    lr2: torch.Tensor,
+    hcos: torch.Tensor,  # [P, L] hidden-rotary coeffs (3D grid phases)
+    hsin: torch.Tensor,
+    w_scale: float,
+    num_repeat: int = 1,
+    mini_batch_size: int = -1,
+    update_length: int = -1,
+    update_every: int = -1,
+    use_moun: bool = False,
+    num_moun_iters: int = 3,
+    weight_norm: bool = True,
+):
+    """ar_fast_weight_swish_glu_weight_norm_mini_batch + h-PRA (hidden rotary).
+
+    The SwiGLU hidden activation is rotated by per-token (t, y, x) grid phases
+    before meeting w1 on both the apply (queries) and write (keys) paths; the
+    write backprop applies the inverse rotation. Value retrieval becomes
+    relative in hidden space (see the NVS/LLM studies).
+    """
+    L = k.shape[1]
+    if update_length == -1:
+        update_length = L
+    if mini_batch_size == -1:
+        mini_batch_size = update_length
+    if update_every == -1:
+        update_every = mini_batch_size * 2
+
+    w0_norm = w0.norm(dim=2, keepdim=True)
+    w1_norm = w1.norm(dim=2, keepdim=True)
+    w2_norm = w2.norm(dim=2, keepdim=True)
+
+    output = torch.zeros_like(q)
+
+    first_noise_chunk_size = update_every - mini_batch_size
+    qi = q[:, :first_noise_chunk_size, :]
+    h = torch.bmm(w2, qi.transpose(1, 2))
+    gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
+    hq = apply_rotary_cols(gate * h, hcos[:, :first_noise_chunk_size], hsin[:, :first_noise_chunk_size])
+    output[:, :first_noise_chunk_size, :] = torch.bmm(w1, hq).transpose(1, 2)
+    for _ in range(num_repeat):
+        for i in range(first_noise_chunk_size, update_length, update_every):
+            s_index = i
+            e_index = s_index + mini_batch_size
+
+            ki, vi = k[:, s_index:e_index, :], v[:, s_index:e_index, :]
+            lr0i = lr0[:, s_index:e_index, :]
+            lr1i = lr1[:, s_index:e_index, :]
+            lr2i = lr2[:, s_index:e_index, :]
+            hci = hcos[:, s_index:e_index]
+            hsi = hsin[:, s_index:e_index]
+
+            gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
+            hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
+            silu_gate = F.silu(gate_before_act, inplace=False)
+            hidden = silu_gate * hidden_before_mul
+            hidden_rot = apply_rotary_cols(hidden, hci, hsi)
+
+            # backprop through the rotation: R^T = rotary with negated sin
+            dhidden_rot = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
+            dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+
+            dhidden_before_mul = dhidden * silu_gate
+            dgate = dhidden * hidden_before_mul
+            dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+            dw1 = torch.bmm(
+                vi.transpose(1, 2), hidden_rot.transpose(1, 2) * lr1i * w_scale
+            )
+            dw0 = torch.bmm(dgate_before_act, ki * lr0i * w_scale)
+            dw2 = torch.bmm(dhidden_before_mul, ki * lr2i * w_scale)
+
+            if use_moun:
+                dw1 = zeropower_via_newtonschulz5(dw1, num_moun_iters)
+                dw0 = zeropower_via_newtonschulz5(dw0, num_moun_iters)
+                dw2 = zeropower_via_newtonschulz5(dw2, num_moun_iters)
+
+            w1 = w1 + dw1
+            w0 = w0 + dw0
+            w2 = w2 + dw2
+            if weight_norm:
+                w0 = w0 / (w0.norm(dim=2, keepdim=True) + 1e-5) * w0_norm
+                w1 = w1 / (w1.norm(dim=2, keepdim=True) + 1e-5) * w1_norm
+                w2 = w2 / (w2.norm(dim=2, keepdim=True) + 1e-5) * w2_norm
+
+            e_index = s_index + update_every
+            qi = q[:, s_index:e_index, :]
+            h = torch.bmm(w2, qi.transpose(1, 2))
+            gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
+            hq = apply_rotary_cols(gate * h, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
+            output[:, s_index:e_index, :] = torch.bmm(w1, hq).transpose(1, 2)
+
+    return output, w0, w1, w2
+
+
 @torch.compile()
 def ar_fast_weight_swish_glu_weight_norm_mini_batch_inference(
     w0: torch.Tensor,
@@ -577,6 +697,9 @@ class ARFastWeightSwiGLU(nn.Module):
                  n_latent_f: int = 21, # used for correct rope implementation. 
                  ar_window_f: int = 3, # chunk size for AR Video Diffusion. 
                  update_every: int = -1, # used for TTT. 
+                 ttt_hidden_rope: bool = False,  # h-PRA: rotary on the SwiGLU hidden
+                 ttt_learnable_freqs: bool = False,  # omega_map(3D): learnable hidden ladder
+                 ttt_freq_tilt: float = 0.1,
                  ): 
         assert dim % num_heads == 0
         super().__init__()
@@ -595,6 +718,24 @@ class ARFastWeightSwiGLU(nn.Module):
         self.n_latent_f = n_latent_f
         self.qk_norm = qk_norm
         self.eps = eps
+
+        #### PRA transplant: hidden rotary with 3D (t, y, x) grid phases.
+        self.ttt_hidden_rope = ttt_hidden_rope
+        self.ttt_learnable_freqs = ttt_learnable_freqs
+        if ttt_hidden_rope:
+            d_h_total = int(fw_head_dim * inter_multi)
+            # rotate half of the hidden dims
+            self.h_rope_dim = (d_h_total // 2) // 2 * 2
+            c = self.h_rope_dim // 2
+            # same 3-way (t, y, x) split as rope_params ladders
+            ladder = 1.0 / torch.pow(
+                10000.0, torch.arange(0, self.h_rope_dim, 2).float().div(self.h_rope_dim)
+            )
+            if ttt_learnable_freqs:
+                ladder = ladder * (1.0 + ttt_freq_tilt * torch.randn_like(ladder))
+                self.h_inv_freq = nn.Parameter(ladder)
+            else:
+                self.register_buffer("h_inv_freq", ladder, persistent=False)
         
         # layersx
         self.q = nn.Linear(dim, dim)
@@ -864,17 +1005,56 @@ class ARFastWeightSwiGLU(nn.Module):
             fw_w1 = self.w1.repeat(b, 1, 1) # [nh, d_out, d_h] -> [b*nh, d_out, d_h]
             fw_w2 = self.w2.repeat(b, 1, 1) # [nh, d_h, d_in] -> [b*nh, d_h, d_in]
 
-            fw_x, fw_w0, fw_w1, fw_w2 = ar_fast_weight_swish_glu_weight_norm_mini_batch(
-                fw_w0, fw_w1, fw_w2, fast_q, fast_k, fast_v,
-                fw_lr1, fw_lr2, fw_lr3,
-                w_scale=self.w_scale,
-                mini_batch_size=self.mini_batch_size,
-                update_length=-1,
-                use_moun=self.use_moun,
-                update_every=self.update_every,
-                num_moun_iters=self.num_moun_iters,
-                weight_norm=self.weight_norm,
-            )
+            if self.ttt_hidden_rope:
+                assert self.update_every == self.mini_batch_size * 2, \
+                    "hidden-rope carrier currently mirrors the no-repeat rope path"
+                # Build per-token hidden phases with the SAME token->(t,y,x)
+                # mapping as the fast q/k rope: pass a (1, 0)-pair carrier
+                # through rope_apply_ar with a hidden-sized freq table; the
+                # output pairs are exactly (cos, sin).
+                with torch.autocast(device_type="cuda", enabled=False):
+                    seq_l = fast_q.shape[1]
+                    table = torch.polar(
+                        torch.ones(1024, self.h_rope_dim // 2, device=x.device),
+                        torch.outer(
+                            torch.arange(1024, device=x.device, dtype=torch.float32),
+                            self.h_inv_freq.float(),
+                        ),
+                    )
+                    carrier = torch.zeros(
+                        1, seq_l, 1, self.h_rope_dim, device=x.device, dtype=torch.float32
+                    )
+                    carrier[..., 0::2] = 1.0
+                    roped = rope_apply_ar(
+                        carrier, grid_sizes, table, self.ar_window_f, self.n_latent_f
+                    )
+                    hcos = roped[0, :, 0, 0::2].transpose(0, 1).contiguous()  # [P, L]
+                    hsin = roped[0, :, 0, 1::2].transpose(0, 1).contiguous()
+
+                fw_x, fw_w0, fw_w1, fw_w2 = ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
+                    fw_w0, fw_w1, fw_w2, fast_q, fast_k, fast_v,
+                    fw_lr1, fw_lr2, fw_lr3,
+                    hcos, hsin,
+                    w_scale=self.w_scale,
+                    mini_batch_size=self.mini_batch_size,
+                    update_length=-1,
+                    use_moun=self.use_moun,
+                    update_every=self.update_every,
+                    num_moun_iters=self.num_moun_iters,
+                    weight_norm=self.weight_norm,
+                )
+            else:
+                fw_x, fw_w0, fw_w1, fw_w2 = ar_fast_weight_swish_glu_weight_norm_mini_batch(
+                    fw_w0, fw_w1, fw_w2, fast_q, fast_k, fast_v,
+                    fw_lr1, fw_lr2, fw_lr3,
+                    w_scale=self.w_scale,
+                    mini_batch_size=self.mini_batch_size,
+                    update_length=-1,
+                    use_moun=self.use_moun,
+                    update_every=self.update_every,
+                    num_moun_iters=self.num_moun_iters,
+                    weight_norm=self.weight_norm,
+                )
         else:
             # inference only. 
             # if self.cur_w0 is None:
