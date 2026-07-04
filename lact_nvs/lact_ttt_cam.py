@@ -449,6 +449,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         num_registers: int = 4,
         rank: int = 8,
         omega_tilt: float = 0.0,
+        phase_bias: bool = False,
         t_near: float = 0.05,
         t_far: float = 4.0,
     ):
@@ -583,6 +584,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 self.dOmega = d_omega(6 * num_freqs, self.omega, torch.ones(6, num_freqs))
             if {"h_pra", "h_dpra"} & self.cam_modes:
                 self.dOmega_h = d_omega(6 * num_freqs_h, self.omega_h, torch.ones(6, num_freqs_h))
+            if phase_bias:
+                # Constant per-pair offsets: cancel exactly in phase
+                # differences (relative kernel untouched); only re-frame the
+                # functional absolute-phase interaction with W^0 (F12).
+                if "qk_rope_cam" in self.cam_modes:
+                    self.phase_b = nn.Parameter(torch.zeros(6 * num_freqs))
+                if {"h_pra", "h_dpra"} & self.cam_modes:
+                    self.phase_b_h = nn.Parameter(torch.zeros(6 * num_freqs_h))
 
         if self.cam_modes & {"plucker_sinc", "point_rope"}:
             # 3 spatial coords x num_freqs pairs, sinc-enveloped segment rotary.
@@ -652,7 +661,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             tok_m = tok_m / info["_m_scale"]
         return torch.cat([info["tok_d"], tok_m], dim=-1)
 
-    def _rope_coeffs(self, info, omega=None, gain=None, dOmega=None):
+    def _rope_coeffs(self, info, omega=None, gain=None, dOmega=None, bias=None):
         """cos/sin for Plucker line rotary. Returns [B, L, 6F]."""
         omega = self.omega if omega is None else omega
         gain = self.freq_gain if gain is None else gain
@@ -661,6 +670,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         theta = theta.flatten(2)  # [b, L, 6F]
         if dOmega is not None:
             theta = theta + coords @ dOmega.T
+        if bias is not None:
+            theta = theta + bias[None, None]
         return to_heads(theta.cos(), self.num_heads), to_heads(theta.sin(), self.num_heads)
 
     def _segment_coeffs(self, info, t1, t2, omega=None, gain=None):
@@ -719,7 +730,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
 
         if "qk_rope_cam" in modes:
             ccos, csin = self._rope_coeffs(
-                info, dOmega=getattr(self, "dOmega", None)
+                info, dOmega=getattr(self, "dOmega", None),
+                bias=getattr(self, "phase_b", None),
             )
             q = apply_rotary_pairs(q, ccos, csin)
             k = apply_rotary_pairs(k, ccos, csin)
@@ -841,6 +853,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 hcos, hsin = self._rope_coeffs(
                     info, self.omega_h, self.gain_h,
                     dOmega=getattr(self, "dOmega_h", None),
+                    bias=getattr(self, "phase_b_h", None),
                 )
             assert "cam_registers" not in modes, "hidden rotary + cam_registers unsupported"
             if "res2" in modes:

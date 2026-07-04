@@ -122,3 +122,14 @@ omega_r (random-tilt dOmega init).
   omega_hh(3 seeds, 22.882±0.05) - baseline(2 seeds, 21.794) = **+1.09**. Single-seed comparisons vs
   the lucky baseline seed have been UNDERSTATING the method. Champion variance much smaller than baseline's.
 Wave 5 (running): omega_r seeds 137/211, baseline_s3 (seed 211), omega_r2 (tilt 0.2).
+
+## Wave 5 results — fair 3-seed statistics
+| | seeds | mean PSNR | std | mean LPIPS |
+|---|-------|-----------|-----|------------|
+| omega_r (tilt 0.1) | 95/137/211 | **22.971** | 0.088 | 0.2613 |
+| baseline | 95/137/211 | 21.745 | 0.196 | 0.2929 |
+| omega_r2 (tilt 0.2, 1 seed) | 95 | 23.049 | — | 0.2622 |
+- **Fair mean-vs-mean delta: +1.226 dB** (and −0.032 LPIPS). Method is 2x more seed-stable than baseline.
+- Tilt 0.2 > 0.1 on seed 95 (23.049 vs 23.010).
+Wave 6 (running): omega_r2 seeds 137/211; omega_r3 (tilt 0.3); omega_rb (tilt 0.2 + learnable
+per-pair phase bias — cancels in differences, re-frames the functional W^0 absolute-phase path per F12).
