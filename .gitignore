@@ -52,3 +52,8 @@ dist/
 lact_nvs/outputs/
 overleaf_paper/
 *.swp
+.cache_inductor/
+.cache_triton/
+.venv_llm/
+lact_llm/outputs/
+lact_ar_video/outputs/

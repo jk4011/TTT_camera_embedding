@@ -20,6 +20,7 @@ from einops import rearrange, repeat
 from .ttt_operation import (
     block_causal_lact_swiglu,
     prenorm_block_causal_lact_swiglu,
+    prenorm_block_causal_lact_swiglu_hidden_rope,
     l2_norm,
 )
 
@@ -138,6 +139,9 @@ class LaCTSWIGLULayer(nn.Module):
         learnable_ttt_scale: bool = False,
         ttt_prenorm: bool = False,
         ttt_nope: bool = False,
+        ttt_hidden_rope: bool = False,
+        ttt_learnable_freqs: bool = False,
+        ttt_freq_tilt: float = 0.1,
         rope_theta: float = 500000.0,
         layer_idx: int = None,
         max_position_embeddings: int = 2048,
@@ -251,6 +255,25 @@ class LaCTSWIGLULayer(nn.Module):
         self.ttt_loss_type = ttt_loss_type
         self.use_fused_kernel = use_fused_kernel
         self.fp32_states = fp32_states
+
+        #### PRA transplant (1D): hidden rotary (h-PRA) + learnable freqs (omega_map).
+        self.ttt_hidden_rope = ttt_hidden_rope
+        self.ttt_learnable_freqs = ttt_learnable_freqs
+        if ttt_hidden_rope:
+            # rotate half of the hidden dims; RoPE-style ladder over positions
+            P_h = (self.d_h // 2) // 2
+            h_inv = 1.0 / (rope_theta ** (torch.arange(P_h).float() / max(P_h, 1)))
+            if ttt_learnable_freqs:
+                h_inv = h_inv * (1.0 + ttt_freq_tilt * torch.randn(P_h))
+                self.h_inv_freq = nn.Parameter(h_inv)
+            else:
+                self.register_buffer("h_inv_freq", h_inv, persistent=False)
+        if ttt_learnable_freqs:
+            # additive learnable frequency deltas on the fast-weight q/k rotary
+            # (composes with the base RoPE: total angle = base + t * dfreq).
+            P_qk = self.head_dim // 2
+            base_inv = 1.0 / (rope_theta ** (torch.arange(P_qk).float() / P_qk))
+            self.fwqk_dfreq = nn.Parameter(ttt_freq_tilt * torch.randn(P_qk) * base_inv)
 
         assert self.ttt_loss_type in [
             "dot_product"
@@ -434,6 +457,23 @@ class LaCTSWIGLULayer(nn.Module):
                 cu_seqlens=cu_seqlens,
             )
 
+            if self.ttt_learnable_freqs:
+                # omega_map (1D): extra rotary with learnable frequency deltas,
+                # rotate_half convention to match the base RoPE pairing.
+                pos = torch.arange(
+                    fast_q.shape[1], device=fast_q.device, dtype=torch.float32
+                ) + seqlen_offset
+                ang = pos[:, None] * self.fwqk_dfreq.float()[None]  # [s, P_qk]
+                dcos = torch.cat([ang.cos(), ang.cos()], dim=-1)[None, :, None, :]
+                dsin = torch.cat([ang.sin(), ang.sin()], dim=-1)[None, :, None, :]
+
+                def _rot_half(x):
+                    x1, x2 = x.chunk(2, dim=-1)
+                    return torch.cat([-x2, x1], dim=-1)
+
+                fast_q = (fast_q * dcos + _rot_half(fast_q) * dsin).type_as(fast_q)
+                fast_k = (fast_k * dcos + _rot_half(fast_k) * dsin).type_as(fast_k)
+
             fast_q = rearrange(fast_q, "b s n_h d -> b s (n_h d)", n_h=self.num_heads)
             fast_k = rearrange(fast_k, "b s n_h d -> b s (n_h d)", n_h=self.num_heads)
 
@@ -488,7 +528,24 @@ class LaCTSWIGLULayer(nn.Module):
             fw_w2 = fw_w2.to(torch.float32)
 
         # [b * nh, s, d_ttt_head]
-        if self.ttt_prenorm:
+        if self.ttt_hidden_rope:
+            # h-PRA path (prenorm, PyTorch ops only)
+            assert self.ttt_prenorm and not self.use_fused_kernel, \
+                "ttt_hidden_rope requires ttt_prenorm=True, use_fused_kernel=False"
+            pos = torch.arange(
+                fast_q.shape[1], device=fast_q.device, dtype=torch.float32
+            ) + seqlen_offset
+            h_ang = self.h_inv_freq.float()[:, None] * pos[None, :]  # [P_h, s]
+            fw_x = prenorm_block_causal_lact_swiglu_hidden_rope(
+                fw_w0, fw_w1, fw_w2,
+                fast_q, fast_k, fast_v,
+                fw_lr1, fw_lr2, fw_lr3,
+                h_ang.cos(), h_ang.sin(),
+                chunk_size=self.lact_chunk_size,
+                use_muon=self.use_muon,
+                momentum=momentum,
+            )
+        elif self.ttt_prenorm:
             # pre-norm version of ttt.   state = state + f(norm(state))
             if self.use_fused_kernel:
                 fw_x = prenorm_block_causal_lact_swiglu_fused_kernel_triton(

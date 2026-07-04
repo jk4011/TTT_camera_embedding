@@ -42,6 +42,9 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         # prenorm ttt:  state = state + f(norm(state))
         # postnorm ttt:  state = norm(state + f(state)
         ttt_nope: bool = False,  # if True, no positional encoding for query and key used in ttt.
+        ttt_hidden_rope: bool = False,  # h-PRA: rotary on the SwiGLU hidden activation
+        ttt_learnable_freqs: bool = False,  # omega_map(1D): learnable frequency deltas
+        ttt_freq_tilt: float = 0.1,  # random-tilt init scale for learnable freqs
         w0_w2_low_rank: int = -1,  # -1 means fully learnable.  > 1 means low rank parameterization of the initial learnable weights.
         window_size: int = 2048,
         rope_theta: Optional[float] = 10000.0,
@@ -84,6 +87,9 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.learnable_ttt_scale = learnable_ttt_scale
         self.ttt_prenorm = ttt_prenorm
         self.ttt_nope = ttt_nope
+        self.ttt_hidden_rope = ttt_hidden_rope
+        self.ttt_learnable_freqs = ttt_learnable_freqs
+        self.ttt_freq_tilt = ttt_freq_tilt
         self.rope_theta = rope_theta
         self.max_position_embeddings = max_position_embeddings
 

@@ -362,3 +362,132 @@ def prenorm_block_causal_lact_swiglu(
     output[:, :, s_index:e_index] = torch.bmm(w1, gate * h)
 
     return output.transpose(1, 2)
+
+def apply_rotary_cols(x, cos, sin):
+    """Rotate adjacent row-pairs of column-major tokens.
+
+    x: [b, d, l]; cos/sin: [P, l] with 2P <= d. Rotates rows [0:2P].
+    """
+    P = cos.shape[0]
+    x_rot = x[:, : 2 * P, :].float().reshape(x.shape[0], P, 2, x.shape[2])
+    x1, x2 = x_rot[:, :, 0], x_rot[:, :, 1]
+    c, s_ = cos[None], sin[None]
+    y = torch.stack((x1 * c - x2 * s_, x1 * s_ + x2 * c), dim=2)
+    y = y.reshape(x.shape[0], 2 * P, x.shape[2]).type_as(x)
+    if 2 * P == x.shape[1]:
+        return y
+    return torch.cat([y, x[:, 2 * P :, :]], dim=1)
+
+
+@torch.compile()
+@torch.autocast(device_type="cuda", enabled=True, dtype=torch.bfloat16)
+def prenorm_block_causal_lact_swiglu_hidden_rope(
+    w0: torch.Tensor,
+    w1: torch.Tensor,
+    w2: torch.Tensor,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    lr0: torch.Tensor,
+    lr1: torch.Tensor,
+    lr2: torch.Tensor,
+    hcos: torch.Tensor,  # [P, seq_len] fp32 hidden-rotary coeffs
+    hsin: torch.Tensor,
+    chunk_size: int = 2048,
+    use_muon: bool = False,
+    momentum: torch.Tensor = None,
+):
+    """prenorm_block_causal_lact_swiglu + h-PRA (hidden rotary).
+
+    The SwiGLU hidden activation is rotated by per-token position phases
+    before meeting w1, on both the apply path (queries) and the write path
+    (keys); the write backprop applies the inverse rotation. The value
+    retrieval channel <R_t_q h(q), R_t_k h(k)> becomes relative in hidden
+    space (see the NVS study; no attention analogue).
+    """
+    w0_norm = w0.norm(dim=2, keepdim=True)
+    w1_norm = w1.norm(dim=2, keepdim=True)
+    w2_norm = w2.norm(dim=2, keepdim=True)
+
+    w0_main, w1_main, w2_main = w0, w1, w2
+
+    if momentum is not None:
+        dw1_momentum = torch.zeros_like(w1)
+        dw0_momentum = torch.zeros_like(w0)
+        dw2_momentum = torch.zeros_like(w2)
+
+    q = q.transpose(1, 2)
+    v = v.transpose(1, 2)
+    output = torch.zeros_like(v)
+
+    e_index = 0
+    seq_len = k.shape[1]
+    for i in range(0, seq_len - chunk_size, chunk_size):
+        s_index = i
+        e_index = s_index + chunk_size
+
+        ki = k[:, s_index:e_index, :]
+        vi = v[:, :, s_index:e_index]
+        qi = q[:, :, s_index:e_index]
+        lr1i = lr1[:, s_index:e_index, :]
+        lr2i = lr2[:, s_index:e_index, :]
+        lr0i = lr0[:, s_index:e_index, :]
+        hci = hcos[:, s_index:e_index]
+        hsi = hsin[:, s_index:e_index]
+
+        # apply with previous weights; hidden of queries rotated by their phases
+        h = torch.bmm(w2, qi)
+        gate = F.silu(torch.bmm(w0, qi), inplace=True)
+        hq_rot = apply_rotary_cols(gate * h, hci, hsi)
+        output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
+
+        gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
+        hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
+        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        hidden_rot = apply_rotary_cols(hidden, hci, hsi)
+
+        # backprop through the rotation: R^T = rotary with negated sin
+        dhidden_rot = torch.bmm(w1.transpose(1, 2), vi)
+        dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+
+        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dgate = dhidden * hidden_before_mul
+        dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+        dw1 = torch.bmm(vi, (hidden_rot.transpose(1, 2) * lr1i).type_as(vi))
+        dw0 = torch.bmm(dgate_before_act, (ki * lr0i).type_as(dgate_before_act))
+        dw2 = torch.bmm(dhidden_before_mul, (ki * lr2i).type_as(dhidden_before_mul))
+
+        if momentum is not None:
+            m_i = momentum[:, s_index:e_index, :]
+            m_i = m_i.mean(dim=1, keepdim=True)
+            dw0 = dw0 + dw0_momentum * m_i
+            dw1 = dw1 + dw1_momentum * m_i
+            dw2 = dw2 + dw2_momentum * m_i
+            dw0_momentum = dw0
+            dw1_momentum = dw1
+            dw2_momentum = dw2
+
+        if use_muon:
+            dw1 = zeropower_via_newtonschulz5(dw1)
+            dw0 = zeropower_via_newtonschulz5(dw0)
+            dw2 = zeropower_via_newtonschulz5(dw2)
+
+        w1_main = w1_main + dw1
+        w0_main = w0_main + dw0
+        w2_main = w2_main + dw2
+
+        w0 = w0_main / (w0_main.norm(dim=2, keepdim=True) + 1e-5) * w0_norm
+        w1 = w1_main / (w1_main.norm(dim=2, keepdim=True) + 1e-5) * w1_norm
+        w2 = w2_main / (w2_main.norm(dim=2, keepdim=True) + 1e-5) * w2_norm
+
+    s_index = e_index
+    e_index = seq_len
+
+    qi = q[:, :, s_index:e_index]
+    h = torch.bmm(w2, qi)
+    gate = F.silu(torch.bmm(w0, qi), inplace=True)
+    hq_rot = apply_rotary_cols(gate * h, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
+    output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
+
+    return output.transpose(1, 2)
