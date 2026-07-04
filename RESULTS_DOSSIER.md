@@ -109,3 +109,16 @@ control: omega_map alone at F21/42); h_strat (depth-stratified hidden kernel —
 - F16: embedding-knob axis plateaus at ~+0.93. User scope decision: TTT-layer only (no attention ext).
 Wave 4 (running): omega_hh seeds 137/211, baseline seed 137 (seed variance for the delta claim),
 omega_r (random-tilt dOmega init).
+
+## Wave 4 results — omega_r record + seed-variance discovery
+| run | PSNR | LPIPS |
+|-----|------|-------|
+| omega_r (tilt 0.1 init, F21/42) | **23.010** | **0.2592** (both records) |
+| omega_hh_s3 (seed 211) | 22.932 | 0.2623 |
+| omega_hh_s2 (seed 137) | 22.813 | 0.2649 |
+| baseline_s2 (seed 137) | **21.617** | 0.2963 |
+- F17: random-tilt dOmega init beats zero-init by +0.11 (zero-init stays near axis alignment).
+- F18: **baseline seed variance is large** (21.970 vs 21.617, spread 0.35). Fair mean-vs-mean deltas:
+  omega_hh(3 seeds, 22.882±0.05) - baseline(2 seeds, 21.794) = **+1.09**. Single-seed comparisons vs
+  the lucky baseline seed have been UNDERSTATING the method. Champion variance much smaller than baseline's.
+Wave 5 (running): omega_r seeds 137/211, baseline_s3 (seed 211), omega_r2 (tilt 0.2).
