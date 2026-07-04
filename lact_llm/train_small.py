@@ -9,9 +9,10 @@ RUNTIME ENVIRONMENT (required):
            C_INCLUDE_PATH=/usr/local/cuda/include
            PATH=/usr/local/cuda/bin:$PATH
            HF_HOME=/tmp/hf_cache   (set automatically below if unset)
-           TRITON_CACHE_DIR / TORCHINDUCTOR_CACHE_DIR -> /var/tmp/... (set
-           automatically below; /tmp and /dev/shm are mounted noexec on this
-           machine, so triton cannot load compiled launchers from there)
+           TRITON_CACHE_DIR / TORCHINDUCTOR_CACHE_DIR -> repo-local
+           .cache_triton / .cache_inductor (set automatically below; /tmp and
+           /dev/shm are mounted noexec on this machine, so triton cannot load
+           compiled launchers from there)
   cwd    : run from lact_llm/ (script also adds its own dir to sys.path)
 
 Example:
@@ -27,10 +28,10 @@ import sys
 
 os.environ.setdefault("HF_HOME", "/tmp/hf_cache")
 # /tmp is noexec on this machine; triton/inductor must compile into an
-# exec-allowed filesystem.
-_user = os.environ.get("USER", "user")
-os.environ.setdefault("TRITON_CACHE_DIR", f"/var/tmp/triton_cache_{_user}")
-os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", f"/var/tmp/torchinductor_{_user}")
+# exec-allowed filesystem (repo-local cache dirs).
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.environ.setdefault("TRITON_CACHE_DIR", os.path.join(_REPO_ROOT, ".cache_triton"))
+os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", os.path.join(_REPO_ROOT, ".cache_inductor"))
 
 import argparse
 import json
@@ -291,6 +292,13 @@ def main():
     torch.save(model.state_dict(), ckpt_path)
     print(f"[train] done at step {step} ({tokens_seen:,} tokens); "
           f"saved model state_dict to {ckpt_path}", flush=True)
+
+    # The hf datasets streaming stack leaves ~100+ live threads that prevent a
+    # clean interpreter shutdown (observed: process lingers after "done",
+    # holding all GPU memory). Everything is saved at this point, so exit hard.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
 
 
 if __name__ == "__main__":

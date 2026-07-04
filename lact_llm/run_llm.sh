@@ -20,8 +20,9 @@ export TRITON_NVDISASM_PATH=/usr/local/cuda/bin/nvdisasm
 export C_INCLUDE_PATH=/usr/local/cuda/include
 export PATH=/usr/local/cuda/bin:$PATH
 # /tmp and /dev/shm are noexec here; triton needs an exec-allowed cache dir
-export TRITON_CACHE_DIR=/var/tmp/triton_cache_${USER:-user}
-export TORCHINDUCTOR_CACHE_DIR=/var/tmp/torchinductor_${USER:-user}
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+export TRITON_CACHE_DIR="$REPO_ROOT/.cache_triton"
+export TORCHINDUCTOR_CACHE_DIR="$REPO_ROOT/.cache_inductor"
 
 mkdir -p "outputs/$2"
 
