@@ -192,18 +192,22 @@ class WanDiffusionWrapper(nn.Module):
 
     def forward(
         self, noisy_image_or_video: torch.Tensor, conditional_dict: dict,
-        timestep: torch.Tensor, 
+        timestep: torch.Tensor,
         convert_to_x0: bool = False,
         seq_len=None,
+        cam12_per_frame=None,
+        cam_coords6=None,
     ) -> torch.Tensor:
         """
-        A method to run diffusion model. 
-        Input: 
+        A method to run diffusion model.
+        Input:
             - noisy_image_or_video: a tensor with shape [B, F, C, H, W] where the number of frame is 1 for images.
-            - conditional_dict: a dictionary containing the conditional information (e.g. text embeddings, image embeddings). 
+            - conditional_dict: a dictionary containing the conditional information (e.g. text embeddings, image embeddings).
                 - prompt_embeds: a tensor with shape [B, L, D] containing the text embeddings.
-            - timestep: a tensor with shape [B] 
-        Output: a tensor with shape [B, F, C, H, W] where the number of frame is 1 for images. 
+            - timestep: a tensor with shape [B]
+            - cam12_per_frame / cam_coords6: optional ccv camera conditioning
+              (see WanModel.forward), passed through unchanged.
+        Output: a tensor with shape [B, F, C, H, W] where the number of frame is 1 for images.
         We always expect a X0 prediction form for the output.
         """
         prompt_embeds = conditional_dict["prompt_embeds"]
@@ -220,10 +224,17 @@ class WanDiffusionWrapper(nn.Module):
         if seq_len is None:
             seq_len = self.seq_len
 
+        extra_model_kwargs = {}
+        if cam12_per_frame is not None:
+            extra_model_kwargs["cam12_per_frame"] = cam12_per_frame
+        if cam_coords6 is not None:
+            extra_model_kwargs["cam_coords6"] = cam_coords6
+
         flow_pred, extra_info_list = self.model(
             noisy_image_or_video.permute(0, 2, 1, 3, 4),
             t=input_timestep, context=prompt_embeds,
-            seq_len=seq_len
+            seq_len=seq_len,
+            **extra_model_kwargs
         )
         # if torch.distributed.get_rank() == 0:
         #     from pdb import set_trace; set_trace()

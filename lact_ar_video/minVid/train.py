@@ -588,7 +588,7 @@ class Trainer:
             if self.step % (self.config.wandb_log_every * 50) == 0 \
                     and self.config.get("wandb_mode", "online") != "disabled":
                 # Get videos from data batch - shape [B, f, c, h, w]
-                videos = data_batch["video_rgb"]
+                videos = data_batch.get("video_rgb", data_batch.get("video_rgb_tgt"))
 
                 # Convert from range [0, 1] to [0, 255] for wandb
                 videos_uint8 = (videos.detach().cpu() * 255).type(torch.uint8)
@@ -628,12 +628,23 @@ class Trainer:
                 print_rank0(f"Data loading time: {data_time:06f}s")
                 start_time = time.time()
 
-            video_rgbs = data_batch["frames"] 
-            video_rgbs = video_rgbs.permute(0, 2, 1, 3, 4) # [B, f, c, h, w], float32, at cpu in range [0, 1]
-            data_batch_gpu = {
-                "video_rgb": video_rgbs.to(self.device),
-                "text_prompts": text_prompts, # list of strings
-            }
+            if "frames_src" in data_batch:
+                # ccv pair batch (multicam_pair_dataset)
+                data_batch_gpu = {
+                    "video_rgb_src": data_batch["frames_src"].permute(0, 2, 1, 3, 4).to(self.device),
+                    "video_rgb_tgt": data_batch["frames_tgt"].permute(0, 2, 1, 3, 4).to(self.device),
+                    "c2w_src": data_batch["c2w_src"].to(self.device),
+                    "c2w_tgt": data_batch["c2w_tgt"].to(self.device),
+                    "K": data_batch["K"].to(self.device),
+                    "text_prompts": text_prompts, # list of strings
+                }
+            else:
+                video_rgbs = data_batch["frames"]
+                video_rgbs = video_rgbs.permute(0, 2, 1, 3, 4) # [B, f, c, h, w], float32, at cpu in range [0, 1]
+                data_batch_gpu = {
+                    "video_rgb": video_rgbs.to(self.device),
+                    "text_prompts": text_prompts, # list of strings
+                }
 
             self.train_one_step(data_batch_gpu)
 

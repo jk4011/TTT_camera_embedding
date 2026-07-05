@@ -1,0 +1,143 @@
+# ccv_base: camera-controlled re-rendering (ReCamMaster-style baseline).
+# [SRC clean 21 latent frames || TGT AR interleave 39] = 93,600 tokens.
+# Camera injection: per-block cam_encoder (Linear 12->dim, zero-init, identity
+# projector) on per-frame relative extrinsics; TTT layer stays pose-blind.
+# Derived from abl_video_base.yaml; single GPU; wandb disabled.
+model:
+  class_name: models.video_latent_flow_matching_ar.VideoLatentFlowMatching
+  generator_ckpt: False
+  drop_text_prob: 0.0
+  ar_window_size: 3 # three latent frame each
+  adjust_timestep_shift: true
+  num_repeat: 1
+  frame_independent_noise: true
+  logit_normal_weighting: true
+  diffusion_config:
+    class_name: minVid.models.wan.wan_warpper_versatile.WanDiffusionWrapper
+    generator_ckpt: /tmp/wan_ckpt/diffusion_pytorch_model.safetensors
+    shift: 3.0
+    extra_one_step: true
+    model_config:
+      class_name: minVid.models.wan.wan_base.modules.wan_model_warpper.WanModel
+      model_type: t2v
+      patch_size:
+        - 1
+        - 2
+        - 2
+      in_dim: 16
+      dim: 1536
+      ffn_dim: 8960
+      freq_dim: 256
+      num_heads: 12
+      num_layers: 30
+      out_dim: 16
+      eps: 1e-06
+      text_len: 512
+      attn_every_n_layers: 100 # full global attention
+      use_cam_encoder: true # ReCamMaster-style per-block camera injection
+      efficient_attn_config:
+        - class_name: minVid.models.blocks.ar_lact_swa_repeat.ARFastWeightSwiGLU
+          dim: 1536
+          num_heads: 12
+          qk_norm: true
+          o_norm: true
+          local_window_size: 4680 # size for window attention
+          update_every: 9360 # 14040 if repeat=2
+          qk_l2_norm: true
+          qkv_silu: false
+          w_init: clean
+          inter_multi: 2
+          lr_dim: 1
+          fw_head_dim: 768
+          use_moun: false
+          num_moun_iters: 5
+          weight_norm: true
+          ttt_scale: 1.0
+          learnable_ttt_scale: true
+          ar_window_f: 3 # number of latent frames per AR chunk (for rope)
+          batch_size: 1 # must match batch_size_per_gpu
+          n_latent_f: 21 # number of TGT latent frames (81 rgb frames -> 21)
+          src_latent_f: 21 # ccv: clean SRC prefix (21 latent frames, 7 chunks)
+  text_encoder_config:
+    class_name: minVid.models.wan.wan_text_vae_warpper.WanTextEncoder
+    model_path: /tmp/wan_ckpt/models_t5_umt5-xxl-enc-bf16.pth
+  vae_config:
+    class_name: minVid.models.wan.wan_text_vae_warpper.WanVAEWrapper
+    model_path: /tmp/wan_ckpt/Wan2.1_VAE.pth
+  timestep_shift: 3.0
+  timestep_sample_method: uniform
+  denoising_loss_type: flow
+  num_train_timestep: 1000 # not used for continious flow matching
+  mixed_precision: true
+  sample_timestep_shift: 3.0
+
+# training related
+exp_name: abl_ccv_base
+output_path: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embedding/lact_ar_video/outputs
+
+seed: 1
+deterministic: false
+
+# distributed training related
+
+mixed_precision: true
+# single-GPU: hybrid_full (HYBRID_SHARD) needs >1 node concept; use full.
+sharding_strategy: full
+text_encoder_fsdp_wrap_strategy: size
+text_encoder_fsdp_transformer_module: "transformer"
+
+
+lr: 0.00002 # 2e-5
+beta1: 0.9
+beta2: 0.95
+weight_decay: 0.01
+lr_scheduler_type: cosine
+max_fwdbwd_passes: 20000
+warmup: 200
+grad_accum_steps: 1 # not accum
+grad_clip_norm: 1.0
+
+# wandb fully disabled (see minVid/utils/dist_utils.py init_logging_folder)
+wandb_mode: disabled
+wandb_save_dir: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embedding/lact_ar_video/outputs/wandb
+wandb_host: "https://api.wandb.ai" # unused when wandb_mode: disabled
+api_key_path: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embedding/lact_ar_video/minVid/api_keys.yaml
+wandb_entity: none
+wandb_project: lact_ar_ablation
+wandb_log_every: 10
+save_every: 2000
+
+keep_last_iter: 1000000
+
+batch_size_per_gpu: 1
+deterministic_noise: true
+
+train:
+  attn_only: true # only train the attention blocks (+ ccv cam_encoder)
+  first_stage: false
+  train_disable_auto_gc: true
+  train_manual_gc_interval: 200
+  use_ema: true
+  ema_weight: 0.995
+  lr_multiplier: 10.0 # lr multiplier for the new (ttt) weights
+  continue_training: false
+  fsdp_strategy: full
+  fsdp_wrap_policy: module
+  fsdp_modules:
+    - minVid.models.wan.wan_base.modules.wan_model_warpper.WanAttentionBlock
+
+# (src, tgt) camera pairs from the same MultiCamVideo scene.
+# frames tensors per item: [3, 81, 480, 832], float32, [0, 1] (x2 videos)
+dataset_train:
+  target: minVid.data.multicam_pair_dataset.MultiCamPairDataModule
+  params:
+    data_root: /tmp/mcv_clips
+    cam_root: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/dataset/MultiCamVideo-Dataset/train
+    num_pairs: 2000
+    index_seed: 42
+    num_frames: 81
+    height: 480
+    width: 832
+    caption: "a person moving through a scene, cinematic camera"
+    batch_size: 1
+    num_workers: 4

@@ -31,8 +31,9 @@ class WanAttentionBlock(nn.Module):
                  qk_norm=True,
                  cross_attn_norm=False,
                  eps=1e-6,
-                 do_hybrid=False, 
-                 efficient_attn_config: Optional[ObjectParamConfig] = None):
+                 do_hybrid=False,
+                 efficient_attn_config: Optional[ObjectParamConfig] = None,
+                 use_cam_encoder=False):
         super().__init__()
         self.dim = dim
         self.ffn_dim = ffn_dim
@@ -41,6 +42,23 @@ class WanAttentionBlock(nn.Module):
         self.qk_norm = qk_norm
         self.cross_attn_norm = cross_attn_norm
         self.eps = eps
+
+        # ReCamMaster-style per-block camera injection (ccv baseline):
+        # Linear(12 -> dim) on per-frame relative extrinsics + identity-init
+        # projector, ADDED to the block input before self-attn. Follows the
+        # official ReCamMaster init (cam_encoder zero-init, projector = I) so
+        # the injection is exactly zero at step 0 (cross-variant sanity).
+        if use_cam_encoder:
+            self.cam_encoder = nn.Linear(12, dim)
+            self.cam_projector = nn.Linear(dim, dim)
+            nn.init.zeros_(self.cam_encoder.weight)
+            nn.init.zeros_(self.cam_encoder.bias)
+            with torch.no_grad():
+                self.cam_projector.weight.copy_(torch.eye(dim))
+                self.cam_projector.bias.zero_()
+        else:
+            self.cam_encoder = None
+            self.cam_projector = None
 
         # layers
         self.norm1 = WanLayerNorm(dim, eps)
@@ -77,6 +95,8 @@ class WanAttentionBlock(nn.Module):
         freqs,
         context,
         context_lens,
+        cam12=None,
+        cam_coords6=None,
     ):
         r"""
         Args:
@@ -85,17 +105,28 @@ class WanAttentionBlock(nn.Module):
             seq_lens(Tensor): Shape [B], length of each sequence in batch
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W)
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
+            cam12(Tensor, optional): [B, L, 12] per-token relative extrinsics
+                (ccv cam_encoder path).
+            cam_coords6(Tensor, optional): [b_true, L_total, 6] per-token
+                Plucker coords for the hybrid attention's camera rotary.
         """
         assert e.dtype == torch.float32
         with amp.autocast(dtype=torch.float32):
             e = (self.modulation + e).chunk(6, dim=1)
         assert e[0].dtype == torch.float32
 
+        # ccv: camera feature injection before self-attn (ReCamMaster recipe)
+        if cam12 is not None and self.cam_encoder is not None:
+            x = x + self.cam_projector(self.cam_encoder(cam12.to(x.dtype)))
+
         # self-attention
         extra_info = None
+        attn_kwargs = {}
+        if self.do_hybrid and cam_coords6 is not None:
+            attn_kwargs["cam_coords6"] = cam_coords6
         y, extra_info = self.self_attn(
             self.norm1(x).float() * (1 + e[1]) + e[0], seq_lens, grid_sizes,
-            freqs)
+            freqs, **attn_kwargs)
         with amp.autocast(dtype=torch.float32):
             x = x + y * e[2]
 
@@ -113,14 +144,18 @@ class WanAttentionBlock(nn.Module):
     def get_trainable_params(self, attn_only=True):
         if attn_only:
             # only return the parameters of the hybrid attention module
+            # (+ the ccv cam_encoder/cam_projector when present)
+            param_list = []
             if self.do_hybrid:
                 # Check if the attention module has a get_trainable_params method
                 if hasattr(self.self_attn, 'get_trainable_params'):
-                    return self.self_attn.get_trainable_params(attn_only=attn_only)
+                    param_list.extend(self.self_attn.get_trainable_params(attn_only=attn_only))
                 else:
-                    return self.self_attn.parameters()
-            else:
-                return []
+                    param_list.extend(self.self_attn.parameters())
+            if self.cam_encoder is not None:
+                param_list.extend(self.cam_encoder.parameters())
+                param_list.extend(self.cam_projector.parameters())
+            return param_list
         else:
             # return all the parameters
             return self.parameters()
@@ -154,9 +189,10 @@ class WanModel(ModelMixin, ConfigMixin):
                  window_size=(-1, -1),
                  qk_norm=True,
                  cross_attn_norm=True,
-                 eps=1e-6, 
-                 efficient_attn_config: Optional[ObjectParamConfig] = None, 
-                 attn_every_n_layers: int = 1):
+                 eps=1e-6,
+                 efficient_attn_config: Optional[ObjectParamConfig] = None,
+                 attn_every_n_layers: int = 1,
+                 use_cam_encoder: bool = False):
         r"""
         Initialize the diffusion model backbone.
 
@@ -235,12 +271,14 @@ class WanModel(ModelMixin, ConfigMixin):
         #                       window_size, qk_norm, cross_attn_norm, eps,)
         #     for _ in range(num_layers)
         # ])
+        self.use_cam_encoder = use_cam_encoder
         self.blocks = nn.ModuleList()
         print("type of efficient_attn_config", type(efficient_attn_config))
         for i in range(num_layers):
             if i % attn_every_n_layers == attn_every_n_layers - 1:
                 self.blocks.append(WanAttentionBlock(cross_attn_type, dim, ffn_dim, num_heads,
-                              window_size, qk_norm, cross_attn_norm, eps, do_hybrid=False))
+                              window_size, qk_norm, cross_attn_norm, eps, do_hybrid=False,
+                              use_cam_encoder=use_cam_encoder))
             else:
                 if isinstance(efficient_attn_config, omegaconf.listconfig.ListConfig):
                     print("efficient_attn_config is a ListConfig")
@@ -248,7 +286,8 @@ class WanModel(ModelMixin, ConfigMixin):
                 else:
                     _attn_config = efficient_attn_config
                 self.blocks.append(WanAttentionBlock(cross_attn_type, dim, ffn_dim, num_heads,
-                              window_size, qk_norm, cross_attn_norm, eps, do_hybrid=True, efficient_attn_config=_attn_config))
+                              window_size, qk_norm, cross_attn_norm, eps, do_hybrid=True, efficient_attn_config=_attn_config,
+                              use_cam_encoder=use_cam_encoder))
 
         # head
         self.head = Head(dim, out_dim, patch_size, eps)
@@ -284,6 +323,8 @@ class WanModel(ModelMixin, ConfigMixin):
         seq_len,
         clip_fea=None,
         y=None,
+        cam12_per_frame=None,
+        cam_coords6=None,
     ):
         r"""
         Forward pass through the diffusion model
@@ -301,6 +342,12 @@ class WanModel(ModelMixin, ConfigMixin):
                 CLIP image features for image-to-video mode
             y (List[Tensor], *optional*):
                 Conditional video inputs for image-to-video mode, same shape as x
+            cam12_per_frame (Tensor, *optional*):
+                [b_true, F_total, 12] fp32 per-latent-frame relative extrinsics
+                for the ccv cam_encoder path (broadcast over each frame's tokens).
+            cam_coords6 (Tensor, *optional*):
+                [b_true, L_total, 6] fp32 per-token Plucker coords for the
+                hybrid attention's camera rotary sites (ccv PRA path).
 
         Returns:
             List[Tensor]:
@@ -352,6 +399,18 @@ class WanModel(ModelMixin, ConfigMixin):
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
             context = torch.concat([context_clip, context], dim=1)
 
+        # ccv: broadcast per-frame camera features to per-token, chunk layout.
+        cam12_tokens = None
+        if cam12_per_frame is not None and self.use_cam_encoder:
+            b_true, F_total, _ = cam12_per_frame.shape
+            f_per_chunk = int(grid_sizes[0][0])
+            tokens_per_frame = int(grid_sizes[0][1]) * int(grid_sizes[0][2])
+            # [b, F_total, 12] -> [b * n_chunks (= fake batch), f_per_chunk, 12]
+            cam12_tokens = cam12_per_frame.reshape(-1, f_per_chunk, 12)
+            # -> [fake_batch, f_per_chunk * tokens_per_frame, 12] (frame-major,
+            # matching the (f, h, w) patchify flatten order)
+            cam12_tokens = cam12_tokens.repeat_interleave(tokens_per_frame, dim=1)
+
         # arguments
         kwargs = dict(
             e=e0,
@@ -359,7 +418,9 @@ class WanModel(ModelMixin, ConfigMixin):
             grid_sizes=grid_sizes,
             freqs=self.freqs,
             context=context,
-            context_lens=context_lens)
+            context_lens=context_lens,
+            cam12=cam12_tokens,
+            cam_coords6=cam_coords6)
 
         extra_info_list = []
         for block in self.blocks:
@@ -424,7 +485,7 @@ class WanModel(ModelMixin, ConfigMixin):
 
     def get_trainable_params(self, attn_only=True, **kwargs):
         param_list = []
-        
+
         if attn_only:
             for block in self.blocks:
                 if block.do_hybrid:
@@ -433,8 +494,12 @@ class WanModel(ModelMixin, ConfigMixin):
                         print("block has get_trainable_params implemented, calling it")
                         param_list.extend(block.self_attn.get_trainable_params(attn_only=attn_only, **kwargs))
                     else:
-                        print("block has no get_trainable_params implemented, calling parameters")   
+                        print("block has no get_trainable_params implemented, calling parameters")
                         param_list.extend(block.self_attn.parameters())
+                # ccv cam_encoder path (ReCamMaster recipe: cam modules trainable)
+                if getattr(block, "cam_encoder", None) is not None:
+                    param_list.extend(block.cam_encoder.parameters())
+                    param_list.extend(block.cam_projector.parameters())
         else:
             param_list.extend(self.parameters())
         return param_list

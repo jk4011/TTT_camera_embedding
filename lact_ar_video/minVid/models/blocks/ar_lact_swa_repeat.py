@@ -16,6 +16,8 @@ from minVid.models.blocks.functions import silu_backprop, l2_norm, inv_softplus,
 
 from minVid.models.wan.wan_base.modules.attention import flash_attention
 
+from minVid.models.blocks.cam_phase_builder import make_cam_ladder, cam_phase_tables
+
 from torch.nn import init
 
 
@@ -38,6 +40,7 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     use_moun: bool = False,
     num_moun_iters: int = 3,
     weight_norm: bool = True,
+    src_prefix_len: int = 0,
 ):
     """
     Note:
@@ -56,6 +59,14 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     lr0: scalar learning rate. of shape [b, l, dh]
     w0_scale: scalar weight for normalizing the update terms!
     w1_scale: scalar weight for normalizing the update terms!
+
+    src_prefix_len (ccv): tokens [0, src_prefix_len) are a clean SRC-video
+    prefix, consumed in mini_batch_size chunks: write each chunk into the fast
+    weights, then apply the post-write weights to the same chunk. The existing
+    AR-interleave logic then runs on [src_prefix_len, L) unchanged (the first
+    tgt noisy chunk applies with post-src weights instead of initial weights).
+    src_prefix_len=0 reproduces the original kernel bit-exactly.
+
     FLOPS:
     Let B = batch_size, L = seq_len, D = input_dim, H = hidden_dim
     Note, B-dim is already merged with the head dim.
@@ -91,17 +102,59 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
 
     output = torch.zeros_like(q)
 
-    # first_noise_chunk_size sometimes is greater than mini_batch_size. 
-    # for example, we want to have the next ar chunk, repeated with multiple noise levels. 
+    #### ccv SRC prefix: write chunk -> apply same chunk with post-write weights.
+    for s_index in range(0, src_prefix_len, mini_batch_size):
+        e_index = s_index + mini_batch_size
+
+        ki, vi = k[:, s_index:e_index, :], v[:, s_index:e_index, :]
+        lr0i = lr0[:, s_index:e_index, :]
+        lr1i = lr1[:, s_index:e_index, :]
+        lr2i = lr2[:, s_index:e_index, :]
+
+        gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
+        hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
+        silu_gate = F.silu(gate_before_act, inplace=False)
+        hidden = silu_gate * hidden_before_mul
+
+        dhidden = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
+        dhidden_before_mul = dhidden * silu_gate
+        dgate = dhidden * hidden_before_mul
+        dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+        dw1 = torch.bmm(vi.transpose(1, 2), hidden.transpose(1, 2) * lr1i * w_scale)
+        dw0 = torch.bmm(dgate_before_act, ki * lr0i * w_scale)
+        dw2 = torch.bmm(dhidden_before_mul, ki * lr2i * w_scale)
+
+        if use_moun:
+            dw1 = zeropower_via_newtonschulz5(dw1, num_moun_iters)
+            dw0 = zeropower_via_newtonschulz5(dw0, num_moun_iters)
+            dw2 = zeropower_via_newtonschulz5(dw2, num_moun_iters)
+
+        w1 = w1 + dw1
+        w0 = w0 + dw0
+        w2 = w2 + dw2
+        if weight_norm:
+            w0 = w0 / (w0.norm(dim=2, keepdim=True) + 1e-5) * w0_norm
+            w1 = w1 / (w1.norm(dim=2, keepdim=True) + 1e-5) * w1_norm
+            w2 = w2 / (w2.norm(dim=2, keepdim=True) + 1e-5) * w2_norm
+
+        qi = q[:, s_index:e_index, :]
+        h = torch.bmm(w2, qi.transpose(1, 2))
+        gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
+        output[:, s_index:e_index, :] = torch.bmm(w1, gate * h).transpose(1, 2)
+
+    # first_noise_chunk_size sometimes is greater than mini_batch_size.
+    # for example, we want to have the next ar chunk, repeated with multiple noise levels.
     first_noise_chunk_size = update_every - mini_batch_size
-    qi = q[:, :first_noise_chunk_size, :]
+    tgt_start = src_prefix_len
+    qi = q[:, tgt_start : tgt_start + first_noise_chunk_size, :]
     h = torch.bmm(w2, qi.transpose(1, 2))
     gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
     # [b, d_2, d_1] @ [b, d_1, l] -> [b, d_2, l] -> [b, l, d_2]
-    output[:, :first_noise_chunk_size, :] = torch.bmm(w1, gate * h).transpose(1, 2)
+    output[:, tgt_start : tgt_start + first_noise_chunk_size, :] = torch.bmm(w1, gate * h).transpose(1, 2)
     # output.append(torch.bmm(w1, gate * h).transpose(1, 2))
     for _ in range(num_repeat):
-        for i in range(first_noise_chunk_size, update_length, update_every):
+        for i in range(tgt_start + first_noise_chunk_size, update_length, update_every):
             s_index = i
             e_index = s_index + mini_batch_size
 
@@ -168,6 +221,27 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     return output, w0, w1, w2
 
 
+def apply_rotary_pairs(x, coeff_cos, coeff_sin):
+    """Rotate adjacent feature pairs of row-major tokens (port of
+    lact_nvs/lact_ttt_cam.apply_rotary_pairs).
+
+    x: [b, l, d]; coeff_*: [l, P] or [b', l, P] (b' broadcastable to b);
+    acts on x[..., :2P], remaining dims untouched.
+    """
+    P = coeff_cos.shape[-1]
+    if coeff_cos.dim() == 2:
+        coeff_cos = coeff_cos[None]
+        coeff_sin = coeff_sin[None]
+    x_rot = x[..., : 2 * P].float().reshape(*x.shape[:-1], P, 2)
+    x1, x2 = x_rot.unbind(-1)
+    y1 = x1 * coeff_cos - x2 * coeff_sin
+    y2 = x1 * coeff_sin + x2 * coeff_cos
+    y = torch.stack([y1, y2], dim=-1).reshape(*x.shape[:-1], 2 * P)
+    if 2 * P == x.shape[-1]:
+        return y.to(x.dtype)
+    return torch.cat([y.to(x.dtype), x[..., 2 * P :]], dim=-1)
+
+
 def apply_rotary_cols(x, cos, sin):
     """Rotate adjacent row-pairs of column-major tokens.
 
@@ -205,13 +279,17 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
     use_moun: bool = False,
     num_moun_iters: int = 3,
     weight_norm: bool = True,
+    src_prefix_len: int = 0,
 ):
     """ar_fast_weight_swish_glu_weight_norm_mini_batch + h-PRA (hidden rotary).
 
-    The SwiGLU hidden activation is rotated by per-token (t, y, x) grid phases
-    before meeting w1 on both the apply (queries) and write (keys) paths; the
-    write backprop applies the inverse rotation. Value retrieval becomes
-    relative in hidden space (see the NVS/LLM studies).
+    The SwiGLU hidden activation is rotated by per-token phases (grid-carrier
+    or camera Plucker) before meeting w1 on both the apply (queries) and write
+    (keys) paths; the write backprop applies the inverse rotation. Value
+    retrieval becomes relative in hidden space (see the NVS/LLM studies).
+
+    src_prefix_len (ccv): see the plain kernel; SRC chunks are written and
+    self-applied first, then the AR-interleave logic runs offset by the prefix.
     """
     L = k.shape[1]
     if update_length == -1:
@@ -227,14 +305,62 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
 
     output = torch.zeros_like(q)
 
+    #### ccv SRC prefix: write chunk -> apply same chunk with post-write weights.
+    for s_index in range(0, src_prefix_len, mini_batch_size):
+        e_index = s_index + mini_batch_size
+
+        ki, vi = k[:, s_index:e_index, :], v[:, s_index:e_index, :]
+        lr0i = lr0[:, s_index:e_index, :]
+        lr1i = lr1[:, s_index:e_index, :]
+        lr2i = lr2[:, s_index:e_index, :]
+        hci = hcos[:, s_index:e_index]
+        hsi = hsin[:, s_index:e_index]
+
+        gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
+        hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
+        silu_gate = F.silu(gate_before_act, inplace=False)
+        hidden = silu_gate * hidden_before_mul
+        hidden_rot = apply_rotary_cols(hidden, hci, hsi)
+
+        dhidden_rot = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
+        dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+
+        dhidden_before_mul = dhidden * silu_gate
+        dgate = dhidden * hidden_before_mul
+        dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+        dw1 = torch.bmm(vi.transpose(1, 2), hidden_rot.transpose(1, 2) * lr1i * w_scale)
+        dw0 = torch.bmm(dgate_before_act, ki * lr0i * w_scale)
+        dw2 = torch.bmm(dhidden_before_mul, ki * lr2i * w_scale)
+
+        if use_moun:
+            dw1 = zeropower_via_newtonschulz5(dw1, num_moun_iters)
+            dw0 = zeropower_via_newtonschulz5(dw0, num_moun_iters)
+            dw2 = zeropower_via_newtonschulz5(dw2, num_moun_iters)
+
+        w1 = w1 + dw1
+        w0 = w0 + dw0
+        w2 = w2 + dw2
+        if weight_norm:
+            w0 = w0 / (w0.norm(dim=2, keepdim=True) + 1e-5) * w0_norm
+            w1 = w1 / (w1.norm(dim=2, keepdim=True) + 1e-5) * w1_norm
+            w2 = w2 / (w2.norm(dim=2, keepdim=True) + 1e-5) * w2_norm
+
+        qi = q[:, s_index:e_index, :]
+        h = torch.bmm(w2, qi.transpose(1, 2))
+        gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
+        hq = apply_rotary_cols(gate * h, hci, hsi)
+        output[:, s_index:e_index, :] = torch.bmm(w1, hq).transpose(1, 2)
+
     first_noise_chunk_size = update_every - mini_batch_size
-    qi = q[:, :first_noise_chunk_size, :]
+    tgt_start = src_prefix_len
+    qi = q[:, tgt_start : tgt_start + first_noise_chunk_size, :]
     h = torch.bmm(w2, qi.transpose(1, 2))
     gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
-    hq = apply_rotary_cols(gate * h, hcos[:, :first_noise_chunk_size], hsin[:, :first_noise_chunk_size])
-    output[:, :first_noise_chunk_size, :] = torch.bmm(w1, hq).transpose(1, 2)
+    hq = apply_rotary_cols(gate * h, hcos[:, tgt_start : tgt_start + first_noise_chunk_size], hsin[:, tgt_start : tgt_start + first_noise_chunk_size])
+    output[:, tgt_start : tgt_start + first_noise_chunk_size, :] = torch.bmm(w1, hq).transpose(1, 2)
     for _ in range(num_repeat):
-        for i in range(first_noise_chunk_size, update_length, update_every):
+        for i in range(tgt_start + first_noise_chunk_size, update_length, update_every):
             s_index = i
             e_index = s_index + mini_batch_size
 
@@ -414,6 +540,63 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_inference(
     
 
     return output, w0, w1, w2
+
+
+def rope_apply_ar_src_prefix(x, grid_sizes, freqs, ar_window_f, n_latent_f, src_latent_f):
+    """3D rope for the ccv [SRC || TGT-interleave] sequence.
+
+    SRC frames get their own time grid t = 0..src_latent_f-1; TGT frames keep
+    the existing AR-interleave time mapping (both copies of a frame share its
+    time index). Spatial freqs unchanged. Mirrors rope_apply_ar otherwise.
+    x: [b, L, n, d] with L = (src_latent_f + 2*n_latent_f - ar_window_f)*h*w.
+    """
+    with torch.autocast(device_type="cuda", enabled=False):
+        n, c = x.size(2), x.size(3) // 2
+        freqs = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
+
+        tgt_total_f = n_latent_f * 2 - ar_window_f
+        freq_f = freqs[0][:n_latent_f]
+        interleave_freq_f = freq_f.repeat(2, 1)
+        for i in range(n_latent_f // ar_window_f):
+            start = i * ar_window_f * 2
+            end = start + ar_window_f
+            interleave_freq_f[start:end] = freq_f[i * ar_window_f : (i + 1) * ar_window_f]
+            interleave_freq_f[start + ar_window_f : end + ar_window_f] = \
+                freq_f[i * ar_window_f : (i + 1) * ar_window_f]
+        interleave_freq_f = interleave_freq_f[:tgt_total_f]
+
+        time_freq_f = torch.cat([freqs[0][:src_latent_f], interleave_freq_f], dim=0)
+        total_f = src_latent_f + tgt_total_f
+        time_freq_f = time_freq_f.view(total_f, 1, 1, -1)
+
+        output = []
+        for i, (_, h, w) in enumerate(grid_sizes.tolist()):
+            seq_len = total_f * h * w
+            x_i = torch.view_as_complex(
+                x[i, :seq_len].to(torch.float64).reshape(seq_len, n, -1, 2))
+            freqs_i = torch.cat([
+                time_freq_f.expand(total_f, h, w, -1),
+                freqs[1][:h].view(1, h, 1, -1).expand(total_f, h, w, -1),
+                freqs[2][:w].view(1, 1, w, -1).expand(total_f, h, w, -1)
+            ], dim=-1).reshape(seq_len, 1, -1)
+            x_i = torch.view_as_real(x_i * freqs_i).flatten(2)
+            x_i = torch.cat([x_i, x[i, seq_len:]])
+            output.append(x_i)
+        return torch.stack(output).float()
+
+
+@torch.compile()
+def src_prefix_window_attention(q, k, v, num_src_chunks, window_len):
+    """Full attention inside each SRC window; no cross-window, no src<->tgt.
+
+    q/k/v: [b, num_src_chunks*window_len, h, d].
+    """
+    qi = rearrange(q, "b (n_c sw) h d -> (b n_c) sw h d", n_c=num_src_chunks, sw=window_len)
+    ki = rearrange(k, "b (n_c sw) h d -> (b n_c) sw h d", n_c=num_src_chunks, sw=window_len)
+    vi = rearrange(v, "b (n_c sw) h d -> (b n_c) sw h d", n_c=num_src_chunks, sw=window_len)
+    k_lens = torch.tensor([window_len] * qi.shape[0], dtype=torch.int32, device=q.device)
+    oi = flash_attention(q=qi, k=ki, v=vi, k_lens=k_lens, window_size=(-1, -1))
+    return rearrange(oi, "(b n_c) sw h d -> b (n_c sw) h d", n_c=num_src_chunks)
 
 
 @torch.compile()
@@ -698,9 +881,12 @@ class ARFastWeightSwiGLU(nn.Module):
                  ar_window_f: int = 3, # chunk size for AR Video Diffusion. 
                  update_every: int = -1, # used for TTT. 
                  ttt_hidden_rope: bool = False,  # h-PRA: rotary on the SwiGLU hidden
-                 ttt_learnable_freqs: bool = False,  # omega_map(3D): learnable hidden ladder
+                 ttt_learnable_freqs: bool = False,  # learnable ladder gains (both sites)
                  ttt_freq_tilt: float = 0.1,
-                 ): 
+                 ttt_input_rope: bool = False,   # PRA input site: rotary on fast q/k post-l2norm
+                 cam_phase_mode: str = "none",   # none | plucker (camera phases for the rotary sites)
+                 src_latent_f: int = 0,          # ccv: latent frames of the clean SRC prefix (0 = off)
+                 ):
         assert dim % num_heads == 0
         super().__init__()
         self.dim = dim
@@ -719,7 +905,16 @@ class ARFastWeightSwiGLU(nn.Module):
         self.qk_norm = qk_norm
         self.eps = eps
 
-        #### PRA transplant: hidden rotary with 3D (t, y, x) grid phases.
+        assert cam_phase_mode in ("none", "plucker")
+        self.cam_phase_mode = cam_phase_mode
+        self.ttt_input_rope = ttt_input_rope
+        self.src_latent_f = src_latent_f
+        if src_latent_f > 0:
+            assert src_latent_f % ar_window_f == 0
+
+        #### PRA transplant: hidden rotary. Phases are either the 3D (t, y, x)
+        #### grid carrier (cam_phase_mode="none", v20k behavior) or per-token
+        #### camera Plucker phases (cam_phase_mode="plucker").
         self.ttt_hidden_rope = ttt_hidden_rope
         self.ttt_learnable_freqs = ttt_learnable_freqs
         if ttt_hidden_rope:
@@ -727,15 +922,39 @@ class ARFastWeightSwiGLU(nn.Module):
             # rotate half of the hidden dims
             self.h_rope_dim = (d_h_total // 2) // 2 * 2
             c = self.h_rope_dim // 2
-            # same 3-way (t, y, x) split as rope_params ladders
-            ladder = 1.0 / torch.pow(
-                10000.0, torch.arange(0, self.h_rope_dim, 2).float().div(self.h_rope_dim)
-            )
-            if ttt_learnable_freqs:
-                ladder = ladder * (1.0 + ttt_freq_tilt * torch.randn_like(ladder))
-                self.h_inv_freq = nn.Parameter(ladder)
+            if cam_phase_mode == "plucker":
+                # 6 Plucker coords x nf_h freqs = h_rope_dim/2 pairs (768 -> 6x64)
+                nf_h = (self.h_rope_dim // 2) // 6
+                self.cam_num_freqs_h = nf_h
+                self.register_buffer("cam_omega_h", make_cam_ladder(nf_h), persistent=False)
+                gain_h = torch.ones(6, nf_h)
+                if ttt_learnable_freqs:
+                    self.cam_gain_h = nn.Parameter(gain_h)
+                else:
+                    self.register_buffer("cam_gain_h", gain_h, persistent=False)
             else:
-                self.register_buffer("h_inv_freq", ladder, persistent=False)
+                # same 3-way (t, y, x) split as rope_params ladders
+                ladder = 1.0 / torch.pow(
+                    10000.0, torch.arange(0, self.h_rope_dim, 2).float().div(self.h_rope_dim)
+                )
+                if ttt_learnable_freqs:
+                    ladder = ladder * (1.0 + ttt_freq_tilt * torch.randn_like(ladder))
+                    self.h_inv_freq = nn.Parameter(ladder)
+                else:
+                    self.register_buffer("h_inv_freq", ladder, persistent=False)
+
+        #### PRA input site: camera rotary on fast q/k after l2 norm.
+        if ttt_input_rope:
+            assert cam_phase_mode == "plucker", "ttt_input_rope requires camera phases"
+            # 6 coords x nf freqs, leaving >= 2*6 dims untouched (768 -> 6x63 = 378 pairs)
+            nf_in = (fw_head_dim - 2 * 6) // (2 * 6)
+            self.cam_num_freqs_in = nf_in
+            self.register_buffer("cam_omega_in", make_cam_ladder(nf_in), persistent=False)
+            gain_in = torch.ones(6, nf_in)
+            if ttt_learnable_freqs:
+                self.cam_gain_in = nn.Parameter(gain_in)
+            else:
+                self.register_buffer("cam_gain_in", gain_in, persistent=False)
         
         # layersx
         self.q = nn.Linear(dim, dim)
@@ -866,11 +1085,13 @@ class ARFastWeightSwiGLU(nn.Module):
         return q, k
 
 
-    def forward(self, x, seq_lens, grid_sizes, freqs):
+    def forward(self, x, seq_lens, grid_sizes, freqs, cam_coords6=None):
         r"""
         Args:
-            x (Tensor): chunked_x, where the seq_len dimension is the seq_len for each ar chunk! 
+            x (Tensor): chunked_x, where the seq_len dimension is the seq_len for each ar chunk!
                 Shape [real_batch_size * (num_ar_windows * 2 - 1), seq_len_per_window, num_heads, C]
+            cam_coords6 (Tensor, optional): [b, L_total, 6] fp32 per-token
+                Plucker coordinates for the camera rotary sites (ccv runs).
             seq_lens(Tensor): Shape [B]
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W)
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
@@ -904,6 +1125,17 @@ class ARFastWeightSwiGLU(nn.Module):
         # also need to slice the grid_sizes, since when we call rope later, the qkv is of shape [real_batch_size, seq_len, n_h, d]
         grid_sizes = grid_sizes[:b]
 
+        #### ccv SRC-prefix bookkeeping (src_latent_f=0 -> everything off).
+        n_src_chunks = 0
+        src_prefix_len = 0
+        if self.src_latent_f > 0:
+            assert self.training or fake_batch_size > 2, \
+                "src-prefix inference path not implemented"
+            assert self.update_every == self.mini_batch_size * 2, \
+                "src prefix requires num_repeat == 1"
+            n_src_chunks = self.src_latent_f // self.ar_window_f
+            src_prefix_len = n_src_chunks * s_per_window
+
         # query, key, value function
         def qkv_fn(x):
             q = self.norm_q(self.q(x)).view(b, s, n, d)
@@ -919,10 +1151,13 @@ class ARFastWeightSwiGLU(nn.Module):
 
         num_repeat = self.num_repeat
 
-        # when applying rope, need to tell if it is training or inference. 
+        # when applying rope, need to tell if it is training or inference.
         if self.training or fake_batch_size > 2:
-            if self.update_every == self.mini_batch_size * 2: # no repeat! 
-                # TODO: add precompute freqs here!  
+            if src_prefix_len > 0:
+                fast_q = rope_apply_ar_src_prefix(fast_q, grid_sizes, freqs, self.ar_window_f, self.n_latent_f, self.src_latent_f)
+                fast_k = rope_apply_ar_src_prefix(fast_k, grid_sizes, freqs, self.ar_window_f, self.n_latent_f, self.src_latent_f)
+            elif self.update_every == self.mini_batch_size * 2: # no repeat!
+                # TODO: add precompute freqs here!
                 fast_q = rope_apply_ar(fast_q, grid_sizes, freqs, self.ar_window_f, self.n_latent_f)
                 fast_k = rope_apply_ar(fast_k, grid_sizes, freqs, self.ar_window_f, self.n_latent_f)
             else:
@@ -985,7 +1220,23 @@ class ARFastWeightSwiGLU(nn.Module):
             fast_q = F.silu(fast_q, inplace=False)
             fast_k = F.silu(fast_k, inplace=False)
             fast_v = F.silu(fast_v, inplace=False)
-        
+
+        #### PRA input site: camera Plucker rotary on fast q/k after l2 norm.
+        cam_coords = None
+        if cam_coords6 is not None and self.cam_phase_mode == "plucker":
+            cam_coords = cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]
+            cam_coords = cam_coords.float()
+            assert cam_coords.shape[0] == b and cam_coords.shape[1] == s
+
+        if self.ttt_input_rope and cam_coords is not None:
+            with torch.autocast(device_type="cuda", enabled=False):
+                in_cos, in_sin = cam_phase_tables(cam_coords, self.cam_omega_in, self.cam_gain_in)
+                # [b, L, 6F] -> [(b n_fw_h), L, 6F] matching fast_q layout
+                in_cos = in_cos.repeat_interleave(self.num_fw_heads, dim=0)
+                in_sin = in_sin.repeat_interleave(self.num_fw_heads, dim=0)
+            fast_q = apply_rotary_pairs(fast_q, in_cos, in_sin)
+            fast_k = apply_rotary_pairs(fast_k, in_cos, in_sin)
+
         # fw_q = rearrange(fast_q, 'b s n_h d -> (b n_h) s d')
         # fw_k = rearrange(fast_k, 'b s n_h d -> (b n_h) s d')
         # fw_v = rearrange(fast_v, 'b s n_h d -> (b n_h) s d')
@@ -1008,28 +1259,43 @@ class ARFastWeightSwiGLU(nn.Module):
             if self.ttt_hidden_rope:
                 assert self.update_every == self.mini_batch_size * 2, \
                     "hidden-rope carrier currently mirrors the no-repeat rope path"
-                # Build per-token hidden phases with the SAME token->(t,y,x)
-                # mapping as the fast q/k rope: pass a (1, 0)-pair carrier
-                # through rope_apply_ar with a hidden-sized freq table; the
-                # output pairs are exactly (cos, sin).
-                with torch.autocast(device_type="cuda", enabled=False):
-                    seq_l = fast_q.shape[1]
-                    table = torch.polar(
-                        torch.ones(1024, self.h_rope_dim // 2, device=x.device),
-                        torch.outer(
-                            torch.arange(1024, device=x.device, dtype=torch.float32),
-                            self.h_inv_freq.float(),
-                        ),
-                    )
-                    carrier = torch.zeros(
-                        1, seq_l, 1, self.h_rope_dim, device=x.device, dtype=torch.float32
-                    )
-                    carrier[..., 0::2] = 1.0
-                    roped = rope_apply_ar(
-                        carrier, grid_sizes, table, self.ar_window_f, self.n_latent_f
-                    )
-                    hcos = roped[0, :, 0, 0::2].transpose(0, 1).contiguous()  # [P, L]
-                    hsin = roped[0, :, 0, 1::2].transpose(0, 1).contiguous()
+                if self.cam_phase_mode == "plucker" and cam_coords is not None:
+                    # Camera Plucker phases replace the grid-carrier phases.
+                    assert b == 1, "camera hidden phases assume batch_size 1"
+                    with torch.autocast(device_type="cuda", enabled=False):
+                        h_cos, h_sin = cam_phase_tables(
+                            cam_coords[0], self.cam_omega_h, self.cam_gain_h)
+                        hcos = h_cos.transpose(0, 1).contiguous()  # [P, L]
+                        hsin = h_sin.transpose(0, 1).contiguous()
+                else:
+                    # Build per-token hidden phases with the SAME token->(t,y,x)
+                    # mapping as the fast q/k rope: pass a (1, 0)-pair carrier
+                    # through rope_apply_ar with a hidden-sized freq table; the
+                    # output pairs are exactly (cos, sin).
+                    with torch.autocast(device_type="cuda", enabled=False):
+                        seq_l = fast_q.shape[1]
+                        table = torch.polar(
+                            torch.ones(1024, self.h_rope_dim // 2, device=x.device),
+                            torch.outer(
+                                torch.arange(1024, device=x.device, dtype=torch.float32),
+                                self.h_inv_freq.float(),
+                            ),
+                        )
+                        carrier = torch.zeros(
+                            1, seq_l, 1, self.h_rope_dim, device=x.device, dtype=torch.float32
+                        )
+                        carrier[..., 0::2] = 1.0
+                        if src_prefix_len > 0:
+                            roped = rope_apply_ar_src_prefix(
+                                carrier, grid_sizes, table, self.ar_window_f,
+                                self.n_latent_f, self.src_latent_f
+                            )
+                        else:
+                            roped = rope_apply_ar(
+                                carrier, grid_sizes, table, self.ar_window_f, self.n_latent_f
+                            )
+                        hcos = roped[0, :, 0, 0::2].transpose(0, 1).contiguous()  # [P, L]
+                        hsin = roped[0, :, 0, 1::2].transpose(0, 1).contiguous()
 
                 fw_x, fw_w0, fw_w1, fw_w2 = ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
                     fw_w0, fw_w1, fw_w2, fast_q, fast_k, fast_v,
@@ -1042,6 +1308,7 @@ class ARFastWeightSwiGLU(nn.Module):
                     update_every=self.update_every,
                     num_moun_iters=self.num_moun_iters,
                     weight_norm=self.weight_norm,
+                    src_prefix_len=src_prefix_len,
                 )
             else:
                 fw_x, fw_w0, fw_w1, fw_w2 = ar_fast_weight_swish_glu_weight_norm_mini_batch(
@@ -1054,6 +1321,7 @@ class ARFastWeightSwiGLU(nn.Module):
                     update_every=self.update_every,
                     num_moun_iters=self.num_moun_iters,
                     weight_norm=self.weight_norm,
+                    src_prefix_len=src_prefix_len,
                 )
         else:
             # inference only. 
@@ -1099,7 +1367,10 @@ class ARFastWeightSwiGLU(nn.Module):
         # do window attention here. now, q, k has shape of [true_bs, seq_len, n_h, d]
         if not self.no_time_rope:
             if self.training or fake_batch_size > 2:
-                if self.update_every == self.mini_batch_size * 2:
+                if src_prefix_len > 0:
+                    q=rope_apply_ar_src_prefix(q, grid_sizes, freqs, self.ar_window_f, self.n_latent_f, self.src_latent_f)
+                    k=rope_apply_ar_src_prefix(k, grid_sizes, freqs, self.ar_window_f, self.n_latent_f, self.src_latent_f)
+                elif self.update_every == self.mini_batch_size * 2:
                     q=rope_apply_ar(q, grid_sizes, freqs, self.ar_window_f, self.n_latent_f)
                     k=rope_apply_ar(k, grid_sizes, freqs, self.ar_window_f, self.n_latent_f)
                 else:
@@ -1123,7 +1394,18 @@ class ARFastWeightSwiGLU(nn.Module):
         if self.training or fake_batch_size > 2:
             # [b, s, n_h, d]
             # x_window = basic_sliding_window_attention(q, k, v, self.mini_batch_size, self.update_every)
-            if self.update_every == self.mini_batch_size * 2:
+            if src_prefix_len > 0:
+                # SRC windows attend only within themselves; TGT runs the
+                # existing path. NO attention across the src/tgt boundary.
+                x_src = src_prefix_window_attention(
+                    q[:, :src_prefix_len], k[:, :src_prefix_len], v[:, :src_prefix_len],
+                    n_src_chunks, self.mini_batch_size)
+                x_tgt = batched_sliding_window_attention(
+                    q[:, src_prefix_len:], k[:, src_prefix_len:], v[:, src_prefix_len:],
+                    self.mini_batch_size, self.update_every, num_chunks,
+                    kv_cache_size=self.kv_cache_size)
+                x_window = torch.cat([x_src, x_tgt], dim=1)
+            elif self.update_every == self.mini_batch_size * 2:
                 x_window = batched_sliding_window_attention(q, k, v, self.mini_batch_size, self.update_every, num_chunks, kv_cache_size=self.kv_cache_size)
             else:
                 x_window = batched_sliding_window_attention_with_repeated_chunks(q, k, v, self.mini_batch_size, self.update_every, num_chunks, 

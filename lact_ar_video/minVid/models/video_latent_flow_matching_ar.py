@@ -27,6 +27,7 @@ from minVid.utils.config_utils import instantiate_from_config, ObjectParamConfig
 from einops import rearrange, repeat
 import math
 from minVid.utils.logit_normal_weighting import logit_normal_integral
+from minVid.models.blocks.cam_phase_builder import build_ccv_cam_inputs
 
 from minVid.models.wan.wan_base.distributed import sp_support
 import torch.distributed as dist
@@ -104,6 +105,23 @@ class VideoLatentFlowMatching(nn.Module):
         self.frame_independent_noise = self.config.frame_independent_noise
         self.logit_normal_weighting = self.config.logit_normal_weighting
         self.logit_normal_weighting_std = self.config.get("logit_normal_weighting_std", 1.0)
+
+        # ccv pair-training flags, read from the nested model config so the
+        # YAML stays the single source of truth (all default OFF).
+        self.use_cam_encoder = False
+        self.cam_phase_mode = "none"
+        self.src_latent_f = 0
+        try:
+            mc = self.config.diffusion_config.model_config
+            self.use_cam_encoder = bool(mc.get("use_cam_encoder", False))
+            eff = mc.get("efficient_attn_config", None)
+            if eff is not None and not hasattr(eff, "keys"):
+                eff = eff[0]  # list of per-layer attn configs -> first entry
+            if eff is not None:
+                self.cam_phase_mode = str(eff.get("cam_phase_mode", "none"))
+                self.src_latent_f = int(eff.get("src_latent_f", 0))
+        except Exception as e:
+            print(f"[ccv] could not read cam flags from model config: {e}")
         
         
     @torch.no_grad()
@@ -275,6 +293,134 @@ class VideoLatentFlowMatching(nn.Module):
 
         return denoised_output, repeated_video_latent
 
+    def _forward_pair(self, data_dict: dict) -> dict:
+        """ccv pair training: [SRC clean prefix || TGT AR interleave].
+
+        Input data_dict keys:
+            - video_rgb_src / video_rgb_tgt: [B, F, 3, H, W] in [0, 1]
+            - c2w_src / c2w_tgt: [B, 21, 4, 4] canonical fp32
+            - K: [B, 3, 3]
+            - text_prompts: list of strings
+        The SRC video is VAE-encoded clean (no noise, no loss), chunked into
+        ar_window_size latent-frame chunks and prepended to the existing TGT
+        interleave; src chunks carry timestep 0 like clean chunks. Loss runs
+        only on the TGT noisy chunks (existing loss path, indices offset).
+        """
+        assert not sp_support.is_sp(), "ccv pair path does not support sequence parallel"
+
+        text_prompts = data_dict["text_prompts"]
+        if self.training and random.random() < self.drop_text_prob:
+            text_prompts = [""] * len(text_prompts)
+        text_embeds = self.text_encoder(text_prompts)["prompt_embeds"]  # [B, L, D]
+
+        with torch.no_grad():
+            src_latent = self.vae.encode(data_dict["video_rgb_src"] * 2.0 - 1.0)  # [B, f, c, h, w]
+            tgt_latent = self.vae.encode(data_dict["video_rgb_tgt"] * 2.0 - 1.0)
+
+        bs, f_src, c_lat, h_lat, w_lat = src_latent.shape
+        assert bs == 1, "ccv pair path assumes batch_size_per_gpu == 1"
+        assert self.num_repeat == 1, "ccv pair path assumes num_repeat == 1"
+        assert self.src_latent_f in (0, f_src), \
+            f"src_latent_f config ({self.src_latent_f}) != encoded src frames ({f_src})"
+
+        # existing noise/interleave pipeline on the TGT video only
+        noisy_input, noise, t, repeated_video_latent, original_t_train = \
+            self._prepare_input(tgt_latent)
+        logit_normal_weighting = logit_normal_integral(
+            rearrange(original_t_train, 'b nw -> (b nw)'),
+            self.num_train_timestep, 0.0, self.logit_normal_weighting_std)
+        logit_normal_weighting = rearrange(
+            logit_normal_weighting, '(b nw) -> b nw', nw=t.shape[-1])
+
+        ar_input_tgt, ar_t_tgt = self._prepare_ar_input(noisy_input, tgt_latent, t)
+
+        # prepend the clean SRC chunks (timestep 0, like clean chunks)
+        n_src_chunks = f_src // self.ar_window_size
+        src_chunks = rearrange(
+            src_latent, 'b (nw fw) c h w -> (b nw) fw c h w', fw=self.ar_window_size)
+        ar_input = torch.cat([src_chunks.to(ar_input_tgt.dtype), ar_input_tgt], dim=0)
+        ar_t = torch.cat([ar_t_tgt.new_zeros(bs * n_src_chunks), ar_t_tgt], dim=0)
+
+        fake_b, f_latent_per_video, c, h, w = ar_input.shape
+        ar_seq_len = (f_latent_per_video * h * w) // 4
+
+        text_embeds_repeated = text_embeds.unsqueeze(1)  # [b, 1, L, D]
+        text_embeds_repeated = text_embeds_repeated.repeat(
+            1, ar_input.shape[0] // text_embeds.shape[0], 1, 1)
+        text_embeds_repeated = rearrange(text_embeds_repeated, 'b nr l d -> (b nr) l d')
+
+        # camera conditioning (built once per step, fp32, no_grad)
+        cam12_arg, coords_arg = None, None
+        if self.use_cam_encoder or self.cam_phase_mode == "plucker":
+            with torch.no_grad(), torch.autocast(device_type="cuda", enabled=False):
+                cam12_per_frame, coords6 = build_ccv_cam_inputs(
+                    data_dict["c2w_src"][0].float(),
+                    data_dict["c2w_tgt"][0].float(),
+                    data_dict["K"][0].float(),
+                    latent_hw=(h_lat // 2, w_lat // 2),
+                    n_latent_f=tgt_latent.shape[1],
+                    ar_window_f=self.ar_window_size,
+                )
+            if self.use_cam_encoder:
+                cam12_arg = cam12_per_frame[None]  # [1, F_total, 12]
+            if self.cam_phase_mode == "plucker":
+                coords_arg = coords6[None]  # [1, L_total, 6]
+
+        flow_pred, extra_info_list = self.generator(
+            ar_input.clone(),
+            {"prompt_embeds": text_embeds_repeated},
+            ar_t,
+            convert_to_x0=False,
+            seq_len=ar_seq_len,
+            cam12_per_frame=cam12_arg,
+            cam_coords6=coords_arg,
+        )
+
+        # drop the SRC-chunk predictions (no loss on the prefix)
+        flow_pred = flow_pred[bs * n_src_chunks:]
+        flow_pred, _ = self._extract_ar_output_from_interleave(flow_pred, tgt_latent)
+
+        gt_velocity = noise - repeated_video_latent
+        if self.denoising_loss_type == "flow":
+            if self.logit_normal_weighting:
+                lnw = logit_normal_weighting.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+                l2_loss = F.mse_loss(flow_pred, gt_velocity, reduction="none")
+                l2_loss = (l2_loss * lnw).mean()
+            else:
+                l2_loss = F.mse_loss(flow_pred, gt_velocity)
+        else:
+            raise NotImplementedError()
+
+        loss = l2_loss
+        return_dict = {
+            "loss": loss,
+            "loss_flow": l2_loss,
+            "t": t,
+        }
+        vis_dict = {"loss_flow": l2_loss.item()}
+
+        if extra_info_list is not None:
+            block_idx = 0
+            extra_loss = 0.0
+            for extra_info in extra_info_list:
+                if extra_info is not None:
+                    for key, value in extra_info.items():
+                        vis_dict[f"block_{block_idx}/{key}"] = value
+                        if key.startswith("loss"):
+                            extra_loss += value
+                block_idx += 1
+            return_dict["extra_loss"] = extra_loss
+
+        frame_wise_mse = ((flow_pred - gt_velocity) ** 2)
+        frame_wise_mse = rearrange(
+            frame_wise_mse, 'b nw fw c h w -> b nw (fw c h w)', fw=self.ar_window_size)
+        frame_wise_loss = frame_wise_mse.mean(dim=[0, 2])
+        for frame_idx, loss_val in enumerate(frame_wise_loss):
+            vis_dict[f"loss_breakdown/loss_chunk_{frame_idx}"] = loss_val.item()
+
+        return_dict["vis_dict"] = vis_dict
+        return return_dict
+
     def forward(self, data_dict: dict) -> dict:
         """
         Only support training right now
@@ -284,9 +430,13 @@ class VideoLatentFlowMatching(nn.Module):
                 all data that are tensors should be on the same device as the model.
                 - video_rgb: a tensor containing the video frames [batch_size, num_frames, 3, height, width] in RGB format, [0-1]
                 - text_prompts: a list of text prompts.
+                - OR the ccv pair keys (video_rgb_src/video_rgb_tgt/c2w_*/K)
+                  handled by _forward_pair.
         Output:
             - output_dict: a dictionary containing the output data.
         """
+        if "video_rgb_src" in data_dict:
+            return self._forward_pair(data_dict)
         profile = False # weather to profile the forward pass
         profile_dict = {}
         
