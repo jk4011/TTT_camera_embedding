@@ -149,5 +149,10 @@ per-pair phase bias — cancels in differences, re-frames the functional W^0 abs
 ## Cross-task validation: AR video (Wan1.3B attn-only finetune, MultiCamVideo, 4100 steps, deterministic noise)
 Paired per-step loss over last 2500 steps: h_pra Δ=+0.000000 (t=0.0), full Δ=+0.000027 (t=1.2, n.s.)
 - F21: h-PRA NEUTRAL on short-budget video finetune (no gain, no harm). Caveats: 4100 samples at
-  batch 1; ~2 TTT update chunks per sequence (memory role small); noisy diffusion objective.
+  batch 1; 6 write chunks/seq (7 AR windows x 3 latent frames, interleaved noisy/clean; write on
+  clean windows only, last unused). CORRECTED 2026-07-05: earlier "~2 chunks" was an estimate;
+  exact count from the ar_lact_swa_repeat chunk loop is 6. SWA window = 1 full AR window (4680
+  tok), so memory-ONLY content is >=2 windows back -- thin for natural video (adjacent-frame
+  redundancy). Real story: memory-exclusive workload share, not write count (video 6 > LLM 4 >
+  NVS 1 writes, yet gains go the other way); noisy diffusion objective.
   Honest verdict: 2 of 3 tasks improve (NVS +1.22 dB, LLM −1.0% ppl), video unaffected.
