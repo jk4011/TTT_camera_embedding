@@ -150,7 +150,62 @@ Phase 2 (generation quality, protocol = ReCamMaster/CamI2V lineage):
 6. Sanity: overfit 1 scene x 2 cams for 200 steps; check SRC->TGT copying works
    (loss should collapse vs base without SRC).
 
-## 8. Survey: widely-used camera-control methods (TO FILL from agent reports)
+## 8. Survey: widely-used camera-control methods (filled 2026-07-06)
 
-(placeholder: injection-mechanism table, absolute vs relative classification,
-evaluation protocols, and the differentiation matrix against PRA)
+Two axes organize the field. Representation: raw extrinsics R^12 (MotionCtrl,
+ReCamMaster, SynCamMaster) / Pluecker raymaps (CameraCtrl and nearly all DiT-era
+work) / geometric renders carrying pose implicitly (CamTrol, ViewCrafter, GEN3C,
+TrajectoryCrafter, Uni3C, EPiC) / reference video (CamCloneMaster). Injection:
+ABSOLUTE per-token features (dominant) vs RELATIVE conditioning entering the
+attention interaction (small but fastest-growing thread).
+
+| method | repr | injection site | abs/rel | notes |
+|---|---|---|---|---|
+| MotionCtrl (SIGGRAPH24) | R^12/frame | concat into temporal attn features | ABS | adapter |
+| CameraCtrl (ICLR25) | Pluecker map | T2I-Adapter encoder -> add into temporal attn | ABS | de-facto U-Net protocol |
+| CamCo / CamI2V | Pluecker + epipolar | adapter + epipolar attention MASK | ABS+REL | pose as attn connectivity |
+| VD3D / AC3D (Snap) | Pluecker | ControlNet-style; AC3D: first 8/32 blocks only | ABS | camera = low-freq, consumed early |
+| CameraCtrl II | Pluecker | input-layer add ONLY, full finetune | ABS | deep injection kills dynamics |
+| ReCamMaster (ICCV25 oral) | R^12/frame rel-to-cond-cam | Linear(12->d) added per block + frame-dim concat | ABS | our baseline; MCV dataset |
+| CamCloneMaster | reference video | frame-dim concat only, no pose input | -- | in-context is strongest V2V recipe |
+| ReRoPE (2602.08068) | projective block in RoPE | replaces Wan temporal RoPE low bands, self-attn finetune | REL | attention only; trained on MCV |
+| UCPE (2512.07237) | relative ray frames | GTA-style Q/K/V transform in Wan attention | REL | <1% params, beats ReCamMaster/AC3D |
+| PRoPE / RayRoPE | projective / ray RoPE | multi-view transformer attention | REL | NVS, not diffusion |
+| FSM / LaCET (2604.07350) | canonical Pluecker raymap | channel-concat to input tokens of a scaled LaCT TTT memory | ABS | TTT operator itself pose-agnostic |
+
+Key survey conclusions:
+1. **The gap is confirmed open.** No published method (as of mid-2026) conditions a
+   linear-attention / SSM / TTT sequence mixer on camera pose, and none makes such
+   an operator pose-relative. The relative family (ReRoPE, UCPE, PRoPE, RayRoPE,
+   epipolar masks) exists only for softmax attention.
+2. **FSM/LaCET is the urgent neighbor.** It scales LaCT-style fast-weight memory for
+   NVS/4D and trains on MultiCamVideo among others, but injects camera only as
+   absolute raymap channel-concat; the fast-weight update is pose-blind. This both
+   validates the substrate (LaCT memory for spatial tasks at scale) and shows the
+   pose-relative operator is the missing piece = exactly PRA.
+3. **The field is moving absolute -> relative** (2025-26): ReRoPE/UCPE report better
+   generalization at 10-100x fewer trainable params by moving pose into the
+   interaction. PRA is the same move for the linear-time operator, with the extra
+   hidden-rotary channel that attention-based methods cannot have.
+4. **In-context (frame-dim concat) is the strongest V2V conditioning** and its TTT
+   analog is precisely "prefix tokens that the fast weights are written with" =
+   our SRC-write design. But attention-based in-context is quadratic in the doubled
+   sequence; the TTT memory carries it linearly (H3).
+5. **Evaluation norms**: RotErr/TransErr/CamMC with modern estimators
+   (GLOMAP -> VGGSfM/MegaSaM/ViPE), 1,000-video test sets; paired-GT pixel metrics
+   (PSNR/SSIM/LPIPS) are the accepted advantage of synthetic multi-cam sets
+   (InfCam's AugMCV precedent) => our Phase-2 metric choice is standard.
+
+Differentiation matrix (what each comparison isolates):
+- vs ccv_base (ReCamMaster recipe): absolute feature injection vs relative operator
+  addressing, same backbone, same data, same budget.
+- vs ReRoPE/UCPE (conceptual, cite + optional run): relative-in-attention needs
+  full attention over the concat (quadratic); PRA relativizes the linear memory.
+  Optional 4th run `ccv_swa_rope` (projective RoPE on our SWA only) can isolate
+  "relative helps" from "relative in the TTT memory helps" if reviewers ask.
+- vs FSM/LaCET (conceptual): same substrate, absolute vs relative camera entry.
+
+## 9. Decision log
+
+- 2026-07-06: design drafted; survey integrated; grid fixed at 3 runs
+  (base / pra / both); launch after v20k completes unless user says kill.
