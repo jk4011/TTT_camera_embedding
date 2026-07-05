@@ -144,4 +144,4 @@ dataset_train:
     width: 832
     caption: "a person moving through a scene, cinematic camera"
     batch_size: 1
-    num_workers: 4
+    num_workers: 8

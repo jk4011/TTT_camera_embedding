@@ -209,3 +209,16 @@ Differentiation matrix (what each comparison isolates):
 
 - 2026-07-06: design drafted; survey integrated; grid fixed at 3 runs
   (base / pra / both); launch after v20k completes unless user says kill.
+- 2026-07-06 (impl, commit 17cfdd5): pipeline implemented and sanity-verified on
+  GPU 3 (60 steps x 3 variants). Kernel bit-compatible at src_prefix_len=0;
+  src-prefix semantics match a sequential reference; dataset pose checks pass
+  (look-at-origin 0.98-1.0, unit rays, O(1) canonical centers). Param counts:
+  base = v20k + 71.42M (cam_encoder+projector, zero-init encoder / identity
+  projector per official ReCamMaster), pra = v20k + 22.9k (ladders only).
+  Peak memory 90.6 GB @ 93,600 tokens. Step time ~8.4 s => 20k steps ~ 46-47 h;
+  KEPT at 20k for comparability with the released ReCamMaster-Wan recipe
+  (num_workers bumped 4->8 for the 2-video decode). lr 2e-5 (F21 recipe, not
+  ReCamMaster's 1e-4) to stay consistent with our v20k finetunes.
+  Launch script: lact_ar_video/run_ccv_20k.sh (refuses to start if GPUs 0-2 busy).
+  Known gap: ccv inference/generation path not yet implemented (training only);
+  needed for Phase-2 metrics.
