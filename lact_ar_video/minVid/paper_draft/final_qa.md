@@ -1,0 +1,161 @@
+# Rotary Fast-Weight Addressing: Camera Conditioning for Test-Time-Training Layers
+
+## Abstract
+
+Test-time-training (TTT) layers replace quadratic attention with a linear-cost fast-weight memory, but they inherit none of attention's mature camera conditioning: prior methods such as GTA, PRoPE, and RayRoPE — camera-pose extensions of RoPE — rely on attention's bilinear logits, which a nonlinear TTT layer does not have. We show that the algebraic hook these methods need survives anyway. In a TTT layer, tokens are written into the memory by gradient updates to its weights, and queries read the memory by a plain forward pass. Because the weight updates are sums of outer products, every interaction between a query and written content passes through an inner product — exactly where rotary encodings act. The read decomposes into a pose-independent term — the query meeting the pre-update weights — plus two independently rotatable channels. The first is the *gate-correction channel*, an inner product in the query/key (q/k) space; rotating queries and keys (as prior work does) relativizes it — makes it depend only on the relative pose between tokens. The second is the *value-retrieval channel*, an inner product between SwiGLU hidden activations inside the fast weights; it carries the dominant signal — the stored values themselves — and we relativize it by rotating the hidden activations directly. This value-retrieval channel has *no counterpart in attention*, which has no hidden layer between logits and values. Adding learnable phase maps that exactly preserve relativity yields our full recipe, *rotary fast-weight addressing*; its camera instantiation, Plücker Rotary Addressing (PRA), is built on Plücker ray coordinates and costs under 0.1% extra FLOPs and 0.01% extra parameters. PRA improves novel view synthesis with LaCT-LVSM (Large-Chunk TTT [LaCT] applied to the Large View Synthesis Model) on RealEstate10K by +1.226 dB PSNR (21.745 to 22.971) and cuts LPIPS from 0.2929 to 0.2613; the value-retrieval channel's rotation also lowers a 200M LLM's perplexity from 19.32 to 19.13. No task is hurt.
+
+## 1. Introduction
+
+Attention is the workhorse of sequence modeling, but its cost grows quadratically with sequence length. Test-time-training (TTT) layers are a prominent linear-cost alternative: instead of comparing every token with every other token, a TTT layer maintains a small neural network — the *fast weights* — whose parameters are updated by gradient descent *during the forward pass*. Keys and values are "written" into the fast weights by a gradient step, and queries later "read" the stored associations by a plain forward pass. Large-Chunk TTT (LaCT) made this recipe practical at scale by writing many tokens per gradient step and by using a large SwiGLU network as the memory; applied to novel view synthesis in the LVSM (Large View Synthesis Model) setting, it approaches full attention's quality at a fraction of its cost.
+
+For camera-centric tasks, however, TTT layers arrive with a conspicuous gap. In attention, injecting camera geometry is a mature craft: CaPE, GTA, PRoPE, and RayRoPE — four published camera-pose extensions of attention's positional encodings, RoPE in particular — all condition the attention operation on camera poses, and the best of them do so *relatively* — the computation depends only on the relative pose between the cameras of two interacting tokens, never on an arbitrary world frame. Crucially, they apply this conditioning at *every* layer. A LaCT-based view-synthesis model, by contrast, sees camera information exactly once, as ray maps concatenated to the input pixels; the TTT layer itself — the only module that moves information across views — is pose-blind. No published method conditions a TTT layer on cameras.
+
+Why not simply transplant PRoPE? Because PRoPE-style methods are built on a structural property that TTT layers lack. RoPE and its camera extensions work through one identity: when a query and a key are each rotated by their own pose-dependent rotation, the rotations meet inside the attention logit — a bilinear form — and collapse into a function of the relative pose alone. Attention guarantees that *every* query–key interaction is exactly such a bilinear form. A TTT layer offers no such guarantee on its face: its memory is a SwiGLU MLP, read through nonlinearities, written by gradient descent. There is no logit for the rotations to meet in. And indeed, our systematic attempts to transplant the attention recipe directly — projective PRoPE transforms, value-side transport, feature injection, optimizer conditioning, per-view chunking — all failed (we define each of these attempts, and document the negatives in full, in the negative-results forensics of Appendix A). The attention *recipe* does not transplant.
+
+Our central observation is that the attention recipe's *precondition* transplants even though the recipe does not. Fast-weight updates are sums of outer products of the form \( k^\top b \) for various row vectors \( b \) (throughout this paper, features are *row* vectors, so \( k^\top b \) is an outer-product matrix, not a scalar), and a row vector meeting an outer product can only contract through an inner product: \( x\,(a^\top b) = \langle x, a\rangle\, b \). Consequently — and this is a lemma, not a heuristic — every interaction between a query and content written into the fast weights passes through inner products, the one algebraic hook rotary encodings need. Expanding the readout makes the structure concrete: the output splits into an *initial readout* (query meets the pre-update weights), a *value-retrieval channel* weighted by inner products of SwiGLU *hidden* activations, and a *gate-correction channel* weighted by inner products of the *q/k inputs*. Two inner products, in two different spaces, independently rotatable.
+
+This decomposition immediately yields two rotary sites. The input site — rotate queries and keys after their \( \ell_2 \) normalization — relativizes the gate-correction channel and coincides with what prior fast-weight work (including the LaCT authors' own fast-weight RoPE, fw-RoPE) already does. The hidden site is new: rotate the SwiGLU hidden activation, between the hidden layer and the output matrix, on write and on read (the write-step gradient bookkeeping this requires is a detail autograd handles; Sec. 2.5). This relativizes the value-retrieval channel — the dominant one: it carries the stored values themselves to the output, whereas the gate-correction channel only perturbs how the pre-update memory is read. Empirically, rotating the value-retrieval channel yields the larger single-channel gain (+0.46 dB, vs. +0.41 dB for the input site; see below). We emphasize the structural point, because it is the core novelty of this paper: attention has no hidden layer between its logits and its values, so this second rotary site simply does not exist in attention. It is a conditioning channel that only a fast-weight memory possesses. A third ingredient, learnable phase maps, replaces the fixed axis-aligned frequency ladder with a learned linear map from coordinates to phases; relativity is preserved *exactly*, and the extra freedom matters precisely when coordinates are multi-dimensional (6D camera rays), not for 1D text positions.
+
+We call the general pattern *rotary fast-weight addressing* — input rotary + hidden rotary + learnable phase maps — and its camera instantiation, built on Plücker ray coordinates, *Plücker Rotary Addressing (PRA)*. The construction is orthogonal (norm-preserving, hence compatible with query/key normalization, Muon-style update orthogonalization, and weight normalization), touches no kernel, and costs under 0.1% extra FLOPs and 0.01% extra parameters.
+
+Empirically, on RealEstate10K novel view synthesis with LaCT-LVSM (6 layers, d=256, patch 16, 30k iterations, 256-scene evaluation, 3 seeds per configuration — baseline and PRA), PRA improves PSNR from 21.745 ± 0.196 to 22.971 ± 0.088 (+1.226 dB) and LPIPS from 0.2929 to 0.2613. A single-seed ablation shows how the recipe builds up. Every delta is measured over the same baseline; the configuration names below make the cumulative structure explicit:
+
+- input rotary only: +0.41 dB (and saturates: adding more frequencies does not help; Sec. 2.4);
+- hidden rotary only: +0.46 dB;
+- input + hidden: +0.77 dB;
+- input + hidden + wider frequency allocation (the per-coordinate frequency budget raised from the default of the rows above to the final F = 21 and F_h = 42; Secs. 2.4–2.5): +0.87 dB;
+- input + hidden + wider frequencies + learnable phase maps (the full PRA recipe): +0.93 dB.
+
+The two channels are largely complementary, as the theory predicts, though not perfectly additive: together they gain +0.77 dB, somewhat below the 0.41 + 0.46 = 0.87 dB sum of their separate gains (a sum that numerically coincides with, but is otherwise unrelated to, the +0.87 dB of the wider-frequency configuration above). The single-seed full-recipe figure (+0.93 dB) is smaller than the 3-seed headline (+1.226 dB) only because it compares one seed per configuration rather than 3-seed means — baseline spread alone is ±0.196 dB. Beyond cameras, the hidden rotary transfers to language: on a 200M-parameter LLM trained on 3B FineWeb-Edu tokens with identical data order, adding hidden rotary on top of fw-RoPE lowers perplexity from 19.32 to 19.13 (−1.0%), a gain the size of the entire NoPE-to-RoPE gap (NoPE, i.e., no positional encoding: 19.56). On an attention-plus-TTT video model finetuned with a tiny budget (~2 fast-weight updates per sequence), the method is neutral — an honest boundary: the gains require the TTT memory to carry real load. Two of three tasks improve; none is hurt.
+
+**Contributions.**
+1. **An inner-product addressing lemma for TTT layers:** every interaction between a query and gradient-written content in a LaCT layer passes through inner products, in exactly two channels — one in the q/k input space, one in the SwiGLU hidden space.
+2. **A hidden rotary site** that relativizes the dominant value-retrieval channel and has no analogue in attention, plus **learnable phase maps** that generalize the frequency ladder while preserving exact relativity.
+3. **PRA**, a camera-conditioning recipe for TTT layers — Plücker input rotary with F = 21 and hidden rotary with F_h = 42 frequencies per coordinate (Secs. 2.4–2.5), plus phase maps — with <0.1% FLOP overhead, yielding +1.226 dB PSNR on RE10K, with ablations showing the two channels are largely complementary.
+4. **Evidence of generality and of limits:** LLM perplexity gains equal to the NoPE→RoPE gap; a neutral video result delineating when TTT conditioning pays off; and forensics of 26 runs (Appendix A) showing that the attention recipe does not transplant, but the channel structure does.
+
+## 2. Method
+
+Throughout, we use row-vector convention: a feature \( x \in \mathbb{R}^{1\times d} \) multiplies weight matrices from the right, and we write \( \langle a, b\rangle = a b^\top \) for the inner product of two row vectors. A superscript \( 0 \), as in \( W^0 \), always denotes a quantity taken at the *pre-update* fast weights. We structure this section as a sequence of questions a reader might naturally ask, in the order they arise.
+
+### 2.1 What exactly does a TTT layer compute?
+
+*(Preliminaries: fast weights, LaCT, and where cameras currently fail to enter.)*
+
+A TTT layer replaces the attention operator with a per-head *fast-weight network* \( f_W \): a small MLP whose parameters \( W \) — the fast weights — are rewritten from scratch for every input sequence, during the forward pass, by gradient descent. This is in contrast to the *slow weights* (all ordinary parameters, trained across the dataset as usual). LaCT, the variant we build on, uses a SwiGLU fast-weight network. Per head, it keeps three matrices \( W = (W_{\mathrm{gate}}, W_{\mathrm{up}}, W_{\mathrm{down}}) \) with \( W_{\mathrm{gate}}, W_{\mathrm{up}} \in \mathbb{R}^{d \times d_h} \) and \( W_{\mathrm{down}} \in \mathbb{R}^{d_h \times d} \), and computes
+
+$$
+f_W(x) \;=\; h(x)\, W_{\mathrm{down}}, \qquad h(x) \;=\; \mathrm{silu}(x W_{\mathrm{gate}}) \odot (x W_{\mathrm{up}}),
+$$
+
+where \( \odot \) is the elementwise product and \( h(x) \in \mathbb{R}^{1 \times d_h} \) is the *hidden activation* — a symbol that will matter a great deal below. Queries, keys, and values \( (q, k, v) \) are produced from each token by a learned slow-weight projection, and \( q, k \) are \( \ell_2 \)-normalized per token.
+
+The layer runs in two phases. In the **write** phase, a *chunk* of key–value pairs \( \{(k_i, v_i)\}_{i \in \mathcal{I}} \) (in view synthesis: all input-view tokens at once) updates the fast weights by one gradient step on a dot-product (alignment) objective \( \mathcal{L}(W) = -\sum_i \mathrm{lr}_i \,\langle v_i, f_W(k_i)\rangle \) — minimizing it pushes \( f_W(k_i) \) toward \( v_i \) — where \( \mathrm{lr}_i > 0 \) is a per-token learning rate predicted from token content. Because \( \mathcal{L} \) is a sum over tokens and each weight matrix inside \( f_W \) is multiplied by a row vector, each per-token gradient is rank-one, so the update is a **sum of outer products**:
+
+$$
+\Delta W_{\mathrm{gate}} \;\propto\; \sum_{i} \mathrm{lr}_i\, k_i^\top g_i,
+\qquad
+\Delta W_{\mathrm{up}} \;\propto\; \sum_{i} \mathrm{lr}_i\, k_i^\top u_i,
+\qquad
+\Delta W_{\mathrm{down}} \;\propto\; \sum_{i} \mathrm{lr}_i\, h(k_i)^\top v_i,
+$$
+
+where \( g_i, u_i \in \mathbb{R}^{1 \times d_h} \) are the backpropagated signals of the SwiGLU gate and linear branches (specific functions of \( k_i, v_i \), and the pre-update weights; their exact form will not matter). Interpretation: the memory stores rank-one associations — \( \Delta W_{\mathrm{down}} \) files the value \( v_i \) under the hidden-space address \( h(k_i) \); \( \Delta W_{\mathrm{gate}}, \Delta W_{\mathrm{up}} \) file correction signals under the q/k input-space address \( k_i \). LaCT additionally orthogonalizes updates with a few Newton–Schulz iterations (the orthogonalization step of the Muon optimizer) and renormalizes weight columns; both preserve the sum-of-rank-one structure, which is all we will use. In the **read** phase, every token \( j \) queries the updated memory: \( o_j = f_{W + \Delta W}(q_j) \). One remark on regimes: in language and video models, this write–read cycle repeats over a sequence of many chunks, so the fast weights accumulate updates across the sequence; view synthesis instead writes a single chunk (all input views) and then reads — the *one-chunk regime* that the analysis in Section 2.3 refers to.
+
+Where do cameras enter this pipeline? In LaCT-LVSM, only once: ray maps are concatenated to the RGB pixels before patchification. The TTT layer itself has no notion of which view a token came from. Our goal is to give it one — at every layer, relatively, and without touching the update kernel.
+
+### 2.2 Why can't we just use PRoPE?
+
+Recall what makes RoPE-family methods tick in attention. Each token's features are rotated by a pose-dependent orthogonal matrix, and the two rotations meet inside the attention logit — a bilinear form — where they collapse into a relative transform. For a 2D rotation \( R(\theta) \) and per-token phases \( \theta_i, \theta_j \), in the paper's row-vector convention:
+
+$$
+\big\langle q\, R(\theta_j)^\top,\; k\, R(\theta_i)^\top \big\rangle \;=\; \big\langle q,\; k\, R(\theta_i - \theta_j)^\top \big\rangle .
+$$
+
+Read this identity carefully, because it is the entire mechanism: absolute phases go in, but only their *difference* survives the inner product. GTA and PRoPE generalize the phases to camera transforms, so that only the *relative pose* between two tokens' cameras survives. But the identity has a precondition: the interaction must *be* an inner product. Attention satisfies the precondition by construction — its logits are bilinear by definition. A TTT layer does not, on its face: the query is pushed through \( \mathrm{silu} \), an elementwise product, and gradient-updated matrices. There is no logit. If we blindly apply PRoPE's projective (non-orthogonal) transforms, we distort token norms and thereby the write strengths — and indeed this transplant fails in our experiments. So the honest question is not "how do we imitate PRoPE" but: *does the precondition — inner-product interaction — hold anywhere inside a TTT layer?*
+
+### 2.3 Where do inner products hide inside a nonlinear memory?
+
+Answer: everywhere the query touches *written* content — because of one algebraic fact. A row vector meeting an outer product can only contract through an inner product:
+
+$$
+x\,(a^\top b) \;=\; (x\,a^\top)\,b \;=\; \langle x, a\rangle\, b .
+$$
+
+An outer product has nothing else to give: whatever \( x \) is, the result is the stored row \( b \), scaled by the scalar \( \langle x, a\rangle \). Since every fast-weight update in Section 2.1 is a sum of outer products, every path from a query to written content must pass through such a contraction. Expanding the read \( o_j = f_{W^0 + \Delta W}(q_j) \) to first order in \( \Delta W \) (the only approximation, and one that affects presentation, not the conclusion) yields the decomposition our whole method rests on:
+
+$$
+o_j \;=\;
+\underbrace{h^0(q_j)\, W_{\mathrm{down}}^0}_{\text{initial readout}}
+\;+\;
+\underbrace{\sum_{i} \mathrm{lr}_i\, \big\langle h^0(q_j),\, h^0(k_i) \big\rangle\, v_i}_{\text{value-retrieval channel (hidden space)}}
+\;+\;
+\underbrace{\sum_{i} \big\langle q_j,\, k_i \big\rangle\, c_{ij}}_{\text{gate-correction channel (q/k input space)}}
+\;+\; O(\Delta W^2),
+$$
+
+where \( c_{ij} \in \mathbb{R}^{1\times d} \) collects the token-dependent coefficients that arise when the \( \Delta W_{\mathrm{gate}}, \Delta W_{\mathrm{up}} \) corrections pass through the SwiGLU nonlinearity and \( W_{\mathrm{down}}^0 \) (with \( \mathrm{lr}_i \) absorbed into \( c_{ij} \)). The name *gate-correction channel* is shorthand: \( c_{ij} \) collects corrections to both first-layer matrices, \( \Delta W_{\mathrm{gate}} \) and \( \Delta W_{\mathrm{up}} \). In words: the output is (i) what the query would have read from the *untouched* memory, plus (ii) stored values \( v_i \), each retrieved with weight equal to an inner product of *hidden activations*, plus (iii) correction terms weighted by inner products of the *q/k inputs*. We state the structural consequence explicitly, because higher-order terms are themselves built from repeated contractions and therefore obey the same inner-product structure (in higher-order terms \( h \) is evaluated at partially updated weights, so the lemma drops the pre-update superscript and writes bare \( h \)):
+
+**Lemma (inner-product addressing).** *In the one-chunk regime, every interaction between a query \( q_j \) and content written by a key \( k_i \) — through any of \( \Delta W_{\mathrm{gate}}, \Delta W_{\mathrm{up}}, \Delta W_{\mathrm{down}} \), at any order of the expansion — enters exclusively through the inner products \( \langle q_j, k_i \rangle \) or \( \langle h(q_j), h(k_i) \rangle \). The only path from \( q_j \) to the output that avoids an inner product with some key is the pre-update weights \( W^0 \).*
+
+The lemma says a TTT layer is, despite its nonlinearity, an inner-product-addressed memory — the precondition of Section 2.2 holds after all, in not one but *two* channels, living in two different spaces. Attention needed no such lemma because its single channel (the logit) is bilinear by fiat. Here the precondition is a property of the *update*, not of the architecture: it is what gradient-descent writing adds to the network. And note what the lemma does *not* say: it does not say the two channels are the same. One inner product lives in the q/k input space \( \mathbb{R}^d \), the other in the hidden space \( \mathbb{R}^{d_h} \) — attention's readout, which goes directly from logits to values, contains nothing corresponding to the second. Each channel can, and should, be rotated at its own site.
+
+### 2.4 So can we just rotate queries and keys? (Rotary site 1: input rotary, for the gate-correction channel)
+
+Partly — and this part is not new. To fix ideas, we first need coordinates. Each token in view synthesis is a patch, and each patch sees the world along a viewing ray with origin \( \mathbf{o}_i \in \mathbb{R}^3 \) (the camera center) and unit direction \( \mathbf{d}_i \in \mathbb{R}^3 \), expressed in a canonical scene frame (cameras normalized so that the mean pose is the identity and positions lie in a unit box). We describe the ray by its **Plücker coordinates**
+
+$$
+\pi_i \;=\; (\mathbf{d}_i,\; \mathbf{m}_i) \in \mathbb{R}^6, \qquad \mathbf{m}_i = \mathbf{o}_i \times \mathbf{d}_i ,
+$$
+
+which identify the underlying line independently of where on it the origin sits, and which have the useful property that two rays observing the same 3D point from nearby directions are provably close in \( \mathbb{R}^6 \). The coordinate \( \pi_i \) is the token's *address* for everything that follows; it subsumes both extrinsics and (through the per-patch ray) intrinsics.
+
+The **input rotary** site is then RoPE, verbatim, at the memory's front door. From \( \pi_i \) we compute phases (how, exactly, is Section 2.6) and assemble a block-diagonal rotation \( G_i \in \mathrm{SO}(d) \) — independent 2D rotations on the first \( 2 \cdot 6F \) query/key dimensions, identity on the rest, with \( F = 21 \) frequencies per Plücker coordinate (with \( d = 256 \) in our models, 252 of the 256 dimensions are rotated). After the layer's \( \ell_2 \) normalization we set
+
+$$
+\tilde q_j = q_j\, G_j^\top, \qquad \tilde k_i = k_i\, G_i^\top,
+$$
+
+and the layer proceeds unchanged: \( \tilde k_i \) is written against \( v_i \), and \( \tilde q_j \) reads. Substituting into the gate-correction channel and using orthogonality, \( \langle \tilde q_j, \tilde k_i \rangle = q_j\, G_j^\top G_i\, k_i^\top \): the absolute rotations meet inside the inner product and collapse into \( G_j^\top G_i \), a function of the *relative* Plücker offset \( \pi_i - \pi_j \) alone. The gate-correction channel is now exactly relative.
+
+Two remarks temper the celebration. First, this site is essentially known: it coincides with the fw-RoPE that the LaCT authors already apply in their language and video models, transplanted to camera coordinates. Second — and this is the crux — it is aimed at the *wrong channel*. The nonlinearity \( h \) does not commute with \( G \), so input rotations do **not** collapse inside \( \langle h(\tilde q_j), h(\tilde k_i)\rangle \): the value-retrieval channel, the one that actually delivers stored values to the output, receives no exact relative structure from input rotary. The experiments agree: input rotary alone gains +0.41 dB and then saturates, no matter how many frequencies we give it. The dominant channel needs its own rotation, applied where its inner product actually lives.
+
+### 2.5 Where can a rotation hide inside an MLP? (Rotary site 2: hidden rotary, for the value-retrieval channel)
+
+Between the hidden activation and the output matrix. This is the paper's central move, so let us slow down. The value-retrieval channel's inner product is taken between *hidden activations*, \( \langle h(\cdot), h(\cdot) \rangle \), in \( \mathbb{R}^{d_h} \). By the RoPE identity, the correct place for a rotation is immediately inside that inner product — that is, on \( h \) itself, after the nonlinearity has already been applied. Concretely, the **hidden rotary** site inserts a per-token block-diagonal rotation \( H_i \in \mathrm{SO}(d_h) \) between \( h \) and \( W_{\mathrm{down}} \). The rotation \( H_i \) is built from \( \pi_i \) exactly like \( G_i \), with its own frequency budget of \( F_h = 42 \) frequencies per Plücker coordinate. With \( d_h = 1024 \) in our models, this rotates \( 2 \cdot 6 \cdot F_h = 504 \) of the 1024 hidden dimensions — roughly half — and leaves the remaining dimensions as a pure content channel.
+
+- **On write**, key \( k_i \)'s hidden activation is rotated by its own phases before being filed: the value \( v_i \) is stored under the address \( h(\tilde k_i)\, H_i^\top \), so \( \Delta W_{\mathrm{down}} \propto \sum_i \mathrm{lr}_i\, \big(h(\tilde k_i) H_i^\top\big)^{\!\top} v_i \). The write-step gradient flowing back through this insertion is multiplied by \( H_i \) — the inverse of the inserted \( H_i^\top \) — which autograd handles automatically; in a hand-written kernel it is one extra elementwise rotation in the backward pass.
+- **On read**, query \( q_j \)'s hidden activation is rotated by *its* phases before meeting \( W_{\mathrm{down}} + \Delta W_{\mathrm{down}} \): the output is \( \big(h(\tilde q_j) H_j^\top\big)(W_{\mathrm{down}}^0 + \Delta W_{\mathrm{down}}) \).
+
+Now watch the value-retrieval channel. By the same contraction as always,
+
+$$
+\big(h(\tilde q_j)\, H_j^\top\big)\, \Delta W_{\mathrm{down}}
+\;=\; \sum_i \mathrm{lr}_i\, h(\tilde q_j)\; H_j^\top H_i\; h(\tilde k_i)^\top\; v_i ,
+$$
+
+and \( H_j^\top H_i \) is block-diagonal with blocks \( R(\varphi_i - \varphi_j) \), where \( \varphi_i \) is the hidden-site phase vector computed from \( \pi_i \) (Sec. 2.6): every phase injected at the hidden site enters the retrieval weight only through the *difference* of the write-token's and read-token's phases — a function of \( \pi_i - \pi_j \) alone. The dominant channel is now conditioned on relative camera geometry, at every layer.
+
+We repeat, for the third time and at the level where it is now self-evident, why this site is new rather than a port of prior work: the hidden rotary lives strictly between attention's two landmarks. In attention, the logit \( \langle q, k \rangle \) is immediately followed by the values — there is no intermediate representation between similarity and content, hence no surface on which \( H \) could act. The hidden rotary site exists *only because* a fast-weight memory interposes an MLP hidden layer between its addressing and its stored values. It is not an attention technique adapted to TTT; it is a conditioning channel that TTT layers have and attention does not.
+
+### 2.6 Why fix the phase directions to the coordinate axes? (Learnable phase maps)
+
+No reason — and for multi-dimensional coordinates, good reason not to. So far we have been vague about how a 6D coordinate \( \pi_i \) becomes phases. Standard RoPE uses a *frequency ladder*: indexing rotation planes by coordinate axis \( a \) and frequency \( f \), with \( \pi_i^{(a)} \) the \( a \)-th component of \( \pi_i \), the phase of plane \( (a, f) \) is \( \omega_f\, \pi_i^{(a)} \), with \( \omega_f \) a geometric ladder, \( \omega_f = \mathrm{base}^{-f/F} \) as in standard RoPE — each rotation plane reads one coordinate axis at one frequency. Stacking all planes' phases into a vector \( \theta_i \), this is a fixed linear map \( \theta_i = \Omega_0\, \pi_i \) whose rows are scaled coordinate axes (here — the paper's one exception to the row-vector convention — we treat \( \pi_i \) and \( \theta_i \) as column vectors). Our third ingredient simply learns the map. We parameterize
+
+$$
+\theta_i \;=\; \big(\Omega_0 + \Delta\Omega\big)\, \pi_i ,
+$$
+
+with \( \Omega_0 \) the fixed ladder and \( \Delta\Omega \) learnable — one such **phase map** per rotary site (we write \( \theta \) for the input-site phases and \( \varphi \) for the hidden-site phases). Two facts make this safe and useful. First, relativity is preserved *exactly*, for any \( \Delta\Omega \), because linearity gives \( \theta_i - \theta_j = (\Omega_0 + \Delta\Omega)(\pi_i - \pi_j) \): phase differences remain functions of coordinate differences, so nothing proved in Sections 2.4–2.5 is weakened. Second, the extra freedom is exactly the freedom the ladder lacks: each rotation plane's phase becomes a learned linear functional of the *whole* coordinate vector, so a plane can become sensitive to, say, a screw-like combination of ray direction and moment rather than to one axis in an arbitrary canonical frame. We initialize \( \Delta\Omega \) either to zero (recovering the ladder exactly) or with small random entries of scale 0.1 (the "tilt-0.1" initialization, our final recipe), which starts each phase functional slightly off its axis. A boundary condition follows directly from the parameterization and is confirmed empirically: for a 1D coordinate (text position), \( \Delta\Omega \) can only rescale frequencies, so phase maps are degenerate there; they earn their keep precisely when coordinates are multi-dimensional, as with 6D camera rays.
+
+### 2.7 Does rotating keys not corrupt the memory?
+
+This worry deserves a direct answer, because with our method the *absolute* phases are physically present inside the fast weights: \( \Delta W_{\mathrm{down}} \) is built from \( H_i\, h(\tilde k_i)^\top \), rotated addresses and all. Is the stored content damaged? No — and the resolution is a reframing. The fast weights are the *storage* of the phases; the read is the operation that *relativizes* them. Every read passes through the contraction \( x (a^\top b) = \langle x, a\rangle b \), so a rotated query address meets a rotated key address inside an inner product, where — and only where — the absolute rotations cancel into \( G_j^\top G_i \) or \( H_j^\top H_i \). Nothing needs to be protected from the write; the write is where the encoding waits to be read relatively. (This also explains why the projective PRoPE transplant fails while rotations succeed: a non-orthogonal transform changes token *norms*, which is an absolute distortion of write strengths that no read-time cancellation can remove.)
+
+A second question is familiar from the RoPE extrapolation literature: will a model trained in a canonicalized frame generalize to unseen absolute poses? The same reframing answers it. For both rotary channels, a global re-posing of the scene multiplies every \( G_i \) (and \( H_i \)) by a common rotation, which cancels identically in every \( G_j^\top G_i \): only the distribution of *relative* Plücker offsets must be covered by training. The lone non-relative path — the lemma's residue, the query meeting the pre-update weights \( W^0 \) — is benign for two reasons specific to TTT. At initialization, \( W^0 \)'s columns are isotropic, so orthogonal rotations leave the layer's forward statistics exactly unchanged; and the fast weights are rebuilt from scratch per scene in a canonicalized frame, so there is no cross-scene pathway by which absolute poses could be memorized.
+
+### 2.8 Will any of this destabilize training or slow it down?
+
+No, and orthogonality is the load-bearing reason. Every rotation we insert is in \( \mathrm{SO}(d) \) or \( \mathrm{SO}(d_h) \), hence norm-preserving: the \( \ell_2 \) normalization of queries and keys, the calibration of the per-token learning rates, the Muon/Newton–Schulz orthogonalization of updates, and the weight-norm constraint all see numerically the same distributions as the baseline. The input rotary is applied post-normalization outside the compiled update kernel (a two-line change); the hidden rotary adds one elementwise rotation in the kernel's forward and its inverse in the backward. Setting the entire phase map \( \Omega_0 + \Delta\Omega \) to zero — all rotations become the identity — recovers the pose-blind baseline exactly (this is distinct from \( \Delta\Omega = 0 \), which recovers the fixed frequency ladder of Sec. 2.6), so the baseline sits inside the hypothesis class.
+
+The full recipe — **rotary fast-weight addressing**, instantiated for cameras as **PRA** — is: Plücker input rotary on \( q/k \) with \( F = 21 \) frequencies per coordinate, hidden rotary with \( F_h = 42 \) (about half the hidden dimensions), and learnable phase maps with tilt-0.1 initialization, applied at every TTT layer. Total overhead: under 0.1% additional FLOPs and 0.01% additional parameters; no new losses, schedules, kernels beyond the one backward rotation, or changes to checkpoint format.
