@@ -166,3 +166,17 @@ Paired per-step loss (deterministic noise, n=2090 common log points):
   detectable, practically negligible (+0.04% of loss): learnable hidden freqs drift without
   useful signal in this regime. Honest note for paper if full variant is mentioned for video.
 Paper Sec 4.3 (boundary condition framing) stands unchanged.
+
+## F23: Q1 absolute-adaptation probe (q1_scenerand, seed 95, completed 2026-07-07)
+Design: full PRA recipe (qk_rope+h_pra+omega_map, F21/42) but phase coords replaced by ONE
+random 6-vector per scene (resampled every forward; relative rotations all identity; raymap
+inputs stay true rays).
+Result: PSNR 21.634 +- 0.145 (eval stderr), LPIPS 0.3060 vs baseline 21.745 +- 0.196 (3-seed)
+/ 0.2929 and full PRA 22.971 +- 0.088 / 0.2613.
+- PSNR: within noise of baseline (-0.11, < 1 baseline seed-std). Even adversarially random
+  absolute stamps, resampled per visit, are absorbed by the slow weights. The benign-residue
+  claim ("What stays absolute") now has direct experimental support beyond F12.
+- LPIPS slightly worse than baseline (+0.013): small but visible perceptual cost of pure
+  absolute perturbation. Honest caveat for the paper.
+- Relative isolation: full PRA - q1_scenerand = +1.34 dB PSNR / -0.045 LPIPS: essentially the
+  entire PRA gain is carried by the relative component.
