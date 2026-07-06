@@ -65,3 +65,8 @@ load-bearing (norm-preserving; compatible with L2-norm, Muon, weight-norm).
   sentences before math; interpretation sentences after every equation.
 - Process: 10 diverse versions (different expository strategies) → pick 3 most understandable →
   iterative revision until readability converges.
+
+## Terminology rule (2026-07-06, user instruction)
+Follow LaCT paper terminology wherever it exists: "update" (not write) for the
+fast-weight gradient step, "apply" (not read) for using fast weights on queries.
+Mirror other LaCT terms (fast weights, chunk, per-token lr) as in their paper.
