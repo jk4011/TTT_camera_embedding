@@ -9,6 +9,16 @@ CFG=config/cam_q1_scenerand.yaml
 SEED=95
 
 echo "[q1_chain] $(date) training start"
+# robust compile env: fresh NFS caches (exec-allowed), no async compile pool
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export TRITON_CACHE_DIR="$REPO_ROOT/.cache_triton_nvs"
+export TORCHINDUCTOR_CACHE_DIR="$REPO_ROOT/.cache_inductor_nvs"
+export TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas
+export TRITON_CUOBJDUMP_PATH=/usr/local/cuda/bin/cuobjdump
+export TRITON_NVDISASM_PATH=/usr/local/cuda/bin/nvdisasm
+export TORCHINDUCTOR_COMPILE_THREADS=1
+mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
+
 bash launch_exp.sh $GPU $EXP $CFG $SEED
 echo "[q1_chain] $(date) training done"
 
