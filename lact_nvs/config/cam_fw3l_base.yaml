@@ -1,0 +1,31 @@
+# Q2 depth-3 fast weights, no rotary (3L baseline).
+# Inner net per head: f(x) = W_c silu(W_b (silu(W1 x) * (W3 x)))
+#   d=256, d_h=512 (inter_multi=2), d_h2=512; fast weights W1,W3,W_b,W_c.
+# Params: +wb (512x512) + 4th lr channel (+257) = +262,401 per TTT layer
+# vs the plain SwiGLU cam TTT layer. Measured totals (L6/d256/p16):
+#   fw3l 11,220,248 / fw3l_rot2 11,222,516 / fw3l_rot3 11,224,028
+#   (cam_h_pra reference: 9,646,598).
+# fw3l / fw3l_rot2 / fw3l_rot3 differ only in rotary gain params
+# (+2,268 / +3,780 vs fw3l) -> the 3-way comparison is param-neutral.
+patch_size: 16
+dim: 256
+layers: 6
+
+block_config:
+  - type: model.SelfAttention
+    length_dim: l
+    params:
+      head_dim: 64
+      use_qk_norm: true
+  - type: lact_ttt_cam.CamFastWeightGluMLPMultihead
+    length_dim: vl
+    params:
+      head_dim: 256
+      inter_multi: 2
+      base_lr: 0.01
+      muon_update_steps: 5
+      cam_mode: fw3l
+  - type: model.MLP
+    length_dim: vl
+    params:
+      inter_multi: 4

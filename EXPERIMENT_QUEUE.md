@@ -20,7 +20,7 @@ Requested 2026-07-07 (paper Sec "What stays absolute" support).
   one flag in lact_nvs (cam_phase_override=scene_random), seed-stable per
   scene id.
 
-## Q2. Deeper fast weights: one rotary per address space at depth 3
+## Q2. Deeper fast weights: one rotary per address space at depth 3  [RUNNING 2026-07-07 GPU 3: run_q2_chain.sh, fw3l_base -> fw3l_rot2 -> fw3l_rot3, 30k each + eval]
 Requested 2026-07-07 (Method "Generalization to other fast weights" claim).
 - Design: replace the SwiGLU fast weight with a 3-layer inner network
   (e.g., W3' silu-gate stack or plain W_out sigma(W_mid sigma(W_in x))) in

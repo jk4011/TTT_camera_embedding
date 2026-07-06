@@ -1,0 +1,28 @@
+# Q2 depth-3 fast weights + 3 rotary sites ("one rotary per address space"):
+# input (qk, F=21 -> 252/256), h1 (F=42 -> 504/512), s2 (F=42 -> 504/512).
+# Same depth-3 inner net as cam_fw3l_base; params identical up to rotary
+# gains (+630/layer = +3,780 total vs cam_fw3l_base).
+patch_size: 16
+dim: 256
+layers: 6
+
+block_config:
+  - type: model.SelfAttention
+    length_dim: l
+    params:
+      head_dim: 64
+      use_qk_norm: true
+  - type: lact_ttt_cam.CamFastWeightGluMLPMultihead
+    length_dim: vl
+    params:
+      head_dim: 256
+      inter_multi: 2
+      base_lr: 0.01
+      muon_update_steps: 5
+      cam_mode: fw3l_rot3
+      num_freqs: 21
+      num_freqs_h: 42
+  - type: model.MLP
+    length_dim: vl
+    params:
+      inter_multi: 4

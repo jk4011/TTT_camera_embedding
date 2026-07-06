@@ -54,6 +54,8 @@ overleaf_paper/
 *.swp
 .cache_inductor/
 .cache_triton/
+.cache_inductor_nvs/
+.cache_triton_nvs/
 .venv_llm/
 lact_llm/outputs/
 lact_ar_video/outputs/
