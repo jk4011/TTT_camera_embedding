@@ -171,11 +171,19 @@ def compute_rays(fxfycxcy, c2w, h, w):
     return ray_o, ray_d
 
 
-def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input_views):
+def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input_views,
+                        cam_scene_random=False):
     """Per-token / per-view camera tensors for camera-conditioned TTT layers.
 
     All views (input + target) are covered; token order matches the
     patchify rearrange "b v c (hh ph) (ww pw) -> b (v hh ww) ...".
+
+    cam_scene_random (Q1 absolute-adaptation probe): replace the per-token
+    Plucker phase coordinates (tok_d, tok_m) with ONE random 6-vector per
+    batch item, broadcast to all tokens/views of that scene (d = random unit
+    3-vector, m = 0.5 * randn(3), fresh each forward). All relative rotations
+    become identity; only absolute stamps vary across scenes. Raymap INPUT
+    features (compute_rays outputs) and cam_feat keep the true rays.
 
     Returns dict with:
         tok_o, tok_d, tok_m: [b, L, 3]  patch-center Plucker (canonical frame)
@@ -249,6 +257,17 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
     w2c[..., :3, :3] = rot.transpose(-1, -2)
     w2c[..., :3, 3] = -torch.einsum("bvji,bvj->bvi", rot, center)
 
+    if cam_scene_random:
+        # Q1 probe: per-scene-constant random rotary phases (see docstring).
+        # Only tok_d / tok_m (the 6D Plucker rotary-phase source) are
+        # replaced; everything derived from the true rays above stays intact.
+        L = tok_d.size(1)
+        rand_d = torch.randn(b, 1, 3, device=tok_d.device, dtype=torch.float32)
+        rand_d = rand_d / (rand_d.norm(dim=-1, keepdim=True) + 1e-8)
+        rand_m = 0.5 * torch.randn(b, 1, 3, device=tok_d.device, dtype=torch.float32)
+        tok_d = rand_d.expand(b, L, 3)
+        tok_m = rand_m.expand(b, L, 3)
+
     return {
         "tok_o": tok_o, "tok_d": tok_d, "tok_m": tok_m,
         "tok_d_delta": tok_d_delta, "tok_m_delta": tok_m_delta,
@@ -262,7 +281,8 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
 
 class LaCTLVSM(nn.Module):
     def __init__(self, patch_size, dim, layers, block_config,
-                 ttt_chunk_per_view=False, ttt_view_tour=False):
+                 ttt_chunk_per_view=False, ttt_view_tour=False,
+                 cam_scene_random=False):
         super().__init__()
         self.patch_size = patch_size
         self.dim = dim
@@ -272,6 +292,9 @@ class LaCTLVSM(nn.Module):
         # (weight-norm recency works in our favor).
         self.ttt_chunk_per_view = ttt_chunk_per_view
         self.ttt_view_tour = ttt_view_tour
+        # Q1 probe: per-scene-constant random rotary-phase coordinates
+        # (see compute_camera_info). Default OFF.
+        self.cam_scene_random = cam_scene_random
 
         self.pose_keys = ["ray_o", "ray_d", "o_cross_d"]
         self.posed_image_keys = self.pose_keys + ["normalized_image"]
@@ -348,6 +371,7 @@ class LaCTLVSM(nn.Module):
             camera_info = compute_camera_info(
                 all_fxfycxcy, all_c2w, h, w, self.patch_size,
                 all_ray_o, all_ray_d, num_input_views,
+                cam_scene_random=self.cam_scene_random,
             )
 
         # Running the model

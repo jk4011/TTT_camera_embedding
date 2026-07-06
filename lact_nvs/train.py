@@ -41,6 +41,9 @@ parser.add_argument("--num_input_views", type=int, default=8)
 parser.add_argument("--num_target_views", type=int, default=8)  
 parser.add_argument("--image_size", nargs=2, type=int, default=[256, 256], help="Image size H, W")
 parser.add_argument("--scene_pose_normalize", action="store_true")
+parser.add_argument("--cam_scene_random", action="store_true",
+                    help="Q1 probe: per-scene-constant random rotary-phase coords "
+                         "(see model.compute_camera_info); also settable in the config yaml")
 
 # Optimizer
 parser.add_argument("--lr", type=float, default=1e-4)
@@ -52,6 +55,8 @@ parser.add_argument("--seed", type=int, default=95)
 
 args = parser.parse_args()
 model_config = omegaconf.OmegaConf.load(args.config)
+if args.cam_scene_random:
+    model_config.cam_scene_random = True
 output_dir = f"outputs/{args.expname}"
 os.makedirs(output_dir, exist_ok=True)
 
