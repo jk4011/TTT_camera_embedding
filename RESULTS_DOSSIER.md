@@ -156,3 +156,13 @@ Paired per-step loss over last 2500 steps: h_pra Δ=+0.000000 (t=0.0), full Δ=+
   redundancy). Real story: memory-exclusive workload share, not write count (video 6 > LLM 4 >
   NVS 1 writes, yet gains go the other way); noisy diffusion objective.
   Honest verdict: 2 of 3 tasks improve (NVS +1.22 dB, LLM −1.0% ppl), video unaffected.
+
+## F22: v20k video ablation final (20,000 steps, completed 2026-07-07)
+Paired per-step loss (deterministic noise, n=2090 common log points):
+- h_pra - base: second half (10k-20k, n=1001) -0.000001 (t=-0.1); final 2.5k +0.000002 (t=+0.2).
+  VERDICT: h-PRA exactly neutral at 5x the F21 budget. Boundary condition confirmed, not
+  budget-limited. No gain, no harm.
+- full - base: second half +0.000022 (t=+2.8); final 2.5k +0.000033 (t=+2.6). Statistically
+  detectable, practically negligible (+0.04% of loss): learnable hidden freqs drift without
+  useful signal in this regime. Honest note for paper if full variant is mentioned for video.
+Paper Sec 4.3 (boundary condition framing) stands unchanged.
