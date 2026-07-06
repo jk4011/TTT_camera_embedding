@@ -4,7 +4,7 @@ Pending experiments, in priority order. NVS small config = L6/d256/p16, 30k
 iters, bs16, ~1.6h per run on one B200. GPU 3 is free while ccv occupies 0-2
 (until ~2026-07-09); cheap NVS items can run there anytime.
 
-## Q1. Absolute-adaptation probe (per-scene-constant random phases)
+## Q1. Absolute-adaptation probe (per-scene-constant random phases)  [RUNNING GPU3 since 2026-07-07, commit 9035e83]
 Requested 2026-07-07 (paper Sec "What stays absolute" support).
 - Design: full TTT-RoPE recipe, but replace every token's phase coordinates
   pi with ONE random 6-vector drawn per scene (same for all tokens in the
