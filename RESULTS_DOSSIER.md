@@ -180,3 +180,17 @@ Result: PSNR 21.634 +- 0.145 (eval stderr), LPIPS 0.3060 vs baseline 21.745 +- 0
   absolute perturbation. Honest caveat for the paper.
 - Relative isolation: full PRA - q1_scenerand = +1.34 dB PSNR / -0.045 LPIPS: essentially the
   entire PRA gain is carried by the relative component.
+
+## F24: Q2 depth-3 fast weights, one rotary per address space (seed 95, 2026-07-07)
+| variant | PSNR | LPIPS | note |
+|---|---|---|---|
+| fw3l_base (depth-3, no rotary) | 21.868 +- 0.143 | 0.2932 | ~= 2L baseline 21.745: depth alone adds nothing |
+| fw3l_rot2 (input + s2 sites) | 23.307 +- 0.161 | 0.2517 | already beats 2L record recipe |
+| fw3l_rot3 (all 3 sites) | 23.439 +- 0.161 | 0.2478 | NEW RECORD (single seed) |
+Paired per-scene: rot3 vs rot2 +0.132 dB (t=+15.2, win 86%); rot3 vs base +1.571 (t=+31.4).
+- "One rotary per address space" VALIDATED: the third site earns its rotation at +1.5k params.
+- Depth-3 alone is worthless (+0.12, noise) but depth-3 + full addressing = best result to date:
+  the ViT3 "deep inner models don't help" observation is an ADDRESSING failure, not a depth
+  failure. Strong candidate for a paper subsection.
+- Stability: no lr retune needed; Muon + weight-norm on all 4 matrices held at base_lr 0.01.
+- Kernel verified bit-exact vs autograd (base/rot2); 3-seed replication launched (137, 211).
