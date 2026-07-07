@@ -35,12 +35,8 @@ Requested 2026-07-07 (Method "Generalization to other fast weights" claim).
 - Note: also the theory check for the ViTTT Stage-1 plan (hidden-site
   creation), see chat 2026-07-06.
 
-## Q3. (carried) ViT3 Stage-1: TTT-RoPE on plain ViT3-T
-- 4 runs, ImageNet-1k 100 epochs: baseline / +input rotary (2D coords) /
-  +W_out 2-layer inner / +W_out + hidden rotary. Needs ImageNet download.
-- After ccv completes (GPU budget).
-
 ## Done / superseded
+- Q3 (ViT3 Stage-1, TTT-RoPE on plain ViT3-T): DROPPED per user decision 2026-07-07 (ImageNet download not worth it; NVS/video/LLM evidence sufficient for the paper).
 - v20k long-budget video ablation -> F22 (h-PRA exactly neutral at 20k).
 - ccv 3-run grid (base/pra/both) RUNNING on GPUs 0-2 since 2026-07-07.
 
