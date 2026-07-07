@@ -43,3 +43,10 @@ Requested 2026-07-07 (Method "Generalization to other fast weights" claim).
 ## Done / superseded
 - v20k long-budget video ablation -> F22 (h-PRA exactly neutral at 20k).
 - ccv 3-run grid (base/pra/both) RUNNING on GPUs 0-2 since 2026-07-07.
+
+## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [QUEUED after Q2 seeds, auto-chained on GPU 3]
+Requested 2026-07-07. No learnable frequencies; matched ladders (input F=21, hidden F_h=42).
+- Runs (seeds 95/137/211): full = pra_h_hi (qk_rope+h_pra); w/o input = h_pra_hi (new config,
+  F_h42 only); w/o hidden = pra_hi (F21 only). Baseline (no PE) 3 seeds already exist.
+- Reuse: pra_h_hi s95 (22.836/0.2690), pra_hi s95 (22.389/0.2753) => 7 new runs (~7h).
+- Deliverable: mean +- std table for the paper's main ablation.
