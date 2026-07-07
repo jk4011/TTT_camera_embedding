@@ -40,7 +40,13 @@ Requested 2026-07-07 (Method "Generalization to other fast weights" claim).
 - v20k long-budget video ablation -> F22 (h-PRA exactly neutral at 20k).
 - ccv 3-run grid (base/pra/both) RUNNING on GPUs 0-2 since 2026-07-07.
 
-## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [QUEUED after Q2 seeds, auto-chained on GPU 3]
+## Q5. ccv_pra_fixed: clean TTT-RoPE video run (fixed ladders)  [FRONT OF QUEUE; auto-launches on GPU 3 when Q2 seeds finish]
+Requested 2026-07-07. Same as ccv_pra but ttt_learnable_freqs OFF: zero added params,
+pure fixed-ladder TTT-RoPE vs cam_encoder. 20k steps, ~46h. Deterministic noise is
+per-step, so paired comparison vs ccv_base/pra/both stays valid despite later start.
+Config: abl_ccv_pra_fixed.yaml; launcher run_ccv_pra_fixed.sh; log /tmp/ccv_pra_fixed.log.
+
+## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [RESCHEDULED: runs on first GPU freed by ccv completion (~2026-07-08 night); GPU-3 slot given to Q5]
 Requested 2026-07-07. No learnable frequencies; matched ladders (input F=21, hidden F_h=42).
 - Runs (seeds 95/137/211): full = pra_h_hi (qk_rope+h_pra); w/o input = h_pra_hi (new config,
   F_h42 only); w/o hidden = pra_hi (F21 only). Baseline (no PE) 3 seeds already exist.
