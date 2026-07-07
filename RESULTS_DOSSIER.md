@@ -194,3 +194,13 @@ Paired per-scene: rot3 vs rot2 +0.132 dB (t=+15.2, win 86%); rot3 vs base +1.571
   failure. Strong candidate for a paper subsection.
 - Stability: no lr retune needed; Muon + weight-norm on all 4 matrices held at base_lr 0.01.
 - Kernel verified bit-exact vs autograd (base/rot2); 3-seed replication launched (137, 211).
+
+## F24b: Q2 3-seed replication (seeds 95/137/211, 2026-07-07)
+| variant | PSNR (3-seed) | LPIPS (3-seed) |
+|---|---|---|
+| fw3l_rot3 | 23.439 +- 0.022 | 0.2478 +- 0.0005 |
+| fw3l_rot2 | 23.301 +- 0.015 | 0.2518 +- 0.0007 |
+- NEW HEADLINE CANDIDATE: fw3l_rot3 = +1.694 dB over 2L baseline (21.745 +- 0.196),
+  +0.47 over the previous record recipe (22.971 +- 0.088), at 3-seed rigor.
+- Third-site gain replicates in every seed (per-seed rot3-rot2: +0.132/+0.106/+0.178).
+- Rotary runs are far more seed-stable (std 0.02) than the baseline (std 0.196).
