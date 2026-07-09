@@ -9,7 +9,7 @@ export TRITON_CUOBJDUMP_PATH=/usr/local/cuda/bin/cuobjdump
 export TRITON_NVDISASM_PATH=/usr/local/cuda/bin/nvdisasm
 export TORCHINDUCTOR_COMPILE_THREADS=1
 mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
-PYENV=/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/anaconda3/envs/LVSM/bin
+PYENV=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin
 for job in "fw3l_rot3 137" "fw3l_rot3 211" "fw3l_rot2 137" "fw3l_rot2 211"; do
   set -- $job
   V=$1; S=$2; EXP="${V}_s${S}"

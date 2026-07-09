@@ -2,7 +2,7 @@
 # Q1 absolute-adaptation probe: 30k-iter training then standard 256-scene eval.
 # Usage: nohup bash run_q1_chain.sh > /tmp/q1_chain.log 2>&1 &
 cd "$(dirname "$0")"
-PY=/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/anaconda3/envs/LVSM/bin/python
+PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
 GPU=3
 EXP=q1_scenerand
 CFG=config/cam_q1_scenerand.yaml

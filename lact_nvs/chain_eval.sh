@@ -1,7 +1,7 @@
 #!/bin/bash
 # chain_eval.sh <exp> <gpu> <cfg> — wait for 30k ckpt, then eval only
 cd "$(dirname "$0")"
-PY=/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/anaconda3/envs/LVSM/bin/python
+PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
 for i in $(seq 1 200); do
   [ -f outputs/$1/model_0030000.pth ] && break; sleep 60
 done

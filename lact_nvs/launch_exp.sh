@@ -7,9 +7,17 @@ EXP=$2
 CONFIG=$3
 SEED=${4:-95}
 
-PY_ENV=/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/anaconda3/envs/LVSM/bin
+PY_ENV=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin
 cd "$(dirname "$0")"
 mkdir -p outputs/$EXP
+
+# Dedicated NFS compile caches: default /tmp/torchinductor_* is noexec tmpfs and
+# crashes triton mid-train ("failed to map segment"); see commit a73dcd4.
+REPO_ROOT="$(cd .. && pwd)"
+export TRITON_CACHE_DIR="$REPO_ROOT/.cache_triton_nvs"
+export TORCHINDUCTOR_CACHE_DIR="$REPO_ROOT/.cache_inductor_nvs"
+export TORCHINDUCTOR_COMPILE_THREADS=1
+mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
 
 CUDA_VISIBLE_DEVICES=$GPU $PY_ENV/torchrun \
   --rdzv-backend=c10d --rdzv-endpoint=localhost:0 --nproc_per_node=1 \

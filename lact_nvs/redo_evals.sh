@@ -1,6 +1,6 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-PY=/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/anaconda3/envs/LVSM/bin/python
+PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
 declare -A CFG=(
   [pra_h_hi]=config/cam_pra_h_hi.yaml
   [pra_h_vo]=config/cam_pra_h_vo.yaml

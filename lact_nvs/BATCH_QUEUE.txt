@@ -1,0 +1,13 @@
+# batch_entry.sh job list: "<variant> <seed>" per line (config/cam_<variant>.yaml).
+# Completed runs (outputs/<variant>_s<seed>/eval.json) are skipped automatically.
+# Current Q4 ablation set — safe to submit even while interactive runs continue:
+h_pra_hi 95
+h_pra_hi 137
+h_pra_hi 211
+pra_h_hi 95
+pra_h_hi 137
+pra_h_hi 211
+pra_hi 95
+pra_hi 137
+pra_hi 211
+fw3l_rot3 95

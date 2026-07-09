@@ -14,6 +14,17 @@ The intended workflow: brainstorm ~10 hypotheses for camera embedding in TTT, th
 them against the **LaCT LVSM baseline** in `lact_nvs/`, comparing PSNR/LPIPS. Hardware available is **4× B200**,
 so up to 4 experiments run concurrently.
 
+**This research is well underway** — do not re-brainstorm from scratch. Dozens of variants have been
+implemented (`lact_nvs/lact_ttt_cam.py`) and evaluated. The current state lives in the tracking docs at
+the repo root (read these first before proposing or running anything):
+- **`RESULTS_DOSSIER.md`** — every evaluated run with PSNR/LPIPS and paired stats; the source of truth
+  for "what works". The headline finding is TTT-RoPE (Plücker rotary applied to fast-weight Q/K), currently
+  ~+1.7 dB over baseline.
+- **`EXPERIMENT_QUEUE.md`** — pending/running/done experiments in priority order, with GPU assignments.
+- **`IDEAS.md`** — the synthesized hypothesis list. **`WRITING_BRIEF.md`** — the paper's central theory
+  (inner-product addressing lemma) and terminology rules. **`CAMCTRL_DESIGN.md`** / **`IMPL_SPEC_CCV.md`** —
+  the camera-controlled video-gen cross-task validation. **`paper_draft/`** — the LaTeX method draft.
+
 ## Repository layout
 
 - **`lact_nvs/`** — the working codebase. LaCT (Large-Chunk TTT) applied to LVSM for NVS. **This is what you
@@ -26,6 +37,9 @@ so up to 4 experiments run concurrently.
   `causal_lact_with_sliding_window_attn.py`). Best starting point for understanding the TTT update math.
 - **`papers/`** — PDFs *and* LaTeX source (so equations are readable) for LaCT, LVSM, PRoPE, RayRoPE, TTT,
   SwiGLU, DPPE.
+- **`lact_llm/`, `lact_ar_video/`** — the same TTT-RoPE idea transplanted to language modeling and
+  camera-controlled AR video generation, to show the method is not NVS-specific (cross-task evidence for the
+  paper). Imported from the upstream LaCT repo; read-only unless running those specific ablations.
 
 ## Architecture (`lact_nvs/`)
 
@@ -63,6 +77,21 @@ the key fact for the research task, since the TTT layer itself has no notion of 
     `model.py` is what distinguishes train / reconstruct / render.
   - Fast-weight state is threaded between blocks via the `info` dict (`{"w0","w1","w2"}` in the return value).
 
+- **`lact_ttt_cam.py`** — **the camera-embedding research layer** (the main deliverable; `lact_ttt.py` is the
+  untouched baseline). `CamFastWeightGluMLPMultihead` subclasses `FastWeightGluMLPMultihead` and adds camera
+  conditioning selected by a single **`cam_mode` string** in the YAML. `cam_mode` is a `+`-joined set of
+  feature flags (e.g. `"qk_rope_cam"`, `"pra_sinc"`, `"h_pra+ms2"`, `"fw3l_rot3"`); the `known` set in
+  `__init__` is the authoritative list of implemented variants, with assertions enforcing which combos are
+  legal (one rotary family at a time, one hidden rotary at a time, `fw3l*` standalone, etc.). The flagship is
+  `qk_rope_cam` = **TTT-RoPE**: rotate the fast-weight Q/K by Plücker-coordinate phases (a log-spaced `omega`
+  ladder × learnable `freq_gain`) so relative camera pose enters through the inner-product addressing the
+  fast weights already use. Other families extend this to the hidden address space (`h_pra`), to ray
+  segments (`pra_sinc`, sinc-integrated), to deeper 3-layer fast weights (`fw3l`), etc. Adding a variant =
+  add a flag to `known`, its params in `__init__`, and its rotary/lr logic in the apply helpers +
+  `forward`.
+- **`eval.py`** — computes PSNR/LPIPS on held-out RE10K scenes for a trained checkpoint (the number that goes
+  into `RESULTS_DOSSIER.md`). `data_re10k.py` is the RE10K-specific dataset loader used for these experiments.
+
 - **`data.py`** — `NVSDataset` reads a JSON that lists per-datapoint JSONs; each holds per-image
   `fx,fy,cx,cy`, `w2c`, `file_path`. `resize_and_crop` adjusts intrinsics to match the resize+center-crop.
   `scene_pose_normalize` (scene data) re-centers/scales cameras via `normalize_with_mean_pose`.
@@ -89,6 +118,48 @@ There is no test suite in `lact_nvs/`. (The reference `prope/` dir has `pytest t
 
 Configs (`config/*.yaml`) set `patch_size`, `dim`, `layers`, and the per-block `block_config`. `ttt2x`/`ttt4x`
 refer to the TTT `inter_multi` / training scale; `l14`/`l24` is the layer count.
+
+### Camera-embedding experiment workflow
+
+- **Config naming:** `config/cam_*.yaml` are the camera-embedding experiments — each pins a `cam_mode`
+  string (see `lact_ttt_cam.py`) onto the small model. The rest (`lact_l*`, `lact_l6_d256_p16`) are the
+  stock LaCT baselines.
+- **Standard ablation protocol** (must match, or a result isn't comparable — see `RESULTS_DOSSIER.md`
+  header): small config **L6 / d256 / patch 16**, RE10K 256×256, 8 input + 8 target views, 30k iters,
+  bs16, lr1e-4, LPIPS loss from step 5k. Eval: 256 held-out scenes, 8 uniform inputs / 4 midpoint targets,
+  PSNR/LPIPS with **paired per-scene** stats. Baseline is PSNR 21.970 / LPIPS 0.2883. One small run ≈ 1.6 h
+  on one B200. **Always compare seed-matched and report paired deltas** — single-seed PSNR gaps of ~0.1 dB
+  are within seed noise (F18).
+- **Launching:** the `run_*.sh` / `chain*.sh` / `launch_exp.sh` scripts in `lact_nvs/` chain train→eval and
+  place runs on specific GPUs; `EXPERIMENT_QUEUE.md` tracks which GPU is free. Read the relevant script
+  before launching rather than reconstructing the torchrun invocation.
+
+### Terminology (user instruction, follow LaCT paper)
+
+Use **"update"** (not "write") for the fast-weight gradient step, and **"apply"** (not "read") for using the
+fast weights on queries — in code comments, docs, and the paper draft.
+
+## Environment (rebuilt 2026-07-09 after node reset — read before launching anything)
+
+The compute node is an ephemeral Slurm container: **home (`~`) and `/tmp` are node-local and vanish on
+reset**; only lustre (`/NHNHOME/WORKSPACE/26msit001_A/...`) is durable. Sessions are interactive (2-day
+limit) or batch via a web GUI (no `sbatch`/`squeue` CLI here — the user submits batch jobs manually).
+
+- **Python env**: venv at `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm` (torch 2.11+cu128 for
+  B200/sm_100; the old conda env path in git history is dead). All `lact_nvs/*.sh` already point here.
+- **RE10K data**: source chunks survive at `/NHNHOME/WORKSPACE/26msit001_A/V-LAB/Datasets/re10k`
+  (train+test). Working copy must be reshared into node-local `/tmp/re10k` via
+  `data_preprocess/reshard_re10k.py` (~2 min, 536 G tmpfs) — gone after every reset; reshard first.
+- **Compile caches**: default `/tmp/torchinductor_*` is noexec → triton crashes mid-train ("failed to
+  map segment"). `launch_exp.sh` now exports NFS caches (`.cache_triton_nvs`/`.cache_inductor_nvs`)
+  + `TORCHINDUCTOR_COMPILE_THREADS=1`; keep that in any new launcher.
+- **Batch workflow**: `lact_nvs/batch_entry.sh` is a self-contained batch entry point (reshards data,
+  runs `BATCH_QUEUE.txt` jobs striped over all visible GPUs, **skips runs whose `eval.json` exists** —
+  resubmission = resume). `batch_with_claude.sh` additionally runs headless Claude to update the dossier;
+  it uses the portable install at `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/claude_portable/` (binary +
+  `CLAUDE_CONFIG_DIR` config), since `~/.claude` doesn't exist on batch nodes.
+- Checkpoints/evals land in `lact_nvs/outputs/` (lustre, durable). All pre-reset checkpoints were lost;
+  results live only in `RESULTS_DOSSIER.md`.
 
 ## Gotchas
 

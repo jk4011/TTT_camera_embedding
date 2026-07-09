@@ -3,7 +3,7 @@
 # 30k-iter trainings (fw3l / fw3l_rot2 / fw3l_rot3) + standard 256-scene evals.
 # Usage: nohup bash run_q2_chain.sh > /tmp/q2_chain.log 2>&1 &
 cd "$(dirname "$0")"
-PY=/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/anaconda3/envs/LVSM/bin/python
+PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
 GPU=3
 SEED=95
 
