@@ -76,3 +76,14 @@ the paper's Method is written on a gateless 2-layer MLP, so back it directly.
 - Kernel verified vs autograd (bf16 tol, muon-0 transform replicated).
 - Prediction: rot2 - base gap ~ the SwiGLU fixed-ladder gap (~+1.1), showing the
   channel structure (not gating) carries the effect. Seeds 137/211 after s95.
+
+## Q7. LLM 2x2 input/hidden rotary ablation  [CHAINED 2026-07-09: gpu0/1 after Q4 evals, gpu6/7 after mlp2 s95 evals]
+Requested 2026-07-09 (user). Completes the F19 matrix with the missing hidden-only
+cell, rerun as a FULL 2x2 grid in the rebuilt env (torch 2.9.1+cu130 + new fla; old
+runs' env is gone, so mixing old/new numbers would confound):
+- abl_nope  {ttt_nope}                    - abl_rope  {} (stock fw-RoPE)
+- abl_hpra  {ttt_hidden_rope}             - abl_honly {ttt_nope, ttt_hidden_rope}  <- NEW CELL
+Protocol: F19 recipe — 200M LaCT LM (768/12L), 3B tokens fineweb-edu streaming,
+fixed data order (data_seed 42), bs 8 x 4096 -> ~91.5k steps, val ppl on the fixed
+2M-token cache. ~12h/run. Reading: does the hidden channel work WITHOUT the input
+channel in 1D (mirrors NVS F25 where hidden-only carries +0.96 of +1.08)?

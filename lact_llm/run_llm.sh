@@ -11,9 +11,11 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PYTHON=/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embedding/.venv_llm/bin/python
+REPO_TOP="$(dirname "$SCRIPT_DIR")"
+PYTHON="$REPO_TOP/.venv_llm/bin/python"
 
-export HF_HOME=/tmp/hf_cache
+export HF_HOME=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/hf_cache
+export TORCHINDUCTOR_COMPILE_THREADS=1
 export TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas
 export TRITON_CUOBJDUMP_PATH=/usr/local/cuda/bin/cuobjdump
 export TRITON_NVDISASM_PATH=/usr/local/cuda/bin/nvdisasm
