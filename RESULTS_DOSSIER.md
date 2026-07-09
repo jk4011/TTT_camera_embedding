@@ -329,6 +329,27 @@ otherwise (val = ds43 stream head, shared by the pair):
   F27b tax story: the absolute-phase tax is constant while the relative/prior benefit
   saturates or is learned around).
 
+## F28: Q9 GA verdict — a low-gain hidden ladder makes hidden-only WIN in 1D at 3B (2026-07-10)
+User-driven program ("honly도 이길 수 있을 것"): evolve honly variants. Genes implemented:
+ttt_hrope_frac / gain / theta / delta_only (audited kernels; ledger lact_llm/ga_honly/).
+HEADLINE (3B, full F27 protocol, ds42): **honly + ladder gain 0.1 = 18.53** vs nope 18.62
+(−0.09; gap stable −0.09..−0.10 across 53k-91.5k checkpoints) vs plain honly 18.85 (+0.23).
+The gentle ladder converts the hidden-only deficit into a gain: swing +0.32 ppl. It also
+beats hpra 18.64. Input rope alone (18.40) remains best; stacking test (rope + gain-0.1
+hidden, 3B) running.
+Supporting proxy-scale findings (20k, 0.65B):
+- Gain line search (ds42 s42): 1.0: 26.10 / 0.1: 25.68 / 0.03: 25.50 / 0.01: 25.92 /
+  ->0 (=nope): 26.02 — interior optimum: a SLOW coarse position signal (top ladder period
+  ~200 tokens at gain 0.03) is genuinely better than none.
+- frac 1.0 at gain 0.03: 26.10 — REJECTED. Rotating all hidden dims kills the gain even at
+  slow frequencies: the position-free half of the hidden space (pure content pathway) is
+  load-bearing. Matches the F27b picture: keep a tagged subspace AND an untagged one.
+- delta_only: beat plain ctrl (25.80 vs 26.10 s42) but subadditive with low gain.
+- METHODOLOGY: 20k-proxy single-run gaps of +-0.3 ppl are init-seed noise (measured 4-cell
+  gain01-nope gaps: −0.34/+0.06/−0.16/+0.21, mean −0.06 +- 0.12 SE). Fine-grained gain
+  distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
+  comparison is decision-grade. (LLM analogue of F18.)
+
 ### F27e: {draw} x {budget} 2x2 complete — the sign is set by the DRAW, not the budget (2026-07-10)
 ds42 0.5B pair (same 15,258-step protocol as the ds43 pair; val = ds42 head):
 rope 27.92 / hpra 28.57 -> hpra−rope = **+0.65 ppl (hurt)**.
