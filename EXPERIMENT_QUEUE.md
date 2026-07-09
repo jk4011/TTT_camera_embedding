@@ -66,7 +66,7 @@ Requested 2026-07-07. No learnable frequencies; matched ladders (input F=21, hid
 - Reuse: pra_h_hi s95 (22.836/0.2690), pra_hi s95 (22.389/0.2753) => 7 new runs (~7h).
 - Deliverable: mean +- std table for the paper's main ablation.
 
-## Q6. Gateless 2-layer-MLP fast weights (inner-model generality)  [s95 RUNNING: base DONE 20.532/0.3367 (!= SwiGLU base 21.745 — gate itself is worth ~1.2 dB of base capacity); rot2 eval ~18:40. INCIDENT: the leftover queue_daemon double-launched both runs off BATCH_QUEUE.txt (now killed; final ckpts verified clean — see memory/scheduler-conflict-pitfall)]
+## Q6. Gateless 2-layer-MLP fast weights (inner-model generality)  [s95 DONE 2026-07-09 -> F26: base 20.532 / rot2 22.465 = +1.93 gap (> SwiGLU +1.08); gate worth +1.2 base capacity; seeds 137/211 pending]
 Requested 2026-07-09 (user): show the recipe generalizes across inner models —
 the paper's Method is written on a gateless 2-layer MLP, so back it directly.
 - f(x) = silu(x W0) W1 (no gate branch); inter_multi 3 for exact fast-weight

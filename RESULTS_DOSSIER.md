@@ -229,3 +229,20 @@ Q4 fixed-ladder ablation (input F21 / hidden F_h42, no learnable freqs; 3 seeds 
 - h_pra_hi (hidden-only) is a NEW variant: strongest single-site fixed-ladder recipe.
 - Input-only is the most seed-stable of the three (std 0.033) but the weakest: the input channel
   saturates early (F2) AND overlaps with what the hidden channel already delivers.
+
+## F26: gateless 2-layer-MLP fast weights (Q6, seed 95, 2026-07-09)
+Inner model f(x) = silu(x W0) W1 (SwiGLU gate branch removed), inter_multi 3 for exact
+fast-weight param parity (393,216); kernel autograd-verified. Sites: input F=21, hidden F_h=64
+(d_h=768 budget rule).
+| variant | PSNR | LPIPS |
+|---|---|---|
+| mlp2_base | 20.532 +- 0.135 | 0.3367 |
+| mlp2_rot2 | 22.465 +- 0.149 | 0.2722 |
+- Rotary gap on the plain MLP: **+1.933 dB** — larger than SwiGLU's fixed-ladder +1.08. The
+  recipe transfers unchanged to the textbook fast weight; second external validation of
+  "one rotary per address space" (after fw3l, F24).
+- mlp2_rot2 (22.465) overtakes SwiGLU-base + input-only rotary (pra_hi 22.348) despite a
+  1.2 dB weaker base: addressing quality dominates inner-model capacity.
+- Secondary: the SwiGLU gate itself is worth +1.21 dB of base capacity at equal params
+  (contrast F24: extra depth was free but worthless without addressing).
+- Single seed; seeds 137/211 queued for free GPUs.
