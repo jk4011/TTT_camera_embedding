@@ -23,13 +23,35 @@ population at proxy budget, select the best, mutate, repeat.
 | ttt_hrope_delta_only | rotate only the fast-weight delta path on apply (kills the F27b tax) | false |
 
 ## Generation 0 (2026-07-10, theory-guided seeds)
-| run | genes | hypothesis | GPU | fitness (val ppl @20k) |
+| run | genes | hypothesis | fitness (val ppl @20k) | vs nope |
 |---|---|---|---|---|
-| ga_nope_ctrl | (no hidden rope) | floor reference | gpu7 (after mlp2) | |
-| ga_honly_ctrl | F27 defaults | tax reproduces at proxy budget | gpu0 #2 | |
-| ga_honly_delta | delta_only=true | tax removed, relative recall kept -> should beat ctrl, target: beat nope | gpu0 #1 | |
-| ga_honly_gain01 | gain=0.1 | gentler ladder: less scrambling, keeps coarse position | gpu6 (after mlp2) | |
-| ga_honly_frac25 | frac=0.25 | fewer rotated dims: tax scales down, dictionary keeps more freedom | gpu7 #2 | |
+| ga_honly_gain01 | gain=0.1 | gentler ladder: less scrambling, keeps coarse position | **25.68** | **−0.34 WIN** |
+| ga_honly_delta | delta_only=true | tax removed, relative recall kept | 25.80 | −0.22 WIN |
+| ga_honly_g01delta | gain 0.1 + delta_only (crossover) | genes compose | 25.85 | −0.17 (worse than gain01 alone: NOT additive — gentle ladder already shrinks the tax delta removes, and delta discards the cheap absolute prior gain01 keeps) |
+| ga_nope_ctrl | (no hidden rope) | floor reference | 26.02 | 0 |
+| ga_honly_ctrl | F27 defaults | tax reproduces at proxy budget | 26.10 | +0.08 |
+| ga_honly_frac25 | frac=0.25 | fewer rotated dims | 26.11 | +0.09 (culled) |
+
+GEN-0 VERDICT (2026-07-10): the user's hypothesis holds at proxy budget — hidden-only
+position encoding CAN beat no-position (3 variants do). Best gene: LOW LADDER GAIN.
+Note honly_ctrl is only +0.08 behind nope at 20k (vs +0.23 at 3B, F27) — consistent
+with early-help/late-erosion (F27d). Full-budget risk therefore remains.
+
+Context (F27d, same day): at 0.5B budget on ds43, plain hpra BEAT rope by −0.26 ppl —
+the hidden rotary already wins early; the enemy is late-training erosion. The GA is
+therefore optimizing "keep the early benefit, remove the late tax".
+
+## Confirmation + gen 0.5 (running)
+- ga_honly_gain01_full: WINNER at 3B tokens, full protocol (gpu7, ~6h) — vs F27 3B
+  anchors nope 18.62 / honly_ctrl 18.85. THE decisive test of late-budget erosion.
+- ga_honly_gain003: gain=0.03 (mutation, gain-direction resolution) — gpu0.
+
+## Gen-1 design notes (pending gain003)
+- Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
+  try 0.01; if worse, try 0.3 to bracket the optimum.
+- Other mutation axes for gen-1: theta (1e4 — compresses the ladder range, different
+  shape than a global gain); frac 0.75 x gain 0.1 (more dims, gentle); delta_only x
+  gain 0.3 (tax removal where the tax is still sizable).
 
 Selection rule: keep top-2 by fitness, mutate around them (one gene per child ±,
 plus one crossover), population 3-4 per generation. Winners at proxy budget get a
