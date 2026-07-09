@@ -217,13 +217,15 @@ Reproduction check (same protocol, seed 95, new env vs dossier):
 - Env change (torch 2.4->2.11, cu124->cu128, conda->venv) is result-neutral: headline
   reproduces to the third decimal; others within seed-scale noise. All dossier numbers remain valid.
 
-Q4 fixed-ladder ablation (input F21 / hidden F_h42, no learnable freqs; 3 seeds 95/137/211):
+Q4 fixed-ladder ablation (input F21 / hidden F_h42, no learnable freqs; 3 seeds 95/137/211) — COMPLETE:
 | variant | PSNR (3-seed) | LPIPS | delta vs base 21.745+-0.196 |
 |---|---|---|---|
 | full (pra_h_hi) | 22.824 +- 0.065 | 0.2664 +- 0.0024 | **+1.079** |
 | w/o input (h_pra_hi) | 22.701 +- 0.154 | 0.2677 +- 0.0031 | +0.956 |
-| w/o hidden (pra_hi) | 22.333 (1 seed; s137/s211 queued in batch) | 0.2751 | +0.588 |
+| w/o hidden (pra_hi) | 22.348 +- 0.033 | 0.2763 +- 0.0010 | +0.603 |
 - Hidden channel carries most of the fixed-ladder gain (+0.96 of +1.08); input adds +0.12 on top.
-- Channels sub-additive at saturated ladders (0.59+0.96=1.55 > 1.08 actual), unlike the small-ladder
+- Channels sub-additive at saturated ladders (0.60+0.96=1.56 > 1.08 actual), unlike the small-ladder
   additivity of F9 (F16/F21: 0.41+0.46 ~= 0.77): at F21/F42 the two address spaces partially overlap.
 - h_pra_hi (hidden-only) is a NEW variant: strongest single-site fixed-ladder recipe.
+- Input-only is the most seed-stable of the three (std 0.033) but the weakest: the input channel
+  saturates early (F2) AND overlaps with what the hidden channel already delivers.

@@ -59,7 +59,7 @@ flash-attn 2.8.3 (source-built against system nvcc 13.1 — cu128 torch cannot b
 Wan ckpt + MultiCamVideo at jinhyeok/datasets/ (HF re-download, 333 GB).
 Sequence: dataset __main__ sanity -> 60-step sanity x4 (IMPL_SPEC_CCV.md checks) -> 20k launch.
 
-## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [MOSTLY DONE 2026-07-09 -> F25: full 22.824+-0.065 / w-o input 22.701+-0.154 / w-o hidden 22.333 (s95). pra_hi s137+s211 remain — first items in BATCH_QUEUE.txt, auto-run by the batch daemon. NOTE: all pre-reset checkpoints were lost, so this was a full 3x3 retrain in the rebuilt env; fw3l_rot3 s95 re-run reproduced 23.439 exactly (env validated).]
+## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [DONE 2026-07-09 -> F25: full 22.824+-0.065 / w-o input 22.701+-0.154 / w-o hidden 22.333 (s95). pra_hi s137+s211 remain — first items in BATCH_QUEUE.txt, auto-run by the batch daemon. NOTE: all pre-reset checkpoints were lost, so this was a full 3x3 retrain in the rebuilt env; fw3l_rot3 s95 re-run reproduced 23.439 exactly (env validated).]
 Requested 2026-07-07. No learnable frequencies; matched ladders (input F=21, hidden F_h=42).
 - Runs (seeds 95/137/211): full = pra_h_hi (qk_rope+h_pra); w/o input = h_pra_hi (new config,
   F_h42 only); w/o hidden = pra_hi (F21 only). Baseline (no PE) 3 seeds already exist.
