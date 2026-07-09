@@ -36,11 +36,19 @@ DAEMON_PID=$!
 echo "[remote] queue daemon pid $DAEMON_PID"
 
 # ---- 3. remote-control Claude in tmux, restarted if it exits ----
+# Transcripts live in $PORTABLE/config (lustre), so they survive job death.
+# If this repo already has a conversation there, resume it with --continue:
+# verified to restore the full conversation AND keep the same claude.ai
+# session URL, so the web thread continues seamlessly across batch jobs.
+REPO_ROOT="$(cd .. && pwd)"
+SLUG=${REPO_ROOT//\//-}
 URLFILE=outputs/REMOTE_SESSION_URL.txt
 while true; do
+  RESUME=""
+  ls "$PORTABLE/config/projects/${SLUG}"/*.jsonl >/dev/null 2>&1 && RESUME="--continue"
   tmux kill-session -t rc 2>/dev/null
-  tmux new-session -d -s rc -x 220 -y 50 \
-    "CLAUDE_CONFIG_DIR=$PORTABLE/config $PORTABLE/bin/claude --remote-control ttt-batch"
+  tmux new-session -d -s rc -x 220 -y 50 -c "$REPO_ROOT" \
+    "CLAUDE_CONFIG_DIR=$PORTABLE/config $PORTABLE/bin/claude $RESUME --remote-control ttt-batch"
   URL=""
   for _ in $(seq 1 24); do
     sleep 5
