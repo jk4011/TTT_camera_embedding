@@ -59,3 +59,4 @@ overleaf_paper/
 .venv_llm/
 lact_llm/outputs/
 lact_ar_video/outputs/
+paper_overleaf/
