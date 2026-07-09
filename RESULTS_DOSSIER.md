@@ -329,6 +329,24 @@ otherwise (val = ds43 stream head, shared by the pair):
   F27b tax story: the absolute-phase tax is constant while the relative/prior benefit
   saturates or is learned around).
 
+### F27e: {draw} x {budget} 2x2 complete — the sign is set by the DRAW, not the budget (2026-07-10)
+ds42 0.5B pair (same 15,258-step protocol as the ds43 pair; val = ds42 head):
+rope 27.92 / hpra 28.57 -> hpra−rope = **+0.65 ppl (hurt)**.
+| hpra−rope | 0.5B | 3B |
+|---|---|---|
+| ds42 | +0.65 | +0.23 |
+| ds43 | −0.26 | — |
+- On ds42 the hidden rotary hurts at BOTH budgets (worse at short); on ds43 it helps.
+  Together with the old-env draw (−0.19): 2 of 3 draws help, 1 hurts. The 1D hidden
+  effect is a genuine coin-flip across data draws (magnitude ~0.2-0.7 ppl), while the
+  input-rotary gain is stable in every measurement. Paper wording should say
+  "sign varies with the data draw", not "slightly negative".
+- Re-colors Q9 gen-0: the GA runs on ds42 — the UNFAVORABLE draw — and ga_honly_gain01
+  still beat nope by −0.34 there. Pending its 3B confirmation, the low-gain ladder may
+  be a draw-robust positive.
+- Paper LLM paragraph: HOLD until ga_honly_gain01_full (3B) lands, then write the final
+  story in one pass.
+
 ### F27c: input-vs-hidden asymmetry quantified + val-cache incident (2026-07-09)
 - Per-position profiles of BOTH main effects are FLAT and symmetric in magnitude:
   input gain (nope-rope) = −0.009..−0.014 loss in every 512-bucket incl. bucket 0;
