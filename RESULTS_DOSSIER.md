@@ -234,18 +234,19 @@ Q4 fixed-ladder ablation (input F21 / hidden F_h42, no learnable freqs; 3 seeds 
 Inner model f(x) = silu(x W0) W1 (SwiGLU gate branch removed), inter_multi 3 for exact
 fast-weight param parity (393,216); kernel autograd-verified. Sites: input F=21, hidden F_h=64
 (d_h=768 budget rule).
-| variant | PSNR | LPIPS |
+| variant | PSNR (3-seed 95/137/211) | LPIPS (3-seed) |
 |---|---|---|
-| mlp2_base | 20.532 +- 0.135 | 0.3367 |
-| mlp2_rot2 | 22.465 +- 0.149 | 0.2722 |
-- Rotary gap on the plain MLP: **+1.933 dB** — larger than SwiGLU's fixed-ladder +1.08. The
-  recipe transfers unchanged to the textbook fast weight; second external validation of
-  "one rotary per address space" (after fw3l, F24).
-- mlp2_rot2 (22.465) overtakes SwiGLU-base + input-only rotary (pra_hi 22.348) despite a
-  1.2 dB weaker base: addressing quality dominates inner-model capacity.
-- Secondary: the SwiGLU gate itself is worth +1.21 dB of base capacity at equal params
-  (contrast F24: extra depth was free but worthless without addressing).
-- Single seed; seeds 137/211 queued for free GPUs.
+| mlp2_base | 20.500 +- 0.041 | 0.3357 +- 0.0022 |
+| mlp2_rot2 | 22.477 +- 0.099 | 0.2723 +- 0.0032 |
+- FINAL (3-seed complete 2026-07-10; per-seed gaps +1.93/+2.07/+1.93): rotary gap on the
+  plain MLP = **+1.977 dB** — larger than SwiGLU's fixed-ladder +1.08. The recipe transfers
+  unchanged to the textbook fast weight; second external validation of "one rotary per
+  address space" (after fw3l, F24).
+- mlp2_rot2 (22.477 +- 0.099) overtakes SwiGLU-base + input-only rotary (pra_hi
+  22.348 +- 0.033) despite a 1.2 dB weaker base: addressing quality dominates inner-model
+  capacity. Both at 3-seed rigor now.
+- Secondary: the SwiGLU gate itself is worth +1.25 dB of base capacity at equal params
+  (21.745 vs 20.500; contrast F24: extra depth was free but worthless without addressing).
 
 ## F27: LLM 2x2 input/hidden rotary grid, rebuilt env (Q7, 2026-07-09)
 200M LaCT LM, 3B tokens fineweb-edu (fixed data order, data_seed 42), bs 8x4096, 91,552 steps;
