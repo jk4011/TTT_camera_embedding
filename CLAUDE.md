@@ -164,16 +164,19 @@ credential helper. Nothing else about Claude needs recovering.
   resubmission = resume). `batch_with_claude.sh` additionally runs headless Claude to update the dossier;
   it uses the portable install at `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/claude_portable/` (binary +
   `CLAUDE_CONFIG_DIR` config), since `~/.claude` doesn't exist on batch nodes.
-- **Interactive batch (`batch_remote.sh`)**: preferred long-running mode. Starts `queue_daemon.sh`
-  (re-reads `BATCH_QUEUE.txt` every 60 s, launches incomplete jobs on free GPUs) plus a
+- **Interactive batch (`batch_remote.sh`)**: preferred long-running mode. Starts a
   **remote-control Claude session in tmux** the user chats with from claude.ai/code (named
-  "ttt-batch"; URL also in `outputs/REMOTE_SESSION_URL.txt`).
-  **If you are that remote session, coordinate with the daemon**: to run a standard 30k train+eval,
-  append `"<variant> <seed>"` to `BATCH_QUEUE.txt` and let the daemon schedule it — don't launch it
-  yourself. `outputs/QUEUE_STATUS.txt` shows per-GPU claims; `outputs/.gpu_locks/gpu<i>` files are the
-  daemon's GPU claims — only use a GPU manually (ad-hoc evals, debugging) after claiming it the same
-  way (`echo <purpose> > outputs/.gpu_locks/gpu<i>`, remove when done). Git push works: credentials at
-  `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/.git-credentials` (already wired via repo-local
+  "ttt-batch"; URL also in `outputs/REMOTE_SESSION_URL.txt`), resuming the pinned conversation
+  (`claude_portable/RESUME_SESSION`).
+  **Claude is the sole executor** (policy 2026-07-09, user decision): no auto-started daemon. On
+  every (re)start the script sends the session a kickoff message; Claude then assesses durable
+  state (BATCH_QUEUE.txt incompletes, interrupted ccv checkpoints) and relaunches work itself.
+  **Launch runs as your own background Bash tasks** (`run_in_background`) so the harness notifies
+  you on completion — externally-started processes (nohup daemons) finish silently.
+  `queue_daemon.sh` still exists as an optional helper Claude may start explicitly; when it (or
+  any manual work) uses a GPU, claim it via `outputs/.gpu_locks/gpu<i>` (`echo <purpose> > …`,
+  remove when done); `outputs/QUEUE_STATUS.txt` shows daemon claims. Git push works: credentials
+  at `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/.git-credentials` (wired via repo-local
   `credential.helper`).
 - Checkpoints/evals land in `lact_nvs/outputs/` (lustre, durable). All pre-reset checkpoints were lost;
   results live only in `RESULTS_DOSSIER.md`.

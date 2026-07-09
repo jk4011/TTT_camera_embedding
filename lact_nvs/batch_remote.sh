@@ -39,10 +39,12 @@ if [ ! -f /tmp/re10k/train_index.json ]; then
   $PY data_preprocess/reshard_re10k.py --src "$RE10K_SRC/train" --odir /tmp/re10k/train --index /tmp/re10k/train_index.json --workers 32
 fi
 
-# ---- 2. queue daemon ----
-nohup bash queue_daemon.sh > outputs/daemon.log 2>&1 &
-DAEMON_PID=$!
-echo "[remote] queue daemon pid $DAEMON_PID"
+# ---- 2. orchestration policy ----
+# No auto-started daemon: Claude (the remote session below) is the sole
+# executor. On every (re)start it receives a kickoff message telling it to
+# assess state and resume work — including things a dumb queue daemon cannot
+# do (resume ccv runs from checkpoints, re-run failed evals, reprioritize).
+# Claude may still start queue_daemon.sh itself as a helper when useful.
 
 # ---- 3. remote-control Claude in tmux, restarted if it exits ----
 # Transcripts live in $PORTABLE/config (lustre), so they survive job death.
@@ -79,6 +81,10 @@ while true; do
   done
   echo "$(date '+%F %T')  ${URL:-<no url captured — check tmux session 'rc'>}" >> "$URLFILE"
   echo "[remote] claude session up: ${URL:-unknown} (also listed as 'ttt-batch' on claude.ai/code)"
+  # Kickoff: make Claude the orchestrator on every (re)start. It assesses
+  # durable state and resumes work without waiting for a human message.
+  sleep 10
+  tmux send-keys -t rc "[자동 킥오프 — batch job (재)시작, node $(hostname)] 사람 메시지를 기다리지 말고 바로: (1) EXPERIMENT_QUEUE.md와 BATCH_QUEUE.txt의 미완료 NVS 런을 확인해 재개하고 (2) lact_ar_video/outputs의 ccv 런들을 확인해 중단된 것은 최신 체크포인트에서 resume하고 (3) 진행 요약을 남겨줘. GPU 충돌은 outputs/.gpu_locks로 조율." Enter
   while tmux has-session -t rc 2>/dev/null; do sleep 60; done
   echo "[remote] $(date '+%F %T') claude session ended — restarting"
 done
