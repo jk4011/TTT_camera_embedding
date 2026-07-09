@@ -79,6 +79,19 @@ the paper's Method is written on a gateless 2-layer MLP, so back it directly.
 
 ## Q7. LLM 2x2 input/hidden rotary ablation  [DONE 2026-07-09 -> F27: rope 18.40 / nope 18.62 / hpra 18.64 / honly 18.85. Input fw-RoPE −1.2% ppl replicates; 1D hidden rotary HURTS in rebuilt env (sign flip vs F19, same code — F27b audit: no bug; flat positional tax on the initial readout, near-zero relative gain in 1D; datasets-lib stream reorder = only surviving old-vs-new explanation).]
 
+## Q10. Video revisit with Q9-informed variants  [REQUESTED 2026-07-10, starts after Q9 wraps]
+User: F21/F22 neutrality was measured with the PLAIN hidden ladder; the Q9 discovery
+(low-gain slow ladder turns hidden-1D from coin-flip/negative into a draw-robust WIN)
+may transfer to video — and video's spacetime coordinate is multi-dimensional, where the
+theory says the hidden address space has more relative structure to exploit.
+- Plan: port the Q9 genes (hrope gain / frac / delta_only) to lact_ar_video's hidden-rope
+  path; then paired per-step-loss runs (deterministic noise, IMPL_SPEC_CCV protocol):
+  h_pra_gain003 / h_pra_gain01 (and optionally delta_only) vs base, 60-step sanity first.
+- GPUs: after the current ccv 20k grid (gpu2-5) finishes (~2026-07-11 evening); the grid
+  also provides fresh base/pra/both/pra_fixed anchors to compare against.
+- Choose gains informed by Q9's final bracket + the video ladder's own units (phase per
+  latent-frame/pixel, not per token — recompute the "top-frequency period" equivalent).
+
 ## Q8. LLM ds43 early-read pair (F27b confirmation)  [RUNNING 2026-07-09, gpu1 sequential]
 rope vs hpra at data_seed 43 (different data draw, SAME seed-42 val cache), 0.5B tokens
 (~15.2k steps, ~2h each). Reading: is the hidden-1D deficit sign stable across data draws
