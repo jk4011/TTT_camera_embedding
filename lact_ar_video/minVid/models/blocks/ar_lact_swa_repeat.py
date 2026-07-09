@@ -280,16 +280,27 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
     num_moun_iters: int = 3,
     weight_norm: bool = True,
     src_prefix_len: int = 0,
+    delta_only: bool = False,
 ):
     """ar_fast_weight_swish_glu_weight_norm_mini_batch + h-PRA (hidden rotary).
 
     The SwiGLU hidden activation is rotated by per-token phases (grid-carrier
-    or camera Plucker) before meeting w1 on both the apply (queries) and write
-    (keys) paths; the write backprop applies the inverse rotation. Value
+    or camera Plucker) before meeting w1 on both the apply (queries) and update
+    (keys) paths; the update backprop applies the inverse rotation. Value
     retrieval becomes relative in hidden space (see the NVS/LLM studies).
 
-    src_prefix_len (ccv): see the plain kernel; SRC chunks are written and
+    src_prefix_len (ccv): see the plain kernel; SRC chunks are updated and
     self-applied first, then the AR-interleave logic runs offset by the prefix.
+
+    delta_only (Q9 gene, port of the LLM version): the apply splits the output
+    matrix into its initial part and the accumulated fast-weight delta, and
+    rotates the hidden only on the delta path:
+        o = w1_init @ h(q) + (w1 - w1_init) @ R(phi_q) h(q).
+    Update->apply recall stays relative (stored addresses are rotated, and the
+    delta path probes with the rotated query hidden), but the initial readout
+    sees the UNROTATED hidden — removing the constant absolute-phase tax on
+    the initial readout. With all phases equal (zero angles) it reduces
+    exactly to the baseline kernel.
     """
     L = k.shape[1]
     if update_length == -1:
@@ -302,6 +313,9 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
     w0_norm = w0.norm(dim=2, keepdim=True)
     w1_norm = w1.norm(dim=2, keepdim=True)
     w2_norm = w2.norm(dim=2, keepdim=True)
+
+    if delta_only:
+        w1_init = w1.clone()
 
     output = torch.zeros_like(q)
 
@@ -349,16 +363,29 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
         qi = q[:, s_index:e_index, :]
         h = torch.bmm(w2, qi.transpose(1, 2))
         gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
-        hq = apply_rotary_cols(gate * h, hci, hsi)
-        output[:, s_index:e_index, :] = torch.bmm(w1, hq).transpose(1, 2)
+        hq = gate * h
+        hq_rot = apply_rotary_cols(hq, hci, hsi)
+        if delta_only:
+            # initial readout unrotated; only the accumulated delta probes rotated
+            output[:, s_index:e_index, :] = (
+                torch.bmm(w1_init, hq) + torch.bmm(w1 - w1_init, hq_rot)
+            ).transpose(1, 2)
+        else:
+            output[:, s_index:e_index, :] = torch.bmm(w1, hq_rot).transpose(1, 2)
 
     first_noise_chunk_size = update_every - mini_batch_size
     tgt_start = src_prefix_len
     qi = q[:, tgt_start : tgt_start + first_noise_chunk_size, :]
     h = torch.bmm(w2, qi.transpose(1, 2))
     gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
-    hq = apply_rotary_cols(gate * h, hcos[:, tgt_start : tgt_start + first_noise_chunk_size], hsin[:, tgt_start : tgt_start + first_noise_chunk_size])
-    output[:, tgt_start : tgt_start + first_noise_chunk_size, :] = torch.bmm(w1, hq).transpose(1, 2)
+    hq = gate * h
+    hq_rot = apply_rotary_cols(hq, hcos[:, tgt_start : tgt_start + first_noise_chunk_size], hsin[:, tgt_start : tgt_start + first_noise_chunk_size])
+    if delta_only:
+        output[:, tgt_start : tgt_start + first_noise_chunk_size, :] = (
+            torch.bmm(w1_init, hq) + torch.bmm(w1 - w1_init, hq_rot)
+        ).transpose(1, 2)
+    else:
+        output[:, tgt_start : tgt_start + first_noise_chunk_size, :] = torch.bmm(w1, hq_rot).transpose(1, 2)
     for _ in range(num_repeat):
         for i in range(tgt_start + first_noise_chunk_size, update_length, update_every):
             s_index = i
@@ -408,8 +435,14 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
             qi = q[:, s_index:e_index, :]
             h = torch.bmm(w2, qi.transpose(1, 2))
             gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
-            hq = apply_rotary_cols(gate * h, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
-            output[:, s_index:e_index, :] = torch.bmm(w1, hq).transpose(1, 2)
+            hq = gate * h
+            hq_rot = apply_rotary_cols(hq, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
+            if delta_only:
+                output[:, s_index:e_index, :] = (
+                    torch.bmm(w1_init, hq) + torch.bmm(w1 - w1_init, hq_rot)
+                ).transpose(1, 2)
+            else:
+                output[:, s_index:e_index, :] = torch.bmm(w1, hq_rot).transpose(1, 2)
 
     return output, w0, w1, w2
 
@@ -881,6 +914,14 @@ class ARFastWeightSwiGLU(nn.Module):
                  ar_window_f: int = 3, # chunk size for AR Video Diffusion. 
                  update_every: int = -1, # used for TTT. 
                  ttt_hidden_rope: bool = False,  # h-PRA: rotary on the SwiGLU hidden
+                 # --- Q9 GA genes for the hidden rotary (all no-ops unless ttt_hidden_rope;
+                 # defaults exactly reproduce the pre-gene behavior) ---
+                 ttt_hrope_frac: float = 0.5,  # fraction of hidden dims rotated (0..1]
+                 ttt_hrope_gain: float = 1.0,  # global multiplier on the hidden freq ladder
+                 ttt_hrope_theta: float = None,  # grid-carrier ladder base; None -> 10000.0
+                 # (the Plucker ladder is geometric, not theta-based; theta is a no-op there)
+                 ttt_hrope_delta_only: bool = False,  # rotate only the fast-weight DELTA
+                 # path on apply: o = w1_init @ h + (w1 - w1_init) @ R(phi) h
                  ttt_learnable_freqs: bool = False,  # learnable ladder gains (both sites)
                  ttt_freq_tilt: float = 0.1,
                  ttt_input_rope: bool = False,   # PRA input site: rotary on fast q/k post-l2norm
@@ -916,17 +957,24 @@ class ARFastWeightSwiGLU(nn.Module):
         #### grid carrier (cam_phase_mode="none", v20k behavior) or per-token
         #### camera Plucker phases (cam_phase_mode="plucker").
         self.ttt_hidden_rope = ttt_hidden_rope
+        self.ttt_hrope_delta_only = ttt_hrope_delta_only
         self.ttt_learnable_freqs = ttt_learnable_freqs
         if ttt_hidden_rope:
             d_h_total = int(fw_head_dim * inter_multi)
-            # rotate half of the hidden dims
-            self.h_rope_dim = (d_h_total // 2) // 2 * 2
-            c = self.h_rope_dim // 2
+            # Q9 GA genes: ttt_hrope_frac sets the fraction of hidden dims rotated
+            # (0.5 reproduces the pre-gene setting h_rope_dim = (d_h//2)//2*2, i.e.
+            # 2*floor(d_h/4) dims), ttt_hrope_gain scales the whole ladder, and
+            # ttt_hrope_theta overrides the grid-carrier ladder base (default 10000).
+            P_h = max(1, int(d_h_total * ttt_hrope_frac / 2.0))
+            assert 2 * P_h <= d_h_total, f"ttt_hrope_frac too large: {ttt_hrope_frac}"
+            self.h_rope_dim = 2 * P_h
             if cam_phase_mode == "plucker":
                 # 6 Plucker coords x nf_h freqs = h_rope_dim/2 pairs (768 -> 6x64)
                 nf_h = (self.h_rope_dim // 2) // 6
                 self.cam_num_freqs_h = nf_h
-                self.register_buffer("cam_omega_h", make_cam_ladder(nf_h), persistent=False)
+                self.register_buffer(
+                    "cam_omega_h", make_cam_ladder(nf_h) * ttt_hrope_gain, persistent=False
+                )
                 gain_h = torch.ones(6, nf_h)
                 if ttt_learnable_freqs:
                     self.cam_gain_h = nn.Parameter(gain_h)
@@ -934,8 +982,9 @@ class ARFastWeightSwiGLU(nn.Module):
                     self.register_buffer("cam_gain_h", gain_h, persistent=False)
             else:
                 # same 3-way (t, y, x) split as rope_params ladders
-                ladder = 1.0 / torch.pow(
-                    10000.0, torch.arange(0, self.h_rope_dim, 2).float().div(self.h_rope_dim)
+                h_theta = ttt_hrope_theta if ttt_hrope_theta is not None else 10000.0
+                ladder = ttt_hrope_gain / torch.pow(
+                    h_theta, torch.arange(0, self.h_rope_dim, 2).float().div(self.h_rope_dim)
                 )
                 if ttt_learnable_freqs:
                     ladder = ladder * (1.0 + ttt_freq_tilt * torch.randn_like(ladder))
@@ -1309,6 +1358,7 @@ class ARFastWeightSwiGLU(nn.Module):
                     num_moun_iters=self.num_moun_iters,
                     weight_norm=self.weight_norm,
                     src_prefix_len=src_prefix_len,
+                    delta_only=self.ttt_hrope_delta_only,
                 )
             else:
                 fw_x, fw_w0, fw_w1, fw_w2 = ar_fast_weight_swish_glu_weight_norm_mini_batch(

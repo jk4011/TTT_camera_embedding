@@ -62,6 +62,11 @@ model:
           ttt_hidden_rope: true # PRA hidden site (h-PRA)
           cam_phase_mode: plucker # camera Plucker phases for both sites
           ttt_learnable_freqs: true # learnable ladder gains (NVS final recipe)
+          # Q9 hidden-rotary genes (optional; defaults reproduce this run exactly):
+          # ttt_hrope_frac: 0.5         # fraction of hidden dims rotated
+          # ttt_hrope_gain: 1.0         # global multiplier on the hidden freq ladder
+          # ttt_hrope_theta: null       # grid-carrier ladder base (no-op for plucker)
+          # ttt_hrope_delta_only: false # rotate only the fast-weight delta path on apply
   text_encoder_config:
     class_name: minVid.models.wan.wan_text_vae_warpper.WanTextEncoder
     model_path: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/wan_ckpt/models_t5_umt5-xxl-enc-bf16.pth

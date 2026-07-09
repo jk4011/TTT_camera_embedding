@@ -57,6 +57,11 @@ model:
           batch_size: 1 # must match batch_size_per_gpu
           n_latent_f: 21
           ttt_hidden_rope: true # number of latent frames (81 rgb frames -> 21)
+          # Q9 hidden-rotary genes (optional; defaults reproduce this run exactly):
+          # ttt_hrope_frac: 0.5         # fraction of hidden dims rotated
+          # ttt_hrope_gain: 1.0         # global multiplier on the hidden freq ladder
+          # ttt_hrope_theta: 10000.0    # grid-carrier ladder base
+          # ttt_hrope_delta_only: false # rotate only the fast-weight delta path on apply
   text_encoder_config:
     class_name: minVid.models.wan.wan_text_vae_warpper.WanTextEncoder
     model_path: /tmp/wan_ckpt/models_t5_umt5-xxl-enc-bf16.pth
