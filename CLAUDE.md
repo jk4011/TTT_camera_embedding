@@ -145,6 +145,12 @@ The compute node is an ephemeral Slurm container: **home (`~`) and `/tmp` are no
 reset**; only lustre (`/NHNHOME/WORKSPACE/26msit001_A/...`) is durable. Sessions are interactive (2-day
 limit) or batch via a web GUI (no `sbatch`/`squeue` CLI here — the user submits batch jobs manually).
 
+**After any node reset, run first**:
+`bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/claude_portable/setup_node.sh` — restores `~/.claude` →
+lustre symlinks (Claude account, conversations, memory all live on lustre; `claude --continue` resumes
+the previous conversation), puts the portable claude binary on PATH, and restores git identity +
+credential helper. Nothing else about Claude needs recovering.
+
 - **Python env**: venv at `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm` (torch 2.11+cu128 for
   B200/sm_100; the old conda env path in git history is dead). All `lact_nvs/*.sh` already point here.
 - **RE10K data**: source chunks survive at `/NHNHOME/WORKSPACE/26msit001_A/V-LAB/Datasets/re10k`
