@@ -1,8 +1,15 @@
 # Experiment Queue
 
 Pending experiments, in priority order. NVS small config = L6/d256/p16, 30k
-iters, bs16, ~1.6h per run on one B200. GPU 3 is free while ccv occupies 0-2
-(until ~2026-07-09); cheap NVS items can run there anytime.
+iters, bs16, ~1.6h per run on one B200.
+
+**Environment (2026-07-09)**: 8-GPU B200 batch node; Claude (remote session
+"ttt-batch") is the sole executor — it launches runs directly as its own
+background tasks (completion notifications) and coordinates GPUs via
+`lact_nvs/outputs/.gpu_locks/`. The `26msit001_T_B` workspace was lost with all
+its contents (old conda env, video working clone, ccv checkpoints+logs,
+MultiCamVideo original); everything has been rebuilt under `26msit001_A`
+(venv envs/lvsm + repo .venv_llm, datasets/ for Wan ckpt + MultiCamVideo).
 
 ## Q1. Absolute-adaptation probe  [DONE 2026-07-07 -> F23: 21.634 vs base 21.745 (within noise); PRA-relative isolates +1.34 dB]
 Requested 2026-07-07 (paper Sec "What stays absolute" support).
@@ -20,7 +27,7 @@ Requested 2026-07-07 (paper Sec "What stays absolute" support).
   one flag in lact_nvs (cam_phase_override=scene_random), seed-stable per
   scene id.
 
-## Q2. Deeper fast weights: one rotary per address space at depth 3  [RUNNING 2026-07-07 GPU 3: run_q2_chain.sh, fw3l_base -> fw3l_rot2 -> fw3l_rot3, 30k each + eval]
+## Q2. Deeper fast weights: one rotary per address space at depth 3  [DONE 2026-07-07 -> F24/F24b: fw3l_rot3 23.439+-0.022 (3 seeds), new headline; depth alone worthless, third rotary site earns +0.13]
 Requested 2026-07-07 (Method "Generalization to other fast weights" claim).
 - Design: replace the SwiGLU fast weight with a 3-layer inner network
   (e.g., W3' silu-gate stack or plain W_out sigma(W_mid sigma(W_in x))) in
@@ -38,13 +45,19 @@ Requested 2026-07-07 (Method "Generalization to other fast weights" claim).
 ## Done / superseded
 - Q3 (ViT3 Stage-1, TTT-RoPE on plain ViT3-T): DROPPED per user decision 2026-07-07 (ImageNet download not worth it; NVS/video/LLM evidence sufficient for the paper).
 - v20k long-budget video ablation -> F22 (h-PRA exactly neutral at 20k).
-- ccv 3-run grid (base/pra/both) RUNNING on GPUs 0-2 since 2026-07-07.
+- ccv 3-run grid (base/pra/both), launched 2026-07-07 on the T_B clone: **LOST mid-run in the
+  T_B workspace loss** (checkpoints and logs unrecoverable) -> superseded by Q5 below.
 
-## Q5. ccv_pra_fixed: clean TTT-RoPE video run (fixed ladders)  [FRONT OF QUEUE; auto-launches on GPU 3 when Q2 seeds finish]
-Requested 2026-07-07. Same as ccv_pra but ttt_learnable_freqs OFF: zero added params,
-pure fixed-ladder TTT-RoPE vs cam_encoder. 20k steps, ~46h. Deterministic noise is
-per-step, so paired comparison vs ccv_base/pra/both stays valid despite later start.
-Config: abl_ccv_pra_fixed.yaml; launcher run_ccv_pra_fixed.sh; log /tmp/ccv_pra_fixed.log.
+## Q5. ccv grid relaunch: base/pra/both/pra_fixed together  [PREPPING 2026-07-09; GPUs 2-5]
+Replaces both the lost 3-run grid and the original pra_fixed add-on. All FOUR variants
+(abl_ccv_base / abl_ccv_pra / abl_ccv_both / abl_ccv_pra_fixed) relaunch together via
+`lact_ar_video/run_ccv_grid.sh` on GPUs 2-5: paired per-step comparison only needs shared
+data order + deterministic noise WITHIN a grid, so the new pair index (new MultiCamVideo
+extraction, same index_seed=42) is fine. 20k steps, ~46h each.
+Rebuilt dependencies (all under 26msit001_A now): .venv_llm = torch 2.9.1+cu130 +
+flash-attn 2.8.3 (source-built against system nvcc 13.1 — cu128 torch cannot build it);
+Wan ckpt + MultiCamVideo at jinhyeok/datasets/ (HF re-download, 333 GB).
+Sequence: dataset __main__ sanity -> 60-step sanity x4 (IMPL_SPEC_CCV.md checks) -> 20k launch.
 
 ## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [MOSTLY DONE 2026-07-09 -> F25: full 22.824+-0.065 / w-o input 22.701+-0.154 / w-o hidden 22.333 (s95). pra_hi s137+s211 remain — first items in BATCH_QUEUE.txt, auto-run by the batch daemon. NOTE: all pre-reset checkpoints were lost, so this was a full 3x3 retrain in the rebuilt env; fw3l_rot3 s95 re-run reproduced 23.439 exactly (env validated).]
 Requested 2026-07-07. No learnable frequencies; matched ladders (input F=21, hidden F_h=42).

@@ -1,6 +1,10 @@
 # Camera-Controlled Video Generation with PRA: Experiment Design
 
 Status: DRAFT v1 (2026-07-06). Survey section to be filled from web-research agents.
+**2026-07-09 status**: the original 3-run grid (launched 2026-07-07, GPUs 0-2 of the T_B clone)
+was LOST mid-run with the T_B workspace. Relaunching as a 4-variant grid (base/pra/both/
+pra_fixed) on GPUs 2-5 with rebuilt data on 26msit001_A — see EXPERIMENT_QUEUE.md Q5 and the
+post-reset block in IMPL_SPEC_CCV.md. Data/GPU/schedule details below are pre-reset.
 Goal: test whether Plücker Rotary Addressing (PRA) on the TTT layer differentiates
 against the standard feature-injection recipes of camera-controlled video generation,
 in the setting where the fast-weight memory is load-bearing.

@@ -1,5 +1,15 @@
 # Implementation Spec: Camera-Controlled Video Gen (ccv) runs
 
+**POST-RESET UPDATE (2026-07-09)** — paths below predate the T_B workspace loss; current truth:
+- Python: `$ROOT/.venv_llm/bin/python` (rebuilt: torch 2.9.1+cu130, flash-attn 2.8.3 built
+  against system nvcc 13.1; the cu128 torch used by lact_nvs cannot build flash-attn here).
+- Wan ckpt: `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/wan_ckpt/` (not /tmp).
+- Data: `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train` serves as
+  BOTH data_root and cam_root (the T_B NFS original is gone; full HF re-download).
+- GPU plan: grid of all 4 variants on GPUs 2-5 via `run_ccv_grid.sh` (GPUs 0-1 finish Q4 NVS).
+- The implementation checklist below was already completed pre-reset (code survived in git);
+  only its environment/paths/GPU notes are stale.
+
 Companion to CAMCTRL_DESIGN.md. Target repo: `lact_ar_video/` (minVid). Python:
 `$ROOT/.venv_llm/bin/python` (ROOT = repo root). Wan ckpt at /tmp/wan_ckpt.
 Env for any run: TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas,

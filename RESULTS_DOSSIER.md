@@ -1,4 +1,4 @@
-# Empirical Dossier: Camera Conditioning for LaCT TTT (18 evaluated runs)
+# Empirical Dossier: Camera Conditioning for LaCT TTT
 
 Protocol (identical for all): LaCT-LVSM, 6 blocks [per-image attn(hd64) / TTT(hd256, SwiGLU x2, Muon 5, weight-norm, per-token lr) / MLP], dim 256, patch 16. RE10K 256x256, 8 input + 8 target views (train), 30k iters bs16 lr1e-4, LPIPS loss from 5k. Eval: 256 held-out scenes, 8 uniform inputs / 4 midpoint targets, PSNR/LPIPS, paired per-scene stats. Baseline PSNR 21.970, LPIPS 0.2883. Camera enters baseline ONLY via input Plucker raymap concat.
 
@@ -60,7 +60,7 @@ Protocol (identical for all): LaCT-LVSM, 6 blocks [per-image attn(hd64) / TTT(hd
 - lact_nvs/lact_ttt.py — baseline kernel (fast_weight_swish_glu_weight_norm_mini_batch_apply)
 - lact_nvs/lact_ttt_cam.py — all variants; modes combinable via "a+b"; hidden-rotary kernel copy exists (fast_weight_swish_glu_hidden_rotary_apply)
 - lact_nvs/model.py — compute_camera_info (per-token Plucker in canonical frame, per-view mats), ttt_chunk_per_view/ttt_view_tour flags
-- Each run: 30k iters ≈ 1.6h on one B200; 4 concurrent. Implementation must be a drop-in TTT-layer variant (config-selectable), NO backbone changes.
+- Each run: 30k iters ≈ 1.6h on one B200; 8 concurrent (8-GPU batch node since 2026-07-09). Implementation must be a drop-in TTT-layer variant (config-selectable), NO backbone changes.
 
 ## GOAL UPDATE (2026-07-04)
 Target raised by user: beat LaCT baseline by **+1.5 dB** (PSNR >= 23.47). Current best: pra_h_hi 22.836 (+0.87).

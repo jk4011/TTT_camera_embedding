@@ -36,20 +36,33 @@ load-bearing (norm-preserving; compatible with L2-norm, Muon, weight-norm).
 
 ## Results to cite (final numbers)
 - NVS (RE10K, LaCT-LVSM 6L/d256/p16, 30k iters, 256-scene eval, 3 seeds vs 3 seeds):
-  baseline 21.745 ± 0.196 → ours 22.971 ± 0.088 PSNR (+1.226 dB), LPIPS 0.2929 → 0.2613.
-  Ablation: input rotary alone +0.41 (saturates); hidden rotary alone +0.46; both +0.77;
-  + F21/F_h42 +0.87; + omega_map +0.93 (single-seed vs lucky baseline seed accounting) — additive
-  channels (F9). 26 total runs; failed axes documented (projective transplant, value transport,
-  feature injection, optimizer conditioning, per-view chunking) — "the attention recipe does not
-  transplant; the channel structure does."
+  baseline 21.745 ± 0.196.
+  - **Headline (F24b): depth-3 fast weights + one rotary per address space (fw3l_rot3)
+    23.439 ± 0.022 (+1.694 dB)**, LPIPS 0.2478. Depth-3 alone is baseline-level (21.868, F24):
+    depth only pays when every address space is relativized — "one rotary per address space".
+  - 2-layer full recipe (learnable phase maps, omega_r): 22.971 ± 0.088 (+1.226 dB),
+    LPIPS 0.2929 → 0.2613.
+  - Main fixed-ladder ablation (F25, 3 seeds, F21/F_h42, no learnable freqs):
+    full (input+hidden) 22.824 ± 0.065; hidden-only 22.701 ± 0.154; input-only 22.333;
+    hidden channel carries most of the gain; channels sub-additive at saturated ladders
+    (vs small-ladder additivity F9: +0.41 / +0.46 / +0.77).
+  - Relative-vs-absolute isolation (F23): per-scene random phase stamps ≈ baseline (−0.11,
+    within seed noise); full recipe − random stamps = +1.34 dB → the gain is carried by the
+    relative component; absolute residue is benign (supports the W⁰ functional-prior claim, F12).
+  - 40+ total runs; failed axes documented (projective transplant, value transport, feature
+    injection, optimizer conditioning, per-view chunking) — "the attention recipe does not
+    transplant; the channel structure does."
 - LLM (200M, 3B tokens fineweb-edu, identical data order): original (with fw-RoPE) ppl 19.32 →
   h-PRA 19.13 (−1.0%); NoPE 19.56. Gain equals the entire NoPE→RoPE gap, additive on top.
   omega_map 1D: neutral (19.35) — confirms multi-dim boundary condition.
-- Video (Wan1.3B AR attn-only finetune, MultiCamVideo, 4100 steps, deterministic noise, paired
-  per-step): h-PRA neutral (Δ +0.000000, t=0.0); +omega_map neutral (+0.05%, t=1.2 n.s.).
-  Report honestly as a boundary: gains require sufficient TTT-memory role (video finetune had ~2
-  update chunks/sequence and a tiny budget). 2-of-3 tasks improve; no task is hurt.
-- Negative-result forensics available in RESULTS_DOSSIER.md (F1–F20).
+- Video (Wan1.3B AR attn-only finetune, MultiCamVideo, deterministic noise, paired per-step):
+  h-PRA exactly neutral at 4100 steps (Δ +0.000000, t=0.0) AND at 20k steps (F22, second half
+  t=−0.1) — boundary condition confirmed, not budget-limited. Honest mechanism framing (F21
+  correction): 6 update chunks/seq, but the memory-exclusive workload share is thin (SWA covers
+  adjacent-frame redundancy); gains require the fast-weight memory to be load-bearing.
+  2-of-3 tasks improve; no task is hurt. (ccv grid — camera-controlled generation where memory
+  IS load-bearing — relaunched 2026-07-09, results pending.)
+- Negative-result forensics available in RESULTS_DOSSIER.md (F1–F25).
 
 ## Framing directions the user values
 - TTT/SwiGLU-specific structure exploited (channels; no attention analogue for h-PRA)

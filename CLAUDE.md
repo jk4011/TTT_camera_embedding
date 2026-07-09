@@ -11,8 +11,8 @@ linear-time fast-weight update, so relative positional-encoding tricks that rely
 matrix do not transfer directly — finding an equivalent for TTT is the open problem.
 
 The intended workflow: brainstorm ~10 hypotheses for camera embedding in TTT, then implement and benchmark
-them against the **LaCT LVSM baseline** in `lact_nvs/`, comparing PSNR/LPIPS. Hardware available is **4× B200**,
-so up to 4 experiments run concurrently.
+them against the **LaCT LVSM baseline** in `lact_nvs/`, comparing PSNR/LPIPS. Hardware is **8× B200**
+(since the 2026-07-09 batch-node move; was 4), so up to 8 experiments run concurrently.
 
 **This research is well underway** — do not re-brainstorm from scratch. Dozens of variants have been
 implemented (`lact_nvs/lact_ttt_cam.py`) and evaluated. The current state lives in the tracking docs at
