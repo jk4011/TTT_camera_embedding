@@ -45,9 +45,9 @@ except ImportError:  # pragma: no cover
     _HAS_DECORD = False
 
 
-DEFAULT_DATA_ROOT = "/tmp/mcv_clips"
+DEFAULT_DATA_ROOT = "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train"
 DEFAULT_CAM_ROOT = (
-    "/NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/dataset/"
+    "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/"
     "MultiCamVideo-Dataset/train"
 )
 DEFAULT_CAPTION = "a person moving through a scene, cinematic camera"
