@@ -46,15 +46,27 @@ echo "[remote] queue daemon pid $DAEMON_PID"
 
 # ---- 3. remote-control Claude in tmux, restarted if it exits ----
 # Transcripts live in $PORTABLE/config (lustre), so they survive job death.
-# If this repo already has a conversation there, resume it with --continue:
-# verified to restore the full conversation AND keep the same claude.ai
-# session URL, so the web thread continues seamlessly across batch jobs.
+# Which conversation to resume, in priority order:
+#   1. $PORTABLE/RESUME_SESSION holding a session id -> `--resume <id>`
+#      (deterministic; pin the exact conversation to carry across jobs)
+#   2. any transcript for this repo -> `--continue` (most recent conversation)
+#   3. none -> fresh session
+# Resuming keeps the same claude.ai session URL (verified), so the web thread
+# continues seamlessly across batch jobs.
+# NOTE: Claude Code's project slug replaces EVERY non-alphanumeric char with
+# '-' (underscores too) — deriving it with only / replaced silently misses the
+# transcripts and starts a fresh session (bug found 2026-07-09).
 REPO_ROOT="$(cd .. && pwd)"
-SLUG=${REPO_ROOT//\//-}
+SLUG=$(echo "$REPO_ROOT" | sed 's/[^A-Za-z0-9]/-/g')
+PIN="$PORTABLE/RESUME_SESSION"
 URLFILE=outputs/REMOTE_SESSION_URL.txt
 while true; do
   RESUME=""
-  ls "$PORTABLE/config/projects/${SLUG}"/*.jsonl >/dev/null 2>&1 && RESUME="--continue"
+  if [ -s "$PIN" ]; then
+    RESUME="--resume $(cat "$PIN")"
+  elif ls "$PORTABLE/config/projects/${SLUG}"/*.jsonl >/dev/null 2>&1; then
+    RESUME="--continue"
+  fi
   tmux kill-session -t rc 2>/dev/null
   tmux new-session -d -s rc -x 220 -y 50 -c "$REPO_ROOT" \
     "CLAUDE_CONFIG_DIR=$PORTABLE/config $PORTABLE/bin/claude $RESUME --remote-control ttt-batch \
