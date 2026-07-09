@@ -96,6 +96,17 @@ gain01_full trajectory vs same-step ds42 anchors: 53k: 21.11 vs nope 21.21 (−0
 |---|---|---|---|
 | ga_honly_g003_frac100 | gain .03, frac 1.0 | 26.10 (ds42 s42) | REJECTED: rotating ALL hidden dims kills the gain even at slow frequencies — the position-free half of the hidden space (pure content pathway) is load-bearing. Theory-relevant negative. |
 
+## PROXY PHASE CLOSED (2026-07-10): full 4-cell (2 draws x 2 seeds) results
+| variant | gaps vs nope per cell | mean +- sd |
+|---|---|---|
+| gain01 | −0.34 / +0.06 / −0.16 / +0.21 | −0.06 +- 0.24 |
+| gain003 | −0.52 / +0.13 / −0.05 / +0.23 | −0.05 +- 0.33 |
+The 20k proxy cannot resolve these variants (effects ~0.05-0.1 vs noise sd ~0.25-0.33).
+DECISION BUDGET = 3B. There, gain01 honly 18.53 beats nope 18.62 (F28), trajectory-stable.
+Overnight 3B batch (launched): gain003_full (is 0.03 better at decision budget?),
+gain01_full_s137 + nope_full_s137 (seed replicate of the F28 headline pair),
+ga_hpra_gain01_full (does the low-gain hidden stack on input rope? vs rope 18.40).
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
