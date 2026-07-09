@@ -223,8 +223,11 @@ def main():
     block_gen = data_utils.packed_block_generator(stream, tokenizer, args.seq_len, eos_id)
 
     n_val_blocks = args.val_tokens // args.seq_len
+    # data_seed in the filename: the val set is the head of the seed's stream,
+    # so caches from different seeds must never share a file (a seed-43 run
+    # once clobbered the seed-42 cache through the mismatch-overwrite guard).
     val_cache = os.path.join(SCRIPT_DIR,
-                             f"val_cache_{tok_name.replace('/', '_')}_{args.seq_len}.pt")
+                             f"val_cache_{tok_name.replace('/', '_')}_{args.seq_len}_ds{args.data_seed}.pt")
     val_set = data_utils.get_or_build_val_set(block_gen, n_val_blocks, val_cache)
 
     batches = data_utils.batch_generator(block_gen, args.bs)

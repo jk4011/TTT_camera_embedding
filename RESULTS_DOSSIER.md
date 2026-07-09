@@ -307,3 +307,41 @@ Everything below rules candidate causes in or out:
    +: different 3B subset/val sample sat on the other side of a ~1% effect). NVS is the
    opposite regime: the coordinate is 6D and relative geometry IS the signal, so the same
    rotation earns +0.96 dB at 3-seed rigor.
+
+### F27c: input-vs-hidden asymmetry quantified + val-cache incident (2026-07-09)
+- Per-position profiles of BOTH main effects are FLAT and symmetric in magnitude:
+  input gain (nope-rope) = −0.009..−0.014 loss in every 512-bucket incl. bucket 0;
+  hidden tax (hpra-rope) = +0.011..+0.015 incl. bucket 0. Bucket 0 predates any fast-weight
+  update => in 1D both rotations act mainly through their ABSOLUTE component (the rotated
+  initial readout), not distance-selective recall; the input site's absolute component is a
+  useful position prior, the hidden site's is a code-scrambling tax.
+- Surgery asymmetry (same seed-42 val): input rotation OFF on rope ckpt => 18.40 -> 62.8 ppl
+  (+1.23 loss; catastrophic in buckets 0-1 at ~6.95, +0.10 late) and hpra ckpt => 23.20;
+  hidden rotation OFF on hpra ckpt => +0.003 loss. ~400x reliance gap: the trained model is
+  load-bearing on the input rotation, indifferent to the hidden one.
+- Why the same absolute stamp helps at input but hurts at hidden (working theory):
+  input q/k are L2-normalized dense codes on a sphere — rotation moves the point along the
+  sphere, norm/score geometry intact, upstream projection + W^0 co-adapt cheaply, and the
+  rotated initial readout doubles as a free absolute position encoding (this model has no
+  other APE). The hidden code is silu-gated, sparse, axis-aligned, and feeds the output
+  dictionary w1 directly: position-dependent pairwise mixing scrambles feature-to-column
+  alignment, forcing w1 pairs toward rotation-degeneracy (capacity cost) — and its
+  disambiguation value is redundant once input rotation already position-tags the addresses
+  (one injective tag suffices).
+- APE-vs-RoPE objection (user): in attention LLMs RoPE >> APE, so "relative buys nothing in
+  1D" is too strong. Resolution: RoPE's edge in attention lives at short range (syntax,
+  induction-head pointer arithmetic "previous occurrence + 1") and in length extrapolation.
+  Here SWA(1024, own RoPE) owns exactly that territory; the TTT layer owns >window recall,
+  which fast weights serve ASSOCIATIVELY (key->value bound at update time, no pointer
+  arithmetic left for offsets to help). Scoped claim for the paper: relative position is
+  cheap and vital where retrieval is positional (attention); it adds little where retrieval
+  is associative and the coordinate is 1D — and it becomes the main signal when the
+  coordinate is 6D geometry (NVS).
+- INCIDENT (infra): the ds43 launch OVERWROTE the seed-42 val cache (filename lacked
+  data_seed; the mismatch-overwrite guard in get_or_build_val_set fired on the seed-43
+  stream). All F27 numbers + probe 1 predate the overwrite (valid); probe-2 first pass ran
+  on the seed-43 val (levels shifted: same rope ckpt 18.40 -> 17.87, i.e., val-sample choice
+  alone moves absolute ppl by ~0.5 — direct support for the datasets-stream explanation of
+  the old-vs-new level shift). FIX: cache filename now carries _ds<seed> (train_small.py);
+  seed-42 cache regenerated deterministically and verified (rope 2.9126, buckets bit-match).
+  In-flight ds43 pair unaffected (evaluates on the seed-43 blocks, internally consistent).

@@ -77,7 +77,14 @@ the paper's Method is written on a gateless 2-layer MLP, so back it directly.
 - Prediction: rot2 - base gap ~ the SwiGLU fixed-ladder gap (~+1.1), showing the
   channel structure (not gating) carries the effect. Seeds 137/211 after s95.
 
-## Q7. LLM 2x2 input/hidden rotary ablation  [DONE 2026-07-09 -> F27: rope 18.40 / nope 18.62 / hpra 18.64 / honly 18.85. Input fw-RoPE −1.2% ppl replicates; 1D hidden rotary HURTS in rebuilt env (sign flip vs F19, same code — audit found no bug). Optional follow-up: seed-2 of rope+hpra (~2x12h) to settle hidden-1D.]
+## Q7. LLM 2x2 input/hidden rotary ablation  [DONE 2026-07-09 -> F27: rope 18.40 / nope 18.62 / hpra 18.64 / honly 18.85. Input fw-RoPE −1.2% ppl replicates; 1D hidden rotary HURTS in rebuilt env (sign flip vs F19, same code — F27b audit: no bug; flat positional tax on the initial readout, near-zero relative gain in 1D; datasets-lib stream reorder = only surviving old-vs-new explanation).]
+
+## Q8. LLM ds43 early-read pair (F27b confirmation)  [RUNNING 2026-07-09, gpu1 sequential]
+rope vs hpra at data_seed 43 (different data draw, SAME seed-42 val cache), 0.5B tokens
+(~15.2k steps, ~2h each). Reading: is the hidden-1D deficit sign stable across data draws
+within the rebuilt env? (seed-42 reference at 15k: hpra−rope = +0.99 ppl, shrinking to +0.23
+by 91.5k). If ds43 also positive -> new-env result draw-robust; old-env F19 remains a
+different-draw outlier. If ~0/negative -> confirms draw sensitivity of a ~1% effect.
 Requested 2026-07-09 (user). Completes the F19 matrix with the missing hidden-only
 cell, rerun as a FULL 2x2 grid in the rebuilt env (torch 2.9.1+cu130 + new fla; old
 runs' env is gone, so mixing old/new numbers would confound):
