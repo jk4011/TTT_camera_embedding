@@ -46,6 +46,26 @@ therefore optimizing "keep the early benefit, remove the late tax".
   anchors nope 18.62 / honly_ctrl 18.85. THE decisive test of late-budget erosion.
 - ga_honly_gain003: gain=0.03 (mutation, gain-direction resolution) — gpu0.
 
+## Gen-1 (gain-direction line search, ds42 proxy)
+| gain | fitness | note |
+|---|---|---|
+| 1.0 (ctrl) | 26.10 | |
+| 0.1 | 25.68 | |
+| 0.03 | **25.50** | leader 2026-07-10; top ladder freq period ~200 tok — no fast scrambling, recency-scale modulation only |
+| 0.01 | (running, gpu0) | bracketing: gain->0 limit is nope (26.02), so an interior optimum exists in (0, 0.1) |
+The win over BOTH nope (26.02) and gain->0 proves a genuine benefit of a slow, coarse
+hidden position signal in 1D — not merely "less rotation is less bad".
+
+## Draw-robustness (ds43, proxy budget)
+| run | ds42 | ds43 |
+|---|---|---|
+| nope_ctrl | 26.02 | 25.31 |
+| gain01 | 25.68 (−0.34) | **25.15 (−0.16)** — WINS ON BOTH DRAWS |
+| gain003 | 25.50 (−0.52) | (running, gpu1) |
+| honly_ctrl | 26.10 (+0.08) | (running, gpu6) |
+F27e showed the PLAIN hidden ladder's sign flips per draw; the low-gain ladder wins on
+both draws tested — the first draw-robust positive hidden-1D result.
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
