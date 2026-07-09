@@ -246,3 +246,64 @@ fast-weight param parity (393,216); kernel autograd-verified. Sites: input F=21,
 - Secondary: the SwiGLU gate itself is worth +1.21 dB of base capacity at equal params
   (contrast F24: extra depth was free but worthless without addressing).
 - Single seed; seeds 137/211 queued for free GPUs.
+
+## F27: LLM 2x2 input/hidden rotary grid, rebuilt env (Q7, 2026-07-09)
+200M LaCT LM, 3B tokens fineweb-edu (fixed data order, data_seed 42), bs 8x4096, 91,552 steps;
+all four runs share the SAME kernel path (ttt_prenorm=True, use_fused_kernel=False), the same
+val cache (2M tokens, built once before all runs), flags verified from each run's logged config.
+| val ppl | hidden OFF | hidden ON |
+|---|---|---|
+| input fw-RoPE ON | **18.40** (abl_rope) | 18.64 (abl_hpra) |
+| input fw-RoPE OFF | 18.62 (abl_nope) | 18.85 (abl_honly) |
+- Clean additive 2x2: input fw-RoPE = −0.22..−0.21 ppl in both rows (replicates old-env F19
+  −0.24); hidden rotary = +0.23..+0.24 ppl in both columns — in the rebuilt env the 1D hidden
+  rotary consistently HURTS, incl. the new hidden-only cell.
+- SIGN FLIP vs old-env F19 (h_pra 19.13 vs rope 19.32 = −0.19 help). Same code (no commits to
+  lact_model since 7559589, which produced F19); differences are env-level only (new fla/torch,
+  re-downloaded streaming dataset, rebuilt val cache — absolute ppl level also shifted ~−0.9).
+- CODE AUDIT (user-requested, 2026-07-09): hidden-rope kernel re-verified numerically —
+  (a) zero-angle: bit-exact equality with the baseline kernel (max diff 0.0e0);
+  (b) rotated manual gradients (dw0/dw1/dw2 incl. inverse-rotation backward) match torch
+  autograd to 7e-9 (fp32). Kernel diff vs baseline is rotation-only (loop bounds, muon,
+  weight-norm, momentum, tail chunk identical). No bug found; the flip is empirical.
+- Honest reading: the 1D hidden-rotary effect is small and NOT robust across environments
+  (−0.19 old vs +0.24 new, both single-seed/single-env-instance); the robust LLM finding is
+  input fw-RoPE (−1.2% ppl in both envs). Contrast NVS F25 where hidden carries +0.96 of
+  +1.08 at 3-seed rigor: relative addressing in the hidden space pays where the coordinate
+  is multi-dimensional (6D rays), not in 1D text. Paper framing: report input-RoPE as the
+  LLM result; treat hidden-1D as boundary/unstable (like video F21/F22) pending seed
+  replication (rope+hpra seed-2 would settle it; ~2x12h).
+
+### F27b: deep audit of the sign flip (user-requested, 2026-07-09) — no bug; mechanism identified
+Everything below rules candidate causes in or out:
+1. INDUCTOR RULED OUT: training executes @torch.compile'd kernels; compiled-vs-eager at real
+   shapes/dtypes (B=32, L=4096, d=192, chunk 1024, muon+momentum, bf16) gives mean-rel diff
+   2.43e-2 (baseline) vs 2.47e-2 (hidden-rope), ratio 1.02, both bit-deterministic run-to-run:
+   inductor treats both kernels identically; no hidden-rope-specific miscompilation.
+2. HYPERS RULED OUT: train_small.py diff since the F19 launch commit = cache dirs + os._exit
+   only; chunk 1024, window 1024, rope_theta 1e6, tilt, muon, momentum all identical.
+3. DATA SNAPSHOT RULED OUT: fineweb-edu lastModified 2025-07-11, tokenizer repo 2025-02 —
+   both predate ALL runs; same corpus, same tokenizer content.
+4. REMAINING MOVING PART = `datasets` streaming shuffle implementation (old env version
+   unknown/lost with T_B): same seed, different library version => different stream order =>
+   different 3B training subset AND different 2M val sample. This is the only surviving
+   explanation for the −0.9 absolute ppl level shift, and it makes old-vs-new deltas
+   different-data-draw comparisons (within-env comparisons stay clean).
+5. MECHANISM PROBE (checkpoint surgery + per-position val loss, 512-token buckets):
+   - The hidden-ON deficit is FLAT in position (+0.011..+0.015 loss in every bucket, both
+     rows) — present already in bucket 0 where no fast-weight updates exist yet. So it is
+     NOT long-range recall attenuation; it is a constant tax, i.e., the absolute-phase
+     burden of serving position-rotated hidden activations through the initial readout.
+   - Surgery asymmetry: hpra with rotation zeroed at eval loses only +0.003 loss (the
+     trained model largely IGNORES the hidden rotation when input RoPE exists); honly with
+     rotation zeroed collapses at early positions (18.85 -> 22.51 ppl, damage confined to
+     the first ~1.5k tokens) — without input RoPE the model does use the hidden rotation
+     as its only positional signal, yet still nets worse than nope.
+   - Cross-injection control: rotation forced ON at eval for rope/nope models = 27.8/94.3
+     ppl with position-growing damage (expected; addresses scrambled).
+   CONCLUSION: in 1D the hidden rotary buys ~nothing relative (content addressing suffices;
+   position is already covered by input RoPE + attention) but pays the constant absolute-
+   phase tax => small net negative, with sign sensitive to the data draw (explains old-env
+   +: different 3B subset/val sample sat on the other side of a ~1% effect). NVS is the
+   opposite regime: the coordinate is 6D and relative geometry IS the signal, so the same
+   rotation earns +0.96 dB at 3-seed rigor.
