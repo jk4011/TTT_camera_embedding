@@ -56,15 +56,24 @@ therefore optimizing "keep the early benefit, remove the late tax".
 The win over BOTH nope (26.02) and gain->0 proves a genuine benefit of a slow, coarse
 hidden position signal in 1D — not merely "less rotation is less bad".
 
-## Draw-robustness (ds43, proxy budget)
-| run | ds42 | ds43 |
-|---|---|---|
-| nope_ctrl | 26.02 | 25.31 |
-| gain01 | 25.68 (−0.34) | **25.15 (−0.16)** — WINS ON BOTH DRAWS |
-| gain003 | 25.50 (−0.52) | (running, gpu1) |
-| honly_ctrl | 26.10 (+0.08) | (running, gpu6) |
-F27e showed the PLAIN hidden ladder's sign flips per draw; the low-gain ladder wins on
-both draws tested — the first draw-robust positive hidden-1D result.
+## Draw-robustness (ds43, proxy budget) — SURPRISE REVERSAL
+| run | ds42 | ds43 | 2-draw mean |
+|---|---|---|---|
+| nope_ctrl | 26.02 | 25.31 | 25.67 |
+| honly_ctrl (plain) | 26.10 (+0.08) | **24.83 (−0.48!)** | 25.47 |
+| gain01 | 25.68 (−0.34) | 25.15 (−0.16) — wins BOTH draws | 25.42 |
+| gain003 | 25.50 (−0.52) | 25.26 (−0.05) | **25.38** |
+Findings (2026-07-10):
+1. ALL hidden variants beat nope on the 2-draw mean — the user's core hypothesis holds
+   on average, not just per-draw.
+2. But the optimal GAIN reverses across draws (ds42: 0.03 best, plain worst; ds43:
+   plain best by a wide margin). The effect scale we are optimizing (±0.3–0.5 ppl) is
+   the same scale as draw-to-draw swings.
+3. PROTOCOL CHANGE: fitness = mean over ds42+ds43 from here on; and before further
+   generations, MEASURE the init-seed noise of a proxy gap: gain01-vs-nope pair rerun
+   at seed 137 (running, gpu1/6). If the gap noise is ~0.2+, single-run proxy deltas
+   below that are not decisions.
+gain01 remains the only variant that beat nope on both draws individually.
 
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
