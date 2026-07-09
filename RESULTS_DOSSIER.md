@@ -309,6 +309,26 @@ Everything below rules candidate causes in or out:
    opposite regime: the coordinate is 6D and relative geometry IS the signal, so the same
    rotation earns +0.96 dB at 3-seed rigor.
 
+### F27d: ds43 pair — the hidden-1D sign FLIPS BACK on a different draw/budget (2026-07-10)
+rope vs hpra at data_seed 43, 0.5B tokens (15,258 steps, full cosine), same protocol
+otherwise (val = ds43 stream head, shared by the pair):
+- rope_ds43 3.2906 / ppl 26.86; hpra_ds43 3.2808 / ppl **26.60** -> hidden rotary HELPS
+  by −0.26 ppl (loss −0.0098 — almost exactly the old-env F19 gain, −0.0097).
+- So across three measurements of the same design: old env 3B: −0.19 (help);
+  new env ds42 3B: +0.23 (hurt); new env ds43 0.5B: −0.26 (help). The effect is real
+  but its SIGN depends on the data draw and/or token budget — consistent with F27b's
+  "~1% effect sitting on a boundary". Note the ds42 full run's own curve: honly−nope was
+  NEGATIVE (helping) at steps 3k–10k and only turned positive after ~11k, i.e., the
+  hidden rotary tends to help EARLY and cost LATE in ds42 as well.
+- CONFOUND: ds43 pair ran at 0.5B (launched before the GA protocol was fixed), so draw
+  and budget are entangled. Disentangler launched (gpu1): ds42 rope+hpra at the SAME
+  0.5B budget -> completes the {draw} x {budget} 2x2. GA gen-0 (0.65B, ds42) adds the
+  honly-row short-budget point.
+- Implication for Q9 (user's push to make honly win): at short budgets the hidden
+  rotary already CAN win in 1D; the enemy is late-training erosion (consistent with the
+  F27b tax story: the absolute-phase tax is constant while the relative/prior benefit
+  saturates or is learned around).
+
 ### F27c: input-vs-hidden asymmetry quantified + val-cache incident (2026-07-09)
 - Per-position profiles of BOTH main effects are FLAT and symmetric in magnitude:
   input gain (nope-rope) = −0.009..−0.014 loss in every 512-bucket incl. bucket 0;
