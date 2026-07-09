@@ -396,20 +396,32 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     chunk_size: int = 2048,
     use_muon: bool = False,
     momentum: torch.Tensor = None,
+    delta_only: bool = False,
 ):
     """prenorm_block_causal_lact_swiglu + h-PRA (hidden rotary).
 
     The SwiGLU hidden activation is rotated by per-token position phases
-    before meeting w1, on both the apply path (queries) and the write path
-    (keys); the write backprop applies the inverse rotation. The value
+    before meeting w1, on both the apply path (queries) and the update path
+    (keys); the update backprop applies the inverse rotation. The value
     retrieval channel <R_t_q h(q), R_t_k h(k)> becomes relative in hidden
     space (see the NVS study; no attention analogue).
+
+    delta_only (Q9): the apply splits the output matrix into its initial part
+    and the accumulated fast-weight delta, and rotates the hidden only on the
+    delta path:  o = w1_init @ h(q) + (w1 - w1_init) @ R(phi_q) h(q).
+    Update->apply recall stays relative (stored addresses are rotated, and the
+    delta path probes with the rotated query hidden), but the initial readout
+    sees the UNROTATED hidden — removing the constant absolute-phase tax
+    identified in F27b. With all phases equal it still reduces exactly to the
+    baseline kernel.
     """
     w0_norm = w0.norm(dim=2, keepdim=True)
     w1_norm = w1.norm(dim=2, keepdim=True)
     w2_norm = w2.norm(dim=2, keepdim=True)
 
     w0_main, w1_main, w2_main = w0, w1, w2
+    if delta_only:
+        w1_init = w1.clone()
 
     if momentum is not None:
         dw1_momentum = torch.zeros_like(w1)
@@ -438,8 +450,14 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
         # apply with previous weights; hidden of queries rotated by their phases
         h = torch.bmm(w2, qi)
         gate = F.silu(torch.bmm(w0, qi), inplace=True)
-        hq_rot = apply_rotary_cols(gate * h, hci, hsi)
-        output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
+        hq = gate * h
+        hq_rot = apply_rotary_cols(hq, hci, hsi)
+        if delta_only:
+            # initial readout unrotated; only the accumulated delta probes rotated
+            output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(
+                w1 - w1_init, hq_rot)
+        else:
+            output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
 
         gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
@@ -487,7 +505,12 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     qi = q[:, :, s_index:e_index]
     h = torch.bmm(w2, qi)
     gate = F.silu(torch.bmm(w0, qi), inplace=True)
-    hq_rot = apply_rotary_cols(gate * h, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
-    output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
+    hq = gate * h
+    hq_rot = apply_rotary_cols(hq, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
+    if delta_only:
+        output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(
+            w1 - w1_init, hq_rot)
+    else:
+        output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
 
     return output.transpose(1, 2)

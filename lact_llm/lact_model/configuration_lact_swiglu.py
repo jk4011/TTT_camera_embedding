@@ -43,6 +43,13 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         # postnorm ttt:  state = norm(state + f(state)
         ttt_nope: bool = False,  # if True, no positional encoding for query and key used in ttt.
         ttt_hidden_rope: bool = False,  # h-PRA: rotary on the SwiGLU hidden activation
+        # --- Q9 GA genes for the hidden rotary (all no-ops unless ttt_hidden_rope) ---
+        ttt_hrope_frac: float = 0.5,  # fraction of hidden dims rotated (0..1]; 0.5 = F27 setting
+        ttt_hrope_gain: float = 1.0,  # global multiplier on the hidden frequency ladder
+        ttt_hrope_theta: Optional[float] = None,  # ladder base; None -> rope_theta
+        ttt_hrope_delta_only: bool = False,  # rotate only the fast-weight DELTA path on apply:
+        # out = w_init @ h + (w - w_init) @ R(phi) h. Removes the absolute-phase tax on the
+        # initial readout (F27b) while keeping relative update->apply recall.
         ttt_learnable_freqs: bool = False,  # omega_map(1D): learnable frequency deltas
         ttt_freq_tilt: float = 0.1,  # random-tilt init scale for learnable freqs
         w0_w2_low_rank: int = -1,  # -1 means fully learnable.  > 1 means low rank parameterization of the initial learnable weights.
@@ -88,6 +95,10 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.ttt_prenorm = ttt_prenorm
         self.ttt_nope = ttt_nope
         self.ttt_hidden_rope = ttt_hidden_rope
+        self.ttt_hrope_frac = ttt_hrope_frac
+        self.ttt_hrope_gain = ttt_hrope_gain
+        self.ttt_hrope_theta = ttt_hrope_theta
+        self.ttt_hrope_delta_only = ttt_hrope_delta_only
         self.ttt_learnable_freqs = ttt_learnable_freqs
         self.ttt_freq_tilt = ttt_freq_tilt
         self.rope_theta = rope_theta

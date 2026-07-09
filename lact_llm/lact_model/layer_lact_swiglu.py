@@ -140,6 +140,10 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_prenorm: bool = False,
         ttt_nope: bool = False,
         ttt_hidden_rope: bool = False,
+        ttt_hrope_frac: float = 0.5,
+        ttt_hrope_gain: float = 1.0,
+        ttt_hrope_theta: float = None,
+        ttt_hrope_delta_only: bool = False,
         ttt_learnable_freqs: bool = False,
         ttt_freq_tilt: float = 0.1,
         rope_theta: float = 500000.0,
@@ -258,11 +262,17 @@ class LaCTSWIGLULayer(nn.Module):
 
         #### PRA transplant (1D): hidden rotary (h-PRA) + learnable freqs (omega_map).
         self.ttt_hidden_rope = ttt_hidden_rope
+        self.ttt_hrope_delta_only = ttt_hrope_delta_only
         self.ttt_learnable_freqs = ttt_learnable_freqs
         if ttt_hidden_rope:
-            # rotate half of the hidden dims; RoPE-style ladder over positions
-            P_h = (self.d_h // 2) // 2
-            h_inv = 1.0 / (rope_theta ** (torch.arange(P_h).float() / max(P_h, 1)))
+            # RoPE-style ladder over positions. Q9 GA genes: ttt_hrope_frac sets the
+            # fraction of hidden dims rotated (0.5 reproduces the F27 setting of
+            # P_h = (d_h//2)//2), ttt_hrope_gain scales the whole ladder, and
+            # ttt_hrope_theta overrides the ladder base (default: attention rope_theta).
+            P_h = max(1, int(self.d_h * ttt_hrope_frac / 2.0))
+            assert 2 * P_h <= self.d_h, f"ttt_hrope_frac too large: {ttt_hrope_frac}"
+            h_theta = ttt_hrope_theta if ttt_hrope_theta is not None else rope_theta
+            h_inv = ttt_hrope_gain / (h_theta ** (torch.arange(P_h).float() / max(P_h, 1)))
             if ttt_learnable_freqs:
                 h_inv = h_inv * (1.0 + ttt_freq_tilt * torch.randn(P_h))
                 self.h_inv_freq = nn.Parameter(h_inv)
@@ -544,6 +554,7 @@ class LaCTSWIGLULayer(nn.Module):
                 chunk_size=self.lact_chunk_size,
                 use_muon=self.use_muon,
                 momentum=momentum,
+                delta_only=self.ttt_hrope_delta_only,
             )
         elif self.ttt_prenorm:
             # pre-norm version of ttt.   state = state + f(norm(state))
