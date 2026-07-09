@@ -18,6 +18,15 @@ cd "$(dirname "$0")"
 PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
 PORTABLE=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/claude_portable
 RE10K_SRC=/NHNHOME/WORKSPACE/26msit001_A/V-LAB/Datasets/re10k
+WORKSPACE=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok
+
+# Permission mode for the remote Claude session. The remote session is a FULL
+# Claude Code instance (any command: downloads, clones, edits, new tasks).
+#   default            — Claude asks before tools run; you approve from the
+#                        claude.ai web/phone UI (safe, small friction)
+#   acceptEdits        — file edits auto-approved, Bash still asks
+#   bypassPermissions  — fully autonomous, no prompts (research-box mode)
+PERMISSION_MODE=${PERMISSION_MODE:-acceptEdits}
 mkdir -p outputs
 exec > >(tee -a "outputs/batch_remote_$(date '+%F_%H%M%S').log") 2>&1
 echo "[remote] $(date) node=$(hostname)"
@@ -48,7 +57,8 @@ while true; do
   ls "$PORTABLE/config/projects/${SLUG}"/*.jsonl >/dev/null 2>&1 && RESUME="--continue"
   tmux kill-session -t rc 2>/dev/null
   tmux new-session -d -s rc -x 220 -y 50 -c "$REPO_ROOT" \
-    "CLAUDE_CONFIG_DIR=$PORTABLE/config $PORTABLE/bin/claude $RESUME --remote-control ttt-batch"
+    "CLAUDE_CONFIG_DIR=$PORTABLE/config $PORTABLE/bin/claude $RESUME --remote-control ttt-batch \
+     --permission-mode $PERMISSION_MODE --add-dir $WORKSPACE"
   URL=""
   for _ in $(seq 1 24); do
     sleep 5
