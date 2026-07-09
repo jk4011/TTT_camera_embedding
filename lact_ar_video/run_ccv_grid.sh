@@ -33,7 +33,7 @@ cd "$SCRIPT_DIR/minVid"
 for V in ccv_base ccv_pra ccv_both ccv_pra_fixed; do
   G=${GPUS[$V]}; CFG=${CFGS[$V]}
   if [ "$MODE" = "sanity" ]; then
-    EXP="${V}_sanity"; EXTRA=(-s max_steps 60 -s exp_name "$EXP")
+    EXP="${V}_sanity"; EXTRA=(-s max_fwdbwd_passes 60 -s exp_name "$EXP")
   else
     EXP="$V"; EXTRA=(-s exp_name "$EXP")
   fi
