@@ -11,3 +11,5 @@ pra_hi 95
 pra_hi 137
 pra_hi 211
 fw3l_rot3 95
+mlp2_base 95
+mlp2_rot2 95

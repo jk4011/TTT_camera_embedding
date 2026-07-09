@@ -545,6 +545,80 @@ def fast_weight_swiglu3l_weight_norm_apply(
     return output, w0, w1, w2, wb
 
 
+@torch.compile
+def fast_weight_mlp2_weight_norm_apply(
+    w0, w1, q, k, v, lr0, lr1,
+    hcos, hsin,
+    ttt_ua_order: list,
+    muon_update_steps: int = 0,
+):
+    """Gateless 2-layer-MLP fast weights (inner-model generality control):
+
+        f(x) = rot_h(silu(x @ w0)) @ w1
+
+    Identical recipe to the stock SwiGLU kernel — one ascent step on
+    sum_i lr <v_i, f(k_i)> with hand-derived backward, Muon
+    orthogonalization, per-column weight-norm — but with the gate branch
+    (w2) removed, so the inner model is a plain 2-layer MLP. The optional
+    hidden rotary rotates the single hidden activation in both update and
+    apply; backprop uses the inverse rotation (negated sin), mirroring
+    fast_weight_swish_glu_hidden_rotary_apply. hcos/hsin: [B, L, P] with
+    2P <= d_h, or None (rotary disabled).
+    """
+    from lact_ttt import silu_backprop, zeropower_via_newtonschulz5
+
+    w0_norm = w0.detach().norm(dim=1, keepdim=True)
+    w1_norm = w1.detach().norm(dim=1, keepdim=True)
+
+    output = []
+    for start, end, update, apply in ttt_ua_order:
+        w0_now, w1_now = w0, w1
+
+        if update:
+            ki, vi = k[:, start:end, :], v[:, start:end, :]
+            lr0i = lr0[:, start:end, :]
+            lr1i = lr1[:, start:end, :]
+
+            h_pre = ki @ w0_now
+            h = F.silu(h_pre, inplace=False)
+            if hcos is not None:
+                h_rot = apply_rotary_pairs(h, hcos[:, start:end, :], hsin[:, start:end, :])
+            else:
+                h_rot = h
+
+            # Backward of +<v, f(k)>; rotation inverts with negated sin.
+            dh_rot = vi @ w1_now.transpose(-1, -2)
+            if hcos is not None:
+                dh = apply_rotary_pairs(dh_rot, hcos[:, start:end, :], -hsin[:, start:end, :])
+            else:
+                dh = dh_rot
+            dh_pre = silu_backprop(dh, h_pre)
+
+            w1_grad = zeropower_via_newtonschulz5(
+                (h_rot * lr1i).transpose(-1, -2) @ vi, muon_update_steps
+            )
+            w0_grad = zeropower_via_newtonschulz5(
+                (ki * lr0i).transpose(-1, -2) @ dh_pre, muon_update_steps
+            )
+            w0_now = w0_now + w0_grad
+            w1_now = w1_now + w1_grad
+
+            w0_now = w0_now / (w0_now.norm(dim=1, keepdim=True) + 1e-5) * w0_norm
+            w1_now = w1_now / (w1_now.norm(dim=1, keepdim=True) + 1e-5) * w1_norm
+
+            w0, w1 = w0_now, w1_now
+
+        if apply:
+            qi = q[:, start:end, :]
+            hq = F.silu(qi @ w0_now, inplace=True)
+            if hcos is not None:
+                hq = apply_rotary_pairs(hq, hcos[:, start:end, :], hsin[:, start:end, :])
+            output.append(hq @ w1_now)
+
+    output = torch.cat(output, dim=1)
+    return output, w0, w1
+
+
 class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
     _layer_counter = 0  # construction-order depth index (mip staggering)
 
@@ -574,7 +648,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "prope_ttt", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
-                 "fw3l", "fw3l_rot2", "fw3l_rot3"}
+                 "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -584,6 +658,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if self.fw3l:
             assert len(self.cam_modes) == 1, "fw3l modes are standalone (no '+' combos)"
             if self.cam_modes & {"fw3l_rot2", "fw3l_rot3"}:
+                self.cam_modes.add("qk_rope_cam")
+        # Gateless 2-layer-MLP fast weights (inner-model generality control):
+        # standalone modes; mlp2_rot2 = input rotary (stock qk_rope_cam
+        # machinery) + hidden rotary on the single hidden activation.
+        self.mlp2 = bool(self.cam_modes & {"mlp2", "mlp2_rot2"})
+        if self.mlp2:
+            assert len(self.cam_modes) == 1, "mlp2 modes are standalone (no '+' combos)"
+            if "mlp2_rot2" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
@@ -657,6 +739,21 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 )
                 self.register_buffer("omega_s2", omega_s2, persistent=False)
                 self.gain_s2 = nn.Parameter(torch.ones(6, num_freqs_h))
+
+        if self.mlp2:
+            # Remove the gate branch: f(x) = silu(x w0) w1. Param parity with
+            # the SwiGLU x2 layer at inter_multi=3 (2 x d x 3d = 3 x d x 2d).
+            # Two per-token lr channels instead of three.
+            del self.w2
+            self.lr_fc = nn.Linear(dim, self.lr_dim * 2)
+            if "mlp2_rot2" in self.cam_modes:
+                # Hidden Plucker ladder fills the d_h budget (6 coords x F_h pairs).
+                assert 2 * 6 * num_freqs_h <= d_h
+                omega_mh = math.pi * torch.logspace(
+                    math.log2(0.5), math.log2(16.0), num_freqs_h, base=2.0
+                )
+                self.register_buffer("omega_mh", omega_mh, persistent=False)
+                self.gain_mh = nn.Parameter(torch.ones(6, num_freqs_h))
 
         self.layer_idx = CamFastWeightGluMLPMultihead._layer_counter
         CamFastWeightGluMLPMultihead._layer_counter += 1
@@ -943,13 +1040,18 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             lr0, lr2, lrb, lr1 = rearrange(
                 lr, "b l (lrs h d) -> lrs (b h) l d", lrs=4, h=nh
             )
+        elif self.mlp2:
+            lr0, lr1 = rearrange(
+                lr, "b l (lrs h d) -> lrs (b h) l d", lrs=2, h=nh
+            )
+            lr2 = None
         else:
             lr0, lr1, lr2 = rearrange(
                 lr, "b l (lrs h d) -> lrs (b h) l d", lrs=3, h=nh
             )
 
         if "w0" in info:
-            w0, w1, w2 = info["w0"], info["w1"], info["w2"]
+            w0, w1, w2 = info["w0"], info["w1"], info.get("w2")
         else:
             if "w0_mask" in modes:
                 w0 = (self.w0 * self.w0_mask_in).repeat(x.shape[0], 1, 1)
@@ -958,7 +1060,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             else:
                 w0 = self.w0.repeat(x.shape[0], 1, 1)
                 w1 = self.w1.repeat(x.shape[0], 1, 1)
-                w2 = self.w2.repeat(x.shape[0], 1, 1)
+                w2 = None if self.mlp2 else self.w2.repeat(x.shape[0], 1, 1)
             if "hyper_init" in modes:
                 pose = info["view_pose11"][:, : info["num_input_views"]].to(x.dtype)
                 h_enc = self.set_enc(pose)  # [b, v_in, 64]
@@ -997,7 +1099,15 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             ]
 
         fw_state_extra = {}
-        if self.fw3l:
+        if self.mlp2:
+            hcos = hsin = None
+            if "mlp2_rot2" in modes:
+                hcos, hsin = self._rope_coeffs(info, self.omega_mh, self.gain_mh)
+            output, w0, w1 = fast_weight_mlp2_weight_norm_apply(
+                w0, w1, q, k, v, lr0, lr1, hcos, hsin, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
+        elif self.fw3l:
             wb = info["wb"] if "wb" in info else self.wb.repeat(x.shape[0], 1, 1)
             h1cos = h1sin = s2cos = s2sin = None
             if "fw3l_rot3" in modes:
@@ -1068,7 +1178,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             output, "(b h) l d -> b l (h d)", h=nh, b=x.shape[0]
         )
         output = self.c_proj(output)
-        return output, {"w0": w0, "w1": w1, "w2": w2, **fw_state_extra}
+        state = {"w0": w0, "w1": w1, **fw_state_extra}
+        if w2 is not None:
+            state["w2"] = w2
+        return output, state
 
     def extra_repr(self) -> str:
+        if self.mlp2:
+            return (f"cam_mode: {self.cam_mode}, w0: {tuple(self.w0.shape)}, "
+                    f"w1: {tuple(self.w1.shape)} (gateless 2-layer MLP), "
+                    f"Muon update steps: {self.muon_update_steps}")
         return f"cam_mode: {self.cam_mode}, " + super().extra_repr()

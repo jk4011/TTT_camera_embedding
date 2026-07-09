@@ -65,3 +65,14 @@ Requested 2026-07-07. No learnable frequencies; matched ladders (input F=21, hid
   F_h42 only); w/o hidden = pra_hi (F21 only). Baseline (no PE) 3 seeds already exist.
 - Reuse: pra_h_hi s95 (22.836/0.2690), pra_hi s95 (22.389/0.2753) => 7 new runs (~7h).
 - Deliverable: mean +- std table for the paper's main ablation.
+
+## Q6. Gateless 2-layer-MLP fast weights (inner-model generality)  [RUNNING 2026-07-09 GPUs 6-7, seed 95]
+Requested 2026-07-09 (user): show the recipe generalizes across inner models —
+the paper's Method is written on a gateless 2-layer MLP, so back it directly.
+- f(x) = silu(x W0) W1 (no gate branch); inter_multi 3 for exact fast-weight
+  param parity with SwiGLU x2 (393,216). Sites: input (F=21) + single hidden
+  (d_h=768 -> F_h=64, budget rule). cam_mlp2_base vs cam_mlp2_rot2, param-neutral
+  up to rotary gains (+510/layer).
+- Kernel verified vs autograd (bf16 tol, muon-0 transform replicated).
+- Prediction: rot2 - base gap ~ the SwiGLU fixed-ladder gap (~+1.1), showing the
+  channel structure (not gating) carries the effect. Seeds 137/211 after s95.
