@@ -75,6 +75,27 @@ Findings (2026-07-10):
    below that are not decisions.
 gain01 remains the only variant that beat nope on both draws individually.
 
+## Init-seed noise measurement (2026-07-10) — PROXY GAPS ±0.3 ARE NOISE
+| pair (ds42, 20k) | seed 42 | seed 137 |
+|---|---|---|
+| nope | 26.02 | 25.72 |
+| gain01 | 25.68 | 25.78 |
+| gap (gain01−nope) | −0.34 | **+0.06 (sign flip)** |
+Single-run proxy gaps of ±0.3 ppl flip with the init seed. PROTOCOL v3: fitness =
+mean over (2 draws x 2 init seeds) = 4 runs per genome (~1.5h on 4 GPUs); only
+differences > ~2x the empirical SE count as decisions. Single-run "leaders"
+(gain003 25.50 etc.) are hereby demoted to candidates pending 4-cell evaluation.
+Being filled: ds43 x s137 cells (nope, gain01), gain003 ds42-s137 + ds43-s137.
+The 3B run remains the decisive test: full-budget gaps (~0.2, e.g. nope->rope −0.22)
+have reproduced across environments, unlike 20k proxy gaps.
+gain01_full trajectory vs same-step ds42 anchors: 53k: 21.11 vs nope 21.21 (−0.10);
+65k: 19.78 vs nope 19.88 (−0.10); plain honly at 65k was 20.14 (+0.26). Holding.
+
+## Gen-2
+| run | genes | fitness | verdict |
+|---|---|---|---|
+| ga_honly_g003_frac100 | gain .03, frac 1.0 | 26.10 (ds42 s42) | REJECTED: rotating ALL hidden dims kills the gain even at slow frequencies — the position-free half of the hidden space (pure content pathway) is load-bearing. Theory-relevant negative. |
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
