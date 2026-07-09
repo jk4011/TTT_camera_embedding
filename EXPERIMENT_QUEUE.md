@@ -46,7 +46,7 @@ pure fixed-ladder TTT-RoPE vs cam_encoder. 20k steps, ~46h. Deterministic noise 
 per-step, so paired comparison vs ccv_base/pra/both stays valid despite later start.
 Config: abl_ccv_pra_fixed.yaml; launcher run_ccv_pra_fixed.sh; log /tmp/ccv_pra_fixed.log.
 
-## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [RESCHEDULED: runs on first GPU freed by ccv completion (~2026-07-08 night); GPU-3 slot given to Q5]
+## Q4. Rigorous 3-seed ablation at best fixed-ladder setting  [MOSTLY DONE 2026-07-09 -> F25: full 22.824+-0.065 / w-o input 22.701+-0.154 / w-o hidden 22.333 (s95). pra_hi s137+s211 remain — first items in BATCH_QUEUE.txt, auto-run by the batch daemon. NOTE: all pre-reset checkpoints were lost, so this was a full 3x3 retrain in the rebuilt env; fw3l_rot3 s95 re-run reproduced 23.439 exactly (env validated).]
 Requested 2026-07-07. No learnable frequencies; matched ladders (input F=21, hidden F_h=42).
 - Runs (seeds 95/137/211): full = pra_h_hi (qk_rope+h_pra); w/o input = h_pra_hi (new config,
   F_h42 only); w/o hidden = pra_hi (F21 only). Baseline (no PE) 3 seeds already exist.

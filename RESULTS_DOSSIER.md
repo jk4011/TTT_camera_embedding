@@ -204,3 +204,26 @@ Paired per-scene: rot3 vs rot2 +0.132 dB (t=+15.2, win 86%); rot3 vs base +1.571
   +0.47 over the previous record recipe (22.971 +- 0.088), at 3-seed rigor.
 - Third-site gain replicates in every seed (per-seed rot3-rot2: +0.132/+0.106/+0.178).
 - Rotary runs are far more seed-stable (std 0.02) than the baseline (std 0.196).
+
+## F25: environment reproducibility + Q4 main ablation (rebuilt env, 2026-07-09)
+Node reset wiped the old env (conda, /tmp data, ALL checkpoints). Rebuilt from scratch:
+venv torch 2.11+cu128 (B200/sm_100), RE10K reshared from surviving lustre source.
+Reproduction check (same protocol, seed 95, new env vs dossier):
+| run | old | new | delta |
+|---|---|---|---|
+| fw3l_rot3 | 23.439 / 0.2478 | **23.439** / 0.2483 | 0.000 / +0.0005 |
+| pra_h_hi | 22.836 / 0.2690 | 22.797 / 0.2685 | -0.039 |
+| pra_hi | 22.389 / 0.2753 | 22.333 / 0.2751 | -0.056 |
+- Env change (torch 2.4->2.11, cu124->cu128, conda->venv) is result-neutral: headline
+  reproduces to the third decimal; others within seed-scale noise. All dossier numbers remain valid.
+
+Q4 fixed-ladder ablation (input F21 / hidden F_h42, no learnable freqs; 3 seeds 95/137/211):
+| variant | PSNR (3-seed) | LPIPS | delta vs base 21.745+-0.196 |
+|---|---|---|---|
+| full (pra_h_hi) | 22.824 +- 0.065 | 0.2664 +- 0.0024 | **+1.079** |
+| w/o input (h_pra_hi) | 22.701 +- 0.154 | 0.2677 +- 0.0031 | +0.956 |
+| w/o hidden (pra_hi) | 22.333 (1 seed; s137/s211 queued in batch) | 0.2751 | +0.588 |
+- Hidden channel carries most of the fixed-ladder gain (+0.96 of +1.08); input adds +0.12 on top.
+- Channels sub-additive at saturated ladders (0.59+0.96=1.55 > 1.08 actual), unlike the small-ladder
+  additivity of F9 (F16/F21: 0.41+0.46 ~= 0.77): at F21/F42 the two address spaces partially overlap.
+- h_pra_hi (hidden-only) is a NEW variant: strongest single-site fixed-ladder recipe.
