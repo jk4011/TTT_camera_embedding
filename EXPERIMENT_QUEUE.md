@@ -91,6 +91,15 @@ theory says the hidden address space has more relative structure to exploit.
   also provides fresh base/pra/both/pra_fixed anchors to compare against.
 - Choose gains informed by Q9's final bracket + the video ladder's own units (phase per
   latent-frame/pixel, not per token — recompute the "top-frequency period" equivalent).
+- PORT DONE 2026-07-10 (commit 07e6f3d): genes in ar_lact_swa_repeat.py, defaults
+  bit-identical (T0-T3). Ladder analysis: in ccv the grid-carrier phase CANCELS across
+  src->tgt recall (matched grid indices) — only the Plucker mode carries cross-view
+  offsets, so the sweep targets the Plucker hidden gain. At default gain 1.0 the top
+  Plucker frequency wraps ~1.6 turns over the measured recall delta (RMS 0.209/coord) —
+  the same "scrambling" regime that lost in 1D. LLM 0.1/0.03 equivalents: video Plucker
+  hidden gain ~0.3 and ~0.1.
+- VARIANT SET (launch when gpu2-5 free): abl_ccv_both with ttt_hrope_gain 0.3 and 0.1
+  (2 runs, paired vs the fresh base/pra/both anchors), 20k steps, deterministic noise.
 
 ## Q8. LLM ds43 early-read pair (F27b confirmation)  [RUNNING 2026-07-09, gpu1 sequential]
 rope vs hpra at data_seed 43 (different data draw, SAME seed-42 val cache), 0.5B tokens
