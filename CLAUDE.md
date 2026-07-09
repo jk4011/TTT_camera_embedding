@@ -158,6 +158,17 @@ limit) or batch via a web GUI (no `sbatch`/`squeue` CLI here — the user submit
   resubmission = resume). `batch_with_claude.sh` additionally runs headless Claude to update the dossier;
   it uses the portable install at `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/claude_portable/` (binary +
   `CLAUDE_CONFIG_DIR` config), since `~/.claude` doesn't exist on batch nodes.
+- **Interactive batch (`batch_remote.sh`)**: preferred long-running mode. Starts `queue_daemon.sh`
+  (re-reads `BATCH_QUEUE.txt` every 60 s, launches incomplete jobs on free GPUs) plus a
+  **remote-control Claude session in tmux** the user chats with from claude.ai/code (named
+  "ttt-batch"; URL also in `outputs/REMOTE_SESSION_URL.txt`).
+  **If you are that remote session, coordinate with the daemon**: to run a standard 30k train+eval,
+  append `"<variant> <seed>"` to `BATCH_QUEUE.txt` and let the daemon schedule it — don't launch it
+  yourself. `outputs/QUEUE_STATUS.txt` shows per-GPU claims; `outputs/.gpu_locks/gpu<i>` files are the
+  daemon's GPU claims — only use a GPU manually (ad-hoc evals, debugging) after claiming it the same
+  way (`echo <purpose> > outputs/.gpu_locks/gpu<i>`, remove when done). Git push works: credentials at
+  `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/.git-credentials` (already wired via repo-local
+  `credential.helper`).
 - Checkpoints/evals land in `lact_nvs/outputs/` (lustre, durable). All pre-reset checkpoints were lost;
   results live only in `RESULTS_DOSSIER.md`.
 
