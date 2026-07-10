@@ -337,6 +337,18 @@ HEADLINE (3B, full F27 protocol, ds42): **honly + ladder gain 0.1 = 18.53** vs n
 The gentle ladder converts the hidden-only deficit into a gain: swing +0.32 ppl. It also
 beats hpra 18.64. Input rope alone (18.40) remains best; stacking test (rope + gain-0.1
 hidden, 3B) running.
+CONFIRMATIONS (overnight 3B batch, 2026-07-10/11):
+- Seed replicate: gain01−nope matched-step gap = −0.09 stable on seed 137 too (70k-75k;
+  run crashed at 75k on a transient hf-streaming error — endpoint rerun pending, but the
+  trajectory replicates the headline). nope_s137 endpoint 18.68 (vs s42 18.62: 3B
+  endpoint seed noise ~0.06).
+- gain 0.03 at 3B: 18.70 (+0.08 vs nope) — 0.03 LOSES at decision budget; 0.1 is the
+  scale (proxy preference for 0.03 was noise, as predicted by the 4-cell analysis).
+- STACKING: rope + gain-0.1 hidden = 18.41 vs rope 18.40 (+0.01, neutral). The gentle
+  hidden is redundant given input rope — but note plain hidden on rope COST +0.24
+  (hpra 18.64); the gentle ladder also removes the harm. Practical ranking in 1D:
+  input rope (−0.22) > honly gentle hidden (−0.09) > nothing; hidden adds nothing on top
+  of rope.
 Supporting proxy-scale findings (20k, 0.65B):
 - Gain line search (ds42 s42): 1.0: 26.10 / 0.1: 25.68 / 0.03: 25.50 / 0.01: 25.92 /
   ->0 (=nope): 26.02 — interior optimum: a SLOW coarse position signal (top ladder period
