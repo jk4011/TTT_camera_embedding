@@ -338,10 +338,11 @@ The gentle ladder converts the hidden-only deficit into a gain: swing +0.32 ppl.
 beats hpra 18.64. Input rope alone (18.40) remains best; stacking test (rope + gain-0.1
 hidden, 3B) running.
 CONFIRMATIONS (overnight 3B batch, 2026-07-10/11):
-- Seed replicate: gain01−nope matched-step gap = −0.09 stable on seed 137 too (70k-75k;
-  run crashed at 75k on a transient hf-streaming error — endpoint rerun pending, but the
-  trajectory replicates the headline). nope_s137 endpoint 18.68 (vs s42 18.62: 3B
-  endpoint seed noise ~0.06).
+- Seed replicate COMPLETE (rerun after the 75k hf-streaming crash): s137 endpoint
+  gain01 18.64 vs nope 18.68 = −0.04. Two-seed summary: −0.09 (s42) / −0.04 (s137),
+  mean −0.07 — sign replicates on both seeds; honest wording: a small but consistent
+  gain (3B endpoint seed noise is ~0.06, so individual endpoints are marginal; the
+  matched-step trajectories are the stronger evidence).
 - gain 0.03 at 3B: 18.70 (+0.08 vs nope) — 0.03 LOSES at decision budget; 0.1 is the
   scale (proxy preference for 0.03 was noise, as predicted by the 4-cell analysis).
 - STACKING: rope + gain-0.1 hidden = 18.41 vs rope 18.40 (+0.01, neutral). The gentle
