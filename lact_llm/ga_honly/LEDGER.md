@@ -171,6 +171,23 @@ same budget, and confirm anything promising at 3B.
   replicate (gpu1), delta_only at plain gain (gpu6 — the other tax-removal mechanism,
   never run at 3B).
 
+## Gen-5 verdict (2026-07-11): the rms_rot championship DOES NOT REPLICATE
+| run | 3B ppl | gap vs seed-matched nope |
+|---|---|---|
+| g5_rmsrot_full_s137 | 18.95 | **+0.27 — FAILS on seed 137** (s42 was −0.11) |
+| g5_rmsrot_g01_full | 18.86 | composition worse than both parents (every composition in this program has failed) |
+| g5_delta_full | 18.72 | +0.10, fails at 3B |
+| g5_rope_rmsrot_full | (~19.0 at 87k) | stacking v2 failing badly |
+CORRECTION: rms_rot is seed-FRAGILE (−0.11 / +0.27), not a champion. The only variant
+with 2-seed 3B consistency remains gain 0.1 (−0.09 / −0.04, mean −0.07).
+PROGRAM CEILING ESTIMATE: after ~15 3B runs + ~20 proxy runs, the hidden-only channel's
+robust 1D gain is ~−0.07 ppl — about a third of rope's −0.22 — and every attempt to push
+past it (slower/faster ladders, fractions, normalization, delta path, compositions,
+stacking) has failed at 3B or proven seed-fragile. RECOMMENDATION to the user: close
+Q9-EXT with F28 (honest small-but-consistent + the anatomy of what wins), redirect to
+Q10 video where the coordinate is multi-dimensional and the theory says the hidden
+address space has real relative structure to exploit.
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
