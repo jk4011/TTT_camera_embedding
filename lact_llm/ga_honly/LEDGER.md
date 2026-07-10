@@ -120,6 +120,17 @@ Queue (45k matched-gap protocol, launch as gen-3 slots free):
 - g3_hnorm_rmsrot_45k: hnorm=rms_rot, gain 1.0.
 - (then) best hnorm x gain 0.1 — compose with the current champion.
 
+## Gen-3 results (45k matched-gap protocol; fitness = last-10k mean gap vs g3_nope_45k 21.03)
+| run | genes | gap | verdict |
+|---|---|---|---|
+| g3_theta100_g01_45k | theta 100 x gain 0.1 (all 48 pairs active) | **+0.17** | REJECTED — activating all pairs fails like frac100. UNIFIED PICTURE: at theta 1e6 the "frozen" pairs act as extra untagged content dims; what wins is FEW active pairs (~15 at gain 0.1: periods 63..4096 tok), all slow, none fast. The knob is "number of active slow pairs", not ladder coverage. |
+| g3_gain02_45k | gain 0.2 | (running gpu0) | |
+| g3_frac75_g01_45k | frac 0.75 x gain 0.1 | (running gpu7) | |
+| g3_hnorm_rms_45k | hnorm=rms, gain 1.0 | (running gpu1) | |
+| g3_hnorm_rmsrot_45k | hnorm=rms_rot, gain 1.0 | (running gpu6) | |
+Gen-4 sketch: frac 0.25 x gain 0.1 (~8 active pairs) to probe the active-pair optimum
+from below; hnorm x gain 0.1 composition if hnorm shows tax reduction.
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
