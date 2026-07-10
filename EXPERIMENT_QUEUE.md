@@ -79,6 +79,20 @@ the paper's Method is written on a gateless 2-layer MLP, so back it directly.
 
 ## Q7. LLM 2x2 input/hidden rotary ablation  [DONE 2026-07-09 -> F27: rope 18.40 / nope 18.62 / hpra 18.64 / honly 18.85. Input fw-RoPE −1.2% ppl replicates; 1D hidden rotary HURTS in rebuilt env (sign flip vs F19, same code — F27b audit: no bug; flat positional tax on the initial readout, near-zero relative gain in 1D; datasets-lib stream reorder = only surviving old-vs-new explanation).]
 
+## Q9-EXT. STANDING GOAL (user, 2026-07-10): iterate until honly BEATS input rope at 3B
+Target: honly variant <= 18.40 ppl (rope) on the full 3B ds42 protocol. Current best:
+gain0.1 = 18.53 (nope 18.62, plain honly 18.85). Gap to close: −0.13.
+Fitness protocol v4: 45k-step (1.5B, ~3h) runs, fitness = mean matched-step gap vs the
+nope reference over the last 10k steps (gap curves are smooth to ~±0.01 — decision-grade
+for 0.1-scale effects, unlike 20k endpoints). 3B full runs only for final confirmation.
+Gen-3 candidates (launch as GPUs free): (a) compressed ladder theta100 x gain0.1 — all
+48 pairs active in the 63..6.3k-token band (at theta 1e6 most pairs are frozen within
+the 4096 window); (b) gain 0.2 and/or 0.3 (3B curve suggests optimum may sit above 0.1);
+(c) learnable hidden ladder init 0.1 (ttt_learnable_freqs, no new code);
+(d) frac 0.75 x gain 0.1. Honest note: rope's −0.22 comes from near-tax-free input-site
+collision avoidance; beating it hidden-only is a stretch goal — win or lose, the search
+maps the 1D ceiling of the hidden channel (paper value either way).
+
 ## Q10. Video revisit with Q9-informed variants  [REQUESTED 2026-07-10, starts after Q9 wraps]
 User: F21/F22 neutrality was measured with the PLAIN hidden ladder; the Q9 discovery
 (low-gain slow ladder turns hidden-1D from coin-flip/negative into a draw-robust WIN)
