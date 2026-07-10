@@ -161,6 +161,16 @@ same budget, and confirm anything promising at 3B.
   champion's entire measured gain (−0.07..−0.09 over two seeds). Beating rope hidden-only
   looks unlikely with ladder-shape genes alone.
 
+## Gen-5: NEW CHAMPION — hnorm rms_rot at PLAIN gain (2026-07-11)
+- g4_hnorm_rmsrot_full: **18.51** (vs nope −0.11, trajectory-stable) — beats gain01
+  (18.53). The user's normalization idea wins WITHOUT slowing the ladder: RMS-normalizing
+  just the rotated hidden dims removes the tax at full frequency coverage. Direct 3B
+  validation of the F27c geometry hypothesis. Gap to rope: +0.11.
+- (45k screen of rmsrot x g01: 21.80 — but 45k screens are proven uninformative.)
+- Gen-5 launched (all 3B): rmsrot x gain0.1 composition (gpu0), rmsrot seed-137
+  replicate (gpu1), delta_only at plain gain (gpu6 — the other tax-removal mechanism,
+  never run at 3B).
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
