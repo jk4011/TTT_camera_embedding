@@ -23,6 +23,10 @@ Modes (see IDEAS.md):
   fw3l          depth-3 inner net W_c silu(W_b (silu(W1 x) * (W3 x))), no rotary.
   fw3l_rot2     fw3l + input rotary (stock qk_rope_cam) + s2-site rotary.
   fw3l_rot3     fw3l + rotaries at all three address spaces (input, h1, s2).
+  hnrot         (+ h_pra-family hidden rotary) RMS-normalize the hidden's
+                ROTATED dims per token immediately before the hidden rotation,
+                on both update and apply; the update backward passes through
+                the exact RMSNorm Jacobian (LLM 'ttt_hrope_hnorm=rms_rot').
 """
 import math
 
@@ -122,6 +126,7 @@ def fast_weight_swish_glu_hidden_rotary_apply(
     hcos, hsin,
     ttt_ua_order: list,
     muon_update_steps: int = 0,
+    hnorm: bool = False,
 ):
     """Baseline LaCT kernel + per-token rotary applied to the SwiGLU *hidden*
     activation (h-PRA). The hidden layer h(x) is rotated by the token's phases
@@ -134,8 +139,33 @@ def fast_weight_swish_glu_hidden_rotary_apply(
     analogue. Backprop through the rotation is its inverse (negated sin).
 
     hcos/hsin: [B, L, P] with 2P <= d_h; sliced per op like k (update) / q (apply).
+
+    hnorm (cam_mode flag 'hnrot', mirrors LLM ttt_hrope_hnorm='rms_rot'):
+    RMS-normalize the hidden's ROTATED dims h[..., :2P] per token immediately
+    before the rotation, on both update and apply, leaving the position-free
+    content dims' magnitudes intact. The update backward passes through the
+    exact RMSNorm Jacobian, so the stored notes remain the exact gradient of
+    the recall objective. hnorm=False is bit-identical to the stock kernel.
     """
     from lact_ttt import silu_backprop, zeropower_via_newtonschulz5
+
+    P_rot = hcos.shape[-1]
+
+    def _hn_fwd(x):
+        """RMS-normalize the rotated dims x[..., :2P] per token (rms_rot).
+        Returns (y, y_rot, rms); y_rot/rms cover only the normalized dims."""
+        xr = x[..., : 2 * P_rot]
+        rms = (xr.float().pow(2).mean(dim=-1, keepdim=True) + 1e-6).sqrt()
+        yr = (xr.float() / rms).type_as(x)
+        return torch.cat([yr, x[..., 2 * P_rot :]], dim=-1), yr, rms
+
+    def _hn_bwd(dy, y_bwd, rms):
+        """Exact RMSNorm backward on the rotated dims:
+        dx = (dy - y * mean(dy*y)) / rms; identity on the rest."""
+        dyr = dy[..., : 2 * P_rot]
+        m = (dyr.float() * y_bwd.float()).mean(dim=-1, keepdim=True)
+        dxr = ((dyr.float() - y_bwd.float() * m) / rms).type_as(dy)
+        return torch.cat([dxr, dy[..., 2 * P_rot :]], dim=-1)
 
     w0_norm = w0.detach().norm(dim=1, keepdim=True)
     w1_norm = w1.detach().norm(dim=1, keepdim=True)
@@ -155,11 +185,18 @@ def fast_weight_swish_glu_hidden_rotary_apply(
             gate_before_act = ki @ w0_now
             hidden_before_mul = ki @ w2_now
             hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
-            hidden_rot = apply_rotary_pairs(hidden, hci, hsi)
+            if hnorm:
+                hidden_n, hn_y, hn_rms = _hn_fwd(hidden)
+            else:
+                hidden_n = hidden
+            hidden_rot = apply_rotary_pairs(hidden_n, hci, hsi)
 
             # Backprop: dL/dh = R^T (dL/dh'), R^T = rotary with negated sin.
             dhidden_rot = vi @ w1_now.transpose(-1, -2)
             dhidden = apply_rotary_pairs(dhidden_rot, hci, -hsi)
+            if hnorm:
+                # exact RMSNorm Jacobian back to the pre-norm hidden
+                dhidden = _hn_bwd(dhidden, hn_y, hn_rms)
             dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
             dgate = dhidden * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)
@@ -186,6 +223,8 @@ def fast_weight_swish_glu_hidden_rotary_apply(
         if apply:
             qi = q[:, start:end, :]
             hq = F.silu(qi @ w0_now, inplace=True) * (qi @ w2_now)
+            if hnorm:
+                hq, _, _ = _hn_fwd(hq)
             hq = apply_rotary_pairs(hq, hcos[:, start:end, :], hsin[:, start:end, :])
             output.append(hq @ w1_now)
 
@@ -648,7 +687,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "prope_ttt", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
-                 "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2"}
+                 "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2",
+                 "hnrot"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -673,6 +713,15 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if self.cam_modes & {"ms2", "res2"}:
             assert {"h_pra", "h_dpra"} & self.cam_modes, "ms2/res2 require a hidden rotary mode"
         assert not ({"ms2", "res2"} <= self.cam_modes), "ms2 and res2 are exclusive"
+        if "hnrot" in self.cam_modes:
+            # hnrot = RMS-normalize the hidden's rotated dims before the hidden
+            # rotary; implemented only in the plain single-step hidden-rotary
+            # kernel (mirrors LLM ttt_hrope_hnorm='rms_rot', which excludes the
+            # delta path).
+            assert {"h_pra", "h_strat"} & self.cam_modes, \
+                "hnrot requires an h_pra-family hidden rotary (h_pra/h_strat)"
+            assert not (self.cam_modes & {"ms2", "res2"}), \
+                "hnrot is only implemented in the plain hidden-rotary kernel (no ms2/res2)"
         self.head_dim = head_dim
         self.num_freqs = num_freqs
         d_h = int(head_dim * inter_multi)
@@ -1161,6 +1210,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 output, w0, w1, w2 = fast_weight_swish_glu_hidden_rotary_apply(
                     w0, w1, w2, q, k, v, lr0, lr1, lr2, hcos, hsin, ttt_op_order,
                     muon_update_steps=self.muon_update_steps,
+                    hnorm="hnrot" in modes,
                 )
         else:
             output, w0, w1, w2 = fast_weight_swish_glu_weight_norm_mini_batch_apply(
