@@ -107,6 +107,19 @@ Overnight 3B batch (launched): gain003_full (is 0.03 better at decision budget?)
 gain01_full_s137 + nope_full_s137 (seed replicate of the F28 headline pair),
 ga_hpra_gain01_full (does the low-gain hidden stack on input rope? vs rope 18.40).
 
+## Gen-3.5: hnorm variants (user idea 2026-07-11, implemented + verified)
+Idea: the input site is rotation-friendly because q/k are L2-normalized (F27c geometry
+hypothesis) — so RMS-normalize the hidden BEFORE the rotation and see if the hidden
+site's tax drops. Gene ttt_hrope_hnorm: "rms" (whole hidden) / "rms_rot" (rotated dims
+only; keeps the content half's magnitudes — frac100 lesson). Exact RMSNorm Jacobian in
+the update backward (autograd-verified 3e-8); default "none" bit-identical.
+Queue (45k matched-gap protocol, launch as gen-3 slots free):
+- g3_hnorm_rms_45k: hnorm=rms, gain 1.0 — purest test: does normalization alone fix the
+  PLAIN ladder (which lost by +0.23 at 3B)? If the geometry hypothesis is right, this
+  should remove most of the tax without slowing the ladder.
+- g3_hnorm_rmsrot_45k: hnorm=rms_rot, gain 1.0.
+- (then) best hnorm x gain 0.1 — compose with the current champion.
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
