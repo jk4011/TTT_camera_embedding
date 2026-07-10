@@ -177,7 +177,7 @@ same budget, and confirm anything promising at 3B.
 | g5_rmsrot_full_s137 | 18.95 | **+0.27 — FAILS on seed 137** (s42 was −0.11) |
 | g5_rmsrot_g01_full | 18.86 | composition worse than both parents (every composition in this program has failed) |
 | g5_delta_full | 18.72 | +0.10, fails at 3B |
-| g5_rope_rmsrot_full | (~19.0 at 87k) | stacking v2 failing badly |
+| g5_rope_rmsrot_full | 19.00 FINAL | stacking v2 fails (+0.60 vs rope — worse than plain stacking +0.24) |
 CORRECTION: rms_rot is seed-FRAGILE (−0.11 / +0.27), not a champion. The only variant
 with 2-seed 3B consistency remains gain 0.1 (−0.09 / −0.04, mean −0.07).
 PROGRAM CEILING ESTIMATE: after ~15 3B runs + ~20 proxy runs, the hidden-only channel's
