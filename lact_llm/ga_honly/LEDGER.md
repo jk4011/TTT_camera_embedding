@@ -146,6 +146,21 @@ the schedule (LR-phase dependence, cf. F27d budget sensitivity). Corrected gen-3
 Methodology: abandon 45k as an absolute screen; use it only variant-vs-variant at the
 same budget, and confirm anything promising at 3B.
 
+## Gen-4 3B results (2026-07-11)
+- g4_frac75_g01_full: **18.65** (vs nope +0.03, vs rope +0.24) — FAILED. The 45k winner
+  (−0.17 better than champion there) is +0.12 WORSE than the champion at 3B. The
+  variant-additive-shift hypothesis is DEAD: the 45k screen is uninformative for 3B
+  outcomes even relatively. ALL ranking decisions in this family now require full 3B
+  runs (6h each). In-flight 45k screens (rmsrot x g01, f75 x rmsrot x g01) demoted to
+  curiosity data.
+- Champion unchanged: gain 0.1 / frac 0.5 / no hnorm = 18.53 (−0.09 vs nope).
+- Still live at 3B: g4_hnorm_rmsrot_full (gpu1). Untried-at-3B axes if the user wants
+  to continue: rms_rot x g01, frac 0.25 x g01, per-layer gains (needs code).
+- Honest odds assessment: every structured deviation from the champion has failed at 3B
+  (0.03, 0.2, theta100, frac75, frac100); the remaining gap to rope (−0.13) exceeds the
+  champion's entire measured gain (−0.07..−0.09 over two seeds). Beating rope hidden-only
+  looks unlikely with ladder-shape genes alone.
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
