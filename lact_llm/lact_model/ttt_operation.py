@@ -397,8 +397,18 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     use_muon: bool = False,
     momentum: torch.Tensor = None,
     delta_only: bool = False,
+    hnorm: str = "none",  # "none" | "rms" (whole hidden) | "rms_rot" (rotated dims only)
 ):
     """prenorm_block_causal_lact_swiglu + h-PRA (hidden rotary).
+
+    hnorm (Q9-EXT, user 2026-07-11): RMS-normalize the hidden activation BEFORE
+    the rotation, on both update and apply, making the hidden code spherical
+    like the L2-normalized input q/k (the F27c geometry hypothesis for why the
+    input site pays a smaller absolute-phase tax). "rms" normalizes the whole
+    hidden vector; "rms_rot" normalizes only the rotated dims, leaving the
+    position-free content half's magnitudes intact. The update backward passes
+    through the exact RMSNorm Jacobian, so the stored notes remain the exact
+    gradient of the recall objective.
 
     The SwiGLU hidden activation is rotated by per-token position phases
     before meeting w1, on both the apply path (queries) and the update path
@@ -415,6 +425,34 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     identified in F27b. With all phases equal it still reduces exactly to the
     baseline kernel.
     """
+    assert hnorm in ("none", "rms", "rms_rot")
+    assert not (delta_only and hnorm != "none"), "delta_only + hnorm not combined (keep variants separable)"
+    P_rot = hcos.shape[0]
+
+    def _hn_fwd(x):
+        """RMS-normalize columns of x [B, d, L] over the feature dim (mode-aware).
+        Returns (y, y_for_bwd, rms) — y_for_bwd/rms cover only the normalized rows."""
+        if hnorm == "rms":
+            rms = (x.float().pow(2).mean(dim=1, keepdim=True) + 1e-6).sqrt()
+            y = (x.float() / rms).type_as(x)
+            return y, y, rms
+        # rms_rot: normalize only the rotated rows [0:2P]
+        xr = x[:, : 2 * P_rot, :]
+        rms = (xr.float().pow(2).mean(dim=1, keepdim=True) + 1e-6).sqrt()
+        yr = (xr.float() / rms).type_as(x)
+        y = torch.cat([yr, x[:, 2 * P_rot :, :]], dim=1)
+        return y, yr, rms
+
+    def _hn_bwd(dy, y_bwd, rms):
+        """Exact RMSNorm backward: dx = (dy - y * mean(dy*y)) / rms on normalized rows."""
+        if hnorm == "rms":
+            m = (dy.float() * y_bwd.float()).mean(dim=1, keepdim=True)
+            return ((dy.float() - y_bwd.float() * m) / rms).type_as(dy)
+        dyr = dy[:, : 2 * P_rot, :]
+        m = (dyr.float() * y_bwd.float()).mean(dim=1, keepdim=True)
+        dxr = ((dyr.float() - y_bwd.float() * m) / rms).type_as(dy)
+        return torch.cat([dxr, dy[:, 2 * P_rot :, :]], dim=1)
+
     w0_norm = w0.norm(dim=2, keepdim=True)
     w1_norm = w1.norm(dim=2, keepdim=True)
     w2_norm = w2.norm(dim=2, keepdim=True)
@@ -451,6 +489,8 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
         h = torch.bmm(w2, qi)
         gate = F.silu(torch.bmm(w0, qi), inplace=True)
         hq = gate * h
+        if hnorm != "none":
+            hq, _, _ = _hn_fwd(hq)
         hq_rot = apply_rotary_cols(hq, hci, hsi)
         if delta_only:
             # initial readout unrotated; only the accumulated delta probes rotated
@@ -462,11 +502,18 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
         gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
         hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
-        hidden_rot = apply_rotary_cols(hidden, hci, hsi)
+        if hnorm != "none":
+            hidden_n, hn_y, hn_rms = _hn_fwd(hidden)
+        else:
+            hidden_n = hidden
+        hidden_rot = apply_rotary_cols(hidden_n, hci, hsi)
 
         # backprop through the rotation: R^T = rotary with negated sin
         dhidden_rot = torch.bmm(w1.transpose(1, 2), vi)
         dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+        if hnorm != "none":
+            # exact RMSNorm Jacobian back to the pre-norm hidden
+            dhidden = _hn_bwd(dhidden, hn_y, hn_rms)
 
         dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
         dgate = dhidden * hidden_before_mul
@@ -506,6 +553,8 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     h = torch.bmm(w2, qi)
     gate = F.silu(torch.bmm(w0, qi), inplace=True)
     hq = gate * h
+    if hnorm != "none":
+        hq, _, _ = _hn_fwd(hq)
     hq_rot = apply_rotary_cols(hq, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
     if delta_only:
         output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(

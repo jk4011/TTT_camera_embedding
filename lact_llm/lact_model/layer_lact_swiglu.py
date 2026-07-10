@@ -144,6 +144,7 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_hrope_gain: float = 1.0,
         ttt_hrope_theta: float = None,
         ttt_hrope_delta_only: bool = False,
+        ttt_hrope_hnorm: str = "none",
         ttt_learnable_freqs: bool = False,
         ttt_freq_tilt: float = 0.1,
         rope_theta: float = 500000.0,
@@ -263,6 +264,7 @@ class LaCTSWIGLULayer(nn.Module):
         #### PRA transplant (1D): hidden rotary (h-PRA) + learnable freqs (omega_map).
         self.ttt_hidden_rope = ttt_hidden_rope
         self.ttt_hrope_delta_only = ttt_hrope_delta_only
+        self.ttt_hrope_hnorm = ttt_hrope_hnorm
         self.ttt_learnable_freqs = ttt_learnable_freqs
         if ttt_hidden_rope:
             # RoPE-style ladder over positions. Q9 GA genes: ttt_hrope_frac sets the
@@ -555,6 +557,7 @@ class LaCTSWIGLULayer(nn.Module):
                 use_muon=self.use_muon,
                 momentum=momentum,
                 delta_only=self.ttt_hrope_delta_only,
+                hnorm=self.ttt_hrope_hnorm,
             )
         elif self.ttt_prenorm:
             # pre-norm version of ttt.   state = state + f(norm(state))

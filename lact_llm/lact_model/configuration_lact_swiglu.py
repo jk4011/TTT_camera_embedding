@@ -50,6 +50,9 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         ttt_hrope_delta_only: bool = False,  # rotate only the fast-weight DELTA path on apply:
         # out = w_init @ h + (w - w_init) @ R(phi) h. Removes the absolute-phase tax on the
         # initial readout (F27b) while keeping relative update->apply recall.
+        ttt_hrope_hnorm: str = "none",  # "rms" | "rms_rot": RMS-normalize the hidden before
+        # the rotation (make the hidden code spherical like the L2-normalized input q/k;
+        # tests the F27c geometry hypothesis). "rms_rot" normalizes only the rotated dims.
         ttt_learnable_freqs: bool = False,  # omega_map(1D): learnable frequency deltas
         ttt_freq_tilt: float = 0.1,  # random-tilt init scale for learnable freqs
         w0_w2_low_rank: int = -1,  # -1 means fully learnable.  > 1 means low rank parameterization of the initial learnable weights.
@@ -99,6 +102,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.ttt_hrope_gain = ttt_hrope_gain
         self.ttt_hrope_theta = ttt_hrope_theta
         self.ttt_hrope_delta_only = ttt_hrope_delta_only
+        self.ttt_hrope_hnorm = ttt_hrope_hnorm
         self.ttt_learnable_freqs = ttt_learnable_freqs
         self.ttt_freq_tilt = ttt_freq_tilt
         self.rope_theta = rope_theta
