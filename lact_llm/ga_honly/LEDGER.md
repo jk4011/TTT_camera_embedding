@@ -131,6 +131,21 @@ Queue (45k matched-gap protocol, launch as gen-3 slots free):
 Gen-4 sketch: frac 0.25 x gain 0.1 (~8 active pairs) to probe the active-pair optimum
 from below; hnorm x gain 0.1 composition if hnorm shows tax reduction.
 
+## CALIBRATION SHOCK (2026-07-11): the 45k screen is ANTI-predictive
+g3_gain01_45k (champion's own 45k anchor): +0.194 vs nope — the variant that WINS at 3B
+(−0.09) LOSES at 45k-full-cosine. The gentle-hidden benefit only materializes late in
+the schedule (LR-phase dependence, cf. F27d budget sensitivity). Corrected gen-3 reading
+(relative to the +0.19 anchor):
+- frac75 x g01: +0.02 -> −0.17 BETTER than champion at 45k. Projected 3B (if the
+  45k->91.5k shift −0.28 is variant-additive): ~−0.26 — would BEAT ROPE. Promoted to 3B
+  (g4_frac75_g01_full, gpu0).
+- hnorm rms_rot (at plain gain 1.0): +0.12 -> −0.07 better than champion — the user's
+  normalization idea WORKS on the tax axis (vs plain unnormalized at gain 1.0 which was
+  ~+0.4-0.5 at this scale). Full-vector rms (+0.51) rejected: value magnitudes matter.
+- gain02 (+0.25), theta100 (+0.17): at-or-below anchor, culled.
+Methodology: abandon 45k as an absolute screen; use it only variant-vs-variant at the
+same budget, and confirm anything promising at 3B.
+
 ## Gen-1 design notes (pending gain003)
 - Map the gain curve: 1.0 (26.10) >> 0.1 (25.68); 0.03 running; if 0.03 < 0.1 ppl-wise,
   try 0.01; if worse, try 0.3 to bracket the optimum.
