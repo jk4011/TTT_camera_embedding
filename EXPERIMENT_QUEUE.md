@@ -88,8 +88,9 @@ for 0.1-scale effects, unlike 20k endpoints). 3B full runs only for final confir
 Gen-3 candidates (launch as GPUs free): (a) compressed ladder theta100 x gain0.1 — all
 48 pairs active in the 63..6.3k-token band (at theta 1e6 most pairs are frozen within
 the 4096 window); (b) gain 0.2 and/or 0.3 (3B curve suggests optimum may sit above 0.1);
-(c) learnable hidden ladder init 0.1 (ttt_learnable_freqs, no new code);
-(d) frac 0.75 x gain 0.1. Honest note: rope's −0.22 comes from near-tax-free input-site
+(c) frac 0.75 x gain 0.1. [learnable hidden ladder EXCLUDED per user 2026-07-10 — do
+not run learnable-frequency variants; consistent with F20 (1D degeneration) and the old
+'full' result.] Honest note: rope's −0.22 comes from near-tax-free input-site
 collision avoidance; beating it hidden-only is a stretch goal — win or lose, the search
 maps the 1D ceiling of the hidden channel (paper value either way).
 
