@@ -79,7 +79,14 @@ the paper's Method is written on a gateless 2-layer MLP, so back it directly.
 
 ## Q7. LLM 2x2 input/hidden rotary ablation  [DONE 2026-07-09 -> F27: rope 18.40 / nope 18.62 / hpra 18.64 / honly 18.85. Input fw-RoPE −1.2% ppl replicates; 1D hidden rotary HURTS in rebuilt env (sign flip vs F19, same code — F27b audit: no bug; flat positional tax on the initial readout, near-zero relative gain in 1D; datasets-lib stream reorder = only surviving old-vs-new explanation).]
 
-## Q9-EXT. STANDING GOAL (user, 2026-07-10): iterate until honly BEATS input rope at 3B
+## Q9-EXT  [CLOSED 2026-07-11 per user decision. Final: rope NOT beaten hidden-only.
+Robust ceiling of the 1D hidden channel = gain-0.1 gentle ladder, −0.07 ppl (2-seed) vs
+rope's −0.22. ~15 3B runs + ~25 shorter runs; every deviation (gain 0.03/0.2, theta100,
+frac 25/75/100, delta, hnorm-rms/rms_rot, compositions, stacking x2) failed at 3B or was
+seed-fragile. Deliverables: F28 (anatomy of what wins), F29 (hnorm = 1D-specific fix,
+neutral in 6D), the 45k-anti-predictivity methodology finding. See lact_llm/ga_honly/LEDGER.md.]
+
+## Q9-EXT-ARCHIVED. STANDING GOAL (user, 2026-07-10): iterate until honly BEATS input rope at 3B
 Target: honly variant <= 18.40 ppl (rope) on the full 3B ds42 protocol. Current best:
 gain0.1 = 18.53 (nope 18.62, plain honly 18.85). Gap to close: −0.13.
 Fitness protocol v4: 45k-step (1.5B, ~3h) runs, fitness = mean matched-step gap vs the
