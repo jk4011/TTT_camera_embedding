@@ -296,14 +296,63 @@ class MultiCamPairDataset(Dataset):
         }
 
 
+class _ResumedRandomSampler(torch.utils.data.Sampler):
+    """Replays the exact index stream that ``DataLoader(shuffle=True,
+    generator=Generator(data_seed))`` would emit, minus the first
+    ``consumed_batches`` batches — so a resumed run sees the same per-step
+    batches as an uninterrupted run (deterministic, stream-aligned resume).
+
+    Generator-consumption order was calibrated EMPIRICALLY on torch 2.9.1
+    (map-style dataset, shuffle=True, num_workers>0, persistent_workers=True,
+    drop_last=True, re-iterated by utils.cycle):
+      1. one base-seed draw ``torch.empty((), int64).random_(generator=g)``
+         at iterator CREATION only (not per epoch, thanks to persistent
+         workers);
+      2. per epoch, one used ``randperm(n)`` (RandomSampler) plus ONE WASTED
+         ``randperm(n)`` consumed at sampler exhaustion (RandomSampler's
+         trailing ``randperm(n)[: num_samples % n]`` line executes even when
+         the slice is empty).
+    Verified: replaying [base_seed, then per epoch perm+perm] reproduces
+    4/4 epochs of the real loader stream for multiple (seed, n, batch_size).
+    """
+
+    def __init__(self, n, data_seed, consumed_batches, batch_size):
+        self.n = int(n)
+        g = torch.Generator()
+        g.manual_seed(int(data_seed))
+        # 1. iterator-creation base-seed draw
+        torch.empty((), dtype=torch.int64).random_(generator=g)
+        batches_per_epoch = self.n // int(batch_size)  # drop_last=True
+        full_epochs, batches_into_epoch = divmod(
+            int(consumed_batches), batches_per_epoch)
+        # 2. fully consumed epochs: used perm + wasted perm each
+        for _ in range(full_epochs):
+            torch.randperm(self.n, generator=g)
+            torch.randperm(self.n, generator=g)
+        self.generator = g
+        # indices already yielded within the in-progress epoch
+        self._skip_first = batches_into_epoch * int(batch_size)
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        perm = torch.randperm(self.n, generator=self.generator).tolist()
+        skip, self._skip_first = self._skip_first, 0
+        yield from perm[skip:]
+        # keep generator parity with the fresh loader's wasted draw
+        torch.randperm(self.n, generator=self.generator)
+
+
 class MultiCamPairDataModule:
     """Data-module facade mirroring SimpleVideoDataModule."""
 
-    def __init__(self, params=None, data_seed=0):
+    def __init__(self, params=None, data_seed=0, consumed_batches=0):
         params = dict(params or {})
         self.batch_size = int(params.pop("batch_size", 1))
         self.num_workers = int(params.pop("num_workers", 4))
         self.data_seed = int(data_seed)
+        self.consumed_batches = int(consumed_batches)
         self.dataset = MultiCamPairDataset(**params)
 
     def train_dataloader(self):
@@ -314,6 +363,27 @@ class MultiCamPairDataModule:
             seed = (self.data_seed * 1000 + worker_id) % (2**31)
             random.seed(seed)
             np.random.seed(seed)
+
+        if self.consumed_batches > 0:
+            # deterministic resume: replay the fresh stream, fast-forwarded.
+            # Batch CONTENT depends only on the sampler indices (worker seeds
+            # are re-derived by worker_init_fn; __getitem__ is deterministic),
+            # so the DataLoader's own base-seed draw from `generator` here is
+            # content-irrelevant; the sampler holds its own replayed generator.
+            sampler = _ResumedRandomSampler(
+                len(self.dataset), self.data_seed,
+                self.consumed_batches, self.batch_size)
+            return DataLoader(
+                self.dataset,
+                batch_size=self.batch_size,
+                sampler=sampler,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                drop_last=True,
+                generator=generator,
+                worker_init_fn=worker_init_fn,
+                persistent_workers=self.num_workers > 0,
+            )
 
         return DataLoader(
             self.dataset,

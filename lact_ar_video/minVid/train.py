@@ -426,20 +426,31 @@ class Trainer:
     
         # reset seed if it's resuming from a checkpoint
         start_seed = config.get("seed", 0)
+        consumed_batches = 0
         if self.step != 0 or config.train.get("continue_training", False):
             start_seed = start_seed + 1 + self.step
             set_seed(start_seed + global_rank, deterministic=config.get("deterministic", False))
-            # use a random data_seed for each rank
-            data_seed = int(datetime.datetime.now().timestamp()) + dist.get_rank() * 12345
+            if config.get("deterministic_resume", True):
+                # stream-aligned resume: keep the FRESH-run data_seed and
+                # fast-forward the loader past the batches already consumed
+                # (the train loop draws exactly 1 batch per step), so the
+                # resumed run sees the same per-step batches as an
+                # uninterrupted run (preserves paired per-step loss analysis).
+                data_seed = config.get("seed", 0) + global_rank
+                consumed_batches = self.step
+            else:
+                # legacy behavior: use a random data_seed for each rank
+                data_seed = int(datetime.datetime.now().timestamp()) + dist.get_rank() * 12345
         else:
             data_seed = start_seed + global_rank
 
-        print(f"Data seed for rank {dist.get_rank()} is {data_seed}. global rank is {global_rank}")
+        print(f"Data seed for rank {dist.get_rank()} is {data_seed}. global rank is {global_rank}. consumed_batches is {consumed_batches}")
 
         data_config = config.dataset_train
         # you need to implement your own get_data_module function.
         data_module = get_data_module(
-                    data_config, data_seed=data_seed)
+                    data_config, data_seed=data_seed,
+                    consumed_batches=consumed_batches)
         dataloader = data_module.train_dataloader()
         self.dataloader = cycle(dataloader)
 
@@ -621,6 +632,15 @@ class Trainer:
                 # identical timestep/noise draws across ablation variants
                 torch.manual_seed(123457 + self.step)
             data_batch = next(self.dataloader)
+            if os.environ.get("CCV_BATCH_FP") and "frames_src" in data_batch:
+                # debug fingerprint for verifying stream-aligned resume
+                # (dormant unless CCV_BATCH_FP is set)
+                _fp_fs = data_batch["frames_src"].double().sum().item()
+                _fp_ft = data_batch["frames_tgt"].double().sum().item()
+                _fp_c2w = data_batch["c2w_src"].double().sum().item()
+                print(f"[BATCH_FP] rank={self.global_rank} step={self.step + 1} "
+                      f"fs={_fp_fs:.4f} ft={_fp_ft:.4f} c2w={_fp_c2w:.6f}",
+                      flush=True)
             text_prompts = data_batch["caption"]
             if self.config.get("profile", False):
                 data_time = time.time() - start_time
