@@ -379,11 +379,9 @@ checkpoint step 13999):
   hypothesized. Paper video story upgrades from "neutral boundary" to "neutral when the
   memory carries no exclusive workload, large when it does".
 - Fixed ladder beats learnable in video too (third domain: NVS F25 / LLM F20/F27 / ccv).
-- Generation eval (Phase-2 PSNR/SSIM/LPIPS, 8 pairs/run) running; ReCamMaster-Wan2.1
-  external anchor eval in flight (design-doc plan) to calibrate absolute quality (our
-  runs are 14k-step bs-1 finetunes, 40-step no-CFG sampling — low absolute PSNR expected).
-- Q10 gain variants (g03/g01) reach step 13999 in ~1 day; same eval then completes the
-  6-run table.
+- Generation eval + ReCamMaster external anchor: see F30c.
+- Q10 gain variants (g03/g01) CANCELLED at step ~650 (2026-07-12 user pivot to Q11:
+  frozen ReCamMaster + TTT adapter; see EXPERIMENT_QUEUE.md Q11).
 
 ### F30b: per-pair anatomy of the ccv gains (2026-07-12)
 Geometry note: in MultiCamVideo all 10 cameras START at the same pose and diverge along
@@ -400,6 +398,27 @@ different trajectories — relative geometry must be measured as trajectory dive
    drives both — the video analogue of NVS F25 sub-additivity, and direct evidence for
    the shared-recall-pathway picture. Pair difficulty (base loss) correlates mildly with
    gain (+0.28).
+
+### F30c: generation metrics @13999 (8 pairs, teacher-forcing Euler 40 steps, no CFG) + external anchor (2026-07-12)
+| model | PSNR | SSIM | LPIPS | paired LPIPS vs base |
+|---|---|---|---|---|
+| ccv_base | 14.07±3.9 | 0.4652 | 0.6122 | — |
+| ccv_pra (input, learnable) | 14.58±3.9 | 0.4847 | 0.5451 | −0.067 (t=−3.1, 8/8 pairs) |
+| ccv_both (input+hidden) | 14.10±4.4 | 0.4839 | 0.5548 | −0.057 (t=−3.0, 7/8) |
+| ccv_pra_fixed | 13.49±2.6 | 0.4688 | 0.5833 | −0.029 (t=−2.7) |
+| **ReCamMaster step20000 (external)** | **15.71** | **0.5279** | **0.4534** | (their sampler: 50 steps, CFG 5) |
+1. The rotary's perceptual gain SURVIVES generation: LPIPS is the discriminative metric
+   and pra beats base on 8/8 pairs. Direction matches the 64-pair val loss (F30).
+2. The hidden increment is NOT resolved at n=8 generation (both−pra LPIPS +0.010,
+   t=+0.7) — val loss (t=−9.0, n=64) stays the paper-grade discriminator; generation
+   metrics are the direction check. Generation also flips learnable-vs-fixed relative
+   to val loss — n=8 noise, do not over-read.
+3. ReCamMaster (8xH800x3days, frozen-backbone adapter recipe) clearly outranks every
+   full-TTT-replacement run (LPIPS 0.453 vs best 0.545) — motivated the Q11 pivot:
+   frozen pretrained weights + TTT only where ReCamMaster put its new mechanism.
+   Caveats in gen_recam_anchor/metrics.json (their sampler settings, our caption).
+   Eval infra: eval_ccv_generate.py + eval_recam_anchor.py; per-pair jsons + mp4s in
+   lact_ar_video/outputs/eval_dev/.
 
 ## F29: hidden-normalization (hnorm/rms_rot) full verdict — a 1D-specific fix, neutral in 6D (2026-07-11)
 User idea: RMS-normalize the rotated hidden dims before the hidden rotary (make the
