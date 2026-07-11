@@ -363,6 +363,21 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F29: hidden-normalization (hnorm/rms_rot) full verdict — a 1D-specific fix, neutral in 6D (2026-07-11)
+User idea: RMS-normalize the rotated hidden dims before the hidden rotary (make the
+hidden code spherical like the input q/k; F27c geometry hypothesis). Verified exact
+implementations in both codebases (LLM 8a269a3, NVS c041366).
+- LLM 1D (3B): rms_rot honly 18.51 on seed 42 (−0.11, briefly the champion) but 18.95
+  (+0.27) on seed 137 — SEED-FRAGILE; composition with gain 0.1 (18.86), delta_only 3B
+  (18.72), and rope+rms_rot stacking (19.00) all fail. gain 0.1 remains the only
+  2-seed-consistent honly variant (mean −0.07).
+- NVS 6D (3-seed, F25-matched): h_pra_hi+hnrot 22.668±0.151 vs anchor 22.701±0.154
+  (−0.03); pra_h_hi+hnrot 22.842±0.041 vs 22.824±0.065 (+0.02). NEUTRAL in both.
+- READING: the absolute-phase tax that normalization removes is a 1D pathology (no
+  relative signal to pay for it); in 6D the relative signal dominates and the tax was
+  never binding, so sphericalizing the code changes nothing. Q10 variant set stays
+  gain-sweep only (no hnorm).
+
 ### F27e: {draw} x {budget} 2x2 complete — the sign is set by the DRAW, not the budget (2026-07-10)
 ds42 0.5B pair (same 15,258-step protocol as the ds43 pair; val = ds42 head):
 rope 27.92 / hpra 28.57 -> hpra−rope = **+0.65 ppl (hurt)**.
