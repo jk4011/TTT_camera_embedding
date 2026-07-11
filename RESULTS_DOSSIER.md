@@ -363,6 +363,28 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F30: ccv held-out eval — the video boundary FLIPS when memory is load-bearing (2026-07-12)
+New eval path (commit 92e2486; Phase-1 = deterministic held-out val loss, 64 fixed pairs
+disjoint from the training index, per-pair fixed noise/timesteps; EMA weights, common
+checkpoint step 13999):
+| variant | mean loss | vs base (paired) |
+|---|---|---|
+| ccv_base | 0.04997 | — |
+| ccv_pra (input, learnable) | 0.04742 | −5.1%, t=−12.6, win 64/64 |
+| ccv_pra_fixed (input, fixed ladder) | 0.04633 | −7.3%, t=−12.9, 64/64; beats pra t=−11.6 |
+| ccv_both (input+hidden) | **0.04562** | **−8.7%, t=−11.3, 63/64; beats pra t=−9.0 (54/64), beats pra_fixed t=−5.9** |
+- THE HIDDEN ROTARY EARNS IN VIDEO once the task forces cross-camera information through
+  the fast weights (ccv: source view enters ONLY via fast-weight update; target camera
+  differs). F21/F22 neutrality was the idle-memory regime, exactly as CAMCTRL_DESIGN
+  hypothesized. Paper video story upgrades from "neutral boundary" to "neutral when the
+  memory carries no exclusive workload, large when it does".
+- Fixed ladder beats learnable in video too (third domain: NVS F25 / LLM F20/F27 / ccv).
+- Generation eval (Phase-2 PSNR/SSIM/LPIPS, 8 pairs/run) running; ReCamMaster-Wan2.1
+  external anchor eval in flight (design-doc plan) to calibrate absolute quality (our
+  runs are 14k-step bs-1 finetunes, 40-step no-CFG sampling — low absolute PSNR expected).
+- Q10 gain variants (g03/g01) reach step 13999 in ~1 day; same eval then completes the
+  6-run table.
+
 ## F29: hidden-normalization (hnorm/rms_rot) full verdict — a 1D-specific fix, neutral in 6D (2026-07-11)
 User idea: RMS-normalize the rotated hidden dims before the hidden rotary (make the
 hidden code spherical like the input q/k; F27c geometry hypothesis). Verified exact
