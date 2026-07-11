@@ -1,0 +1,394 @@
+{
+ "description": "ccv held-out evaluation pairs (scenes disjoint from the training pair index)",
+ "data_root": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train",
+ "train_num_pairs": 2000,
+ "train_index_seed": 42,
+ "holdout_seed": 20260711,
+ "n_pairs": 64,
+ "pairs": [
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene1787/videos",
+   "relpath": "f35_aperture2.4/scene1787",
+   "src_cam": 3,
+   "tgt_cam": 5
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene114/videos",
+   "relpath": "f35_aperture2.4/scene114",
+   "src_cam": 1,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2937/videos",
+   "relpath": "f24_aperture5/scene2937",
+   "src_cam": 3,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene1072/videos",
+   "relpath": "f18_aperture10/scene1072",
+   "src_cam": 4,
+   "tgt_cam": 7
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene1653/videos",
+   "relpath": "f18_aperture10/scene1653",
+   "src_cam": 4,
+   "tgt_cam": 7
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene2325/videos",
+   "relpath": "f50_aperture2.4/scene2325",
+   "src_cam": 6,
+   "tgt_cam": 8
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2971/videos",
+   "relpath": "f24_aperture5/scene2971",
+   "src_cam": 2,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene245/videos",
+   "relpath": "f35_aperture2.4/scene245",
+   "src_cam": 1,
+   "tgt_cam": 6
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene296/videos",
+   "relpath": "f50_aperture2.4/scene296",
+   "src_cam": 8,
+   "tgt_cam": 7
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene1819/videos",
+   "relpath": "f35_aperture2.4/scene1819",
+   "src_cam": 3,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene1659/videos",
+   "relpath": "f24_aperture5/scene1659",
+   "src_cam": 6,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene2585/videos",
+   "relpath": "f35_aperture2.4/scene2585",
+   "src_cam": 7,
+   "tgt_cam": 10
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene2442/videos",
+   "relpath": "f35_aperture2.4/scene2442",
+   "src_cam": 7,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene633/videos",
+   "relpath": "f24_aperture5/scene633",
+   "src_cam": 1,
+   "tgt_cam": 4
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene1360/videos",
+   "relpath": "f50_aperture2.4/scene1360",
+   "src_cam": 4,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene2791/videos",
+   "relpath": "f50_aperture2.4/scene2791",
+   "src_cam": 10,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene1949/videos",
+   "relpath": "f18_aperture10/scene1949",
+   "src_cam": 5,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene2231/videos",
+   "relpath": "f18_aperture10/scene2231",
+   "src_cam": 2,
+   "tgt_cam": 8
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene1265/videos",
+   "relpath": "f18_aperture10/scene1265",
+   "src_cam": 10,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene134/videos",
+   "relpath": "f50_aperture2.4/scene134",
+   "src_cam": 10,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene2148/videos",
+   "relpath": "f50_aperture2.4/scene2148",
+   "src_cam": 4,
+   "tgt_cam": 3
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene973/videos",
+   "relpath": "f24_aperture5/scene973",
+   "src_cam": 8,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene2749/videos",
+   "relpath": "f35_aperture2.4/scene2749",
+   "src_cam": 2,
+   "tgt_cam": 6
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene2017/videos",
+   "relpath": "f35_aperture2.4/scene2017",
+   "src_cam": 6,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2127/videos",
+   "relpath": "f24_aperture5/scene2127",
+   "src_cam": 6,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene1460/videos",
+   "relpath": "f18_aperture10/scene1460",
+   "src_cam": 5,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2855/videos",
+   "relpath": "f24_aperture5/scene2855",
+   "src_cam": 7,
+   "tgt_cam": 3
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene744/videos",
+   "relpath": "f18_aperture10/scene744",
+   "src_cam": 8,
+   "tgt_cam": 5
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene2882/videos",
+   "relpath": "f35_aperture2.4/scene2882",
+   "src_cam": 6,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2583/videos",
+   "relpath": "f24_aperture5/scene2583",
+   "src_cam": 1,
+   "tgt_cam": 3
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene125/videos",
+   "relpath": "f35_aperture2.4/scene125",
+   "src_cam": 5,
+   "tgt_cam": 3
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene460/videos",
+   "relpath": "f18_aperture10/scene460",
+   "src_cam": 5,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene1863/videos",
+   "relpath": "f24_aperture5/scene1863",
+   "src_cam": 8,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene670/videos",
+   "relpath": "f24_aperture5/scene670",
+   "src_cam": 1,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene1108/videos",
+   "relpath": "f35_aperture2.4/scene1108",
+   "src_cam": 1,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene3342/videos",
+   "relpath": "f50_aperture2.4/scene3342",
+   "src_cam": 10,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene3270/videos",
+   "relpath": "f50_aperture2.4/scene3270",
+   "src_cam": 3,
+   "tgt_cam": 5
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene627/videos",
+   "relpath": "f50_aperture2.4/scene627",
+   "src_cam": 1,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene1013/videos",
+   "relpath": "f24_aperture5/scene1013",
+   "src_cam": 8,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2792/videos",
+   "relpath": "f24_aperture5/scene2792",
+   "src_cam": 10,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene2763/videos",
+   "relpath": "f50_aperture2.4/scene2763",
+   "src_cam": 10,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene1078/videos",
+   "relpath": "f24_aperture5/scene1078",
+   "src_cam": 8,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene225/videos",
+   "relpath": "f35_aperture2.4/scene225",
+   "src_cam": 9,
+   "tgt_cam": 8
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene13/videos",
+   "relpath": "f35_aperture2.4/scene13",
+   "src_cam": 4,
+   "tgt_cam": 9
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene1719/videos",
+   "relpath": "f24_aperture5/scene1719",
+   "src_cam": 5,
+   "tgt_cam": 6
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene3168/videos",
+   "relpath": "f35_aperture2.4/scene3168",
+   "src_cam": 8,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene70/videos",
+   "relpath": "f35_aperture2.4/scene70",
+   "src_cam": 6,
+   "tgt_cam": 8
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene785/videos",
+   "relpath": "f50_aperture2.4/scene785",
+   "src_cam": 6,
+   "tgt_cam": 7
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene3233/videos",
+   "relpath": "f24_aperture5/scene3233",
+   "src_cam": 8,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene214/videos",
+   "relpath": "f24_aperture5/scene214",
+   "src_cam": 4,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene3339/videos",
+   "relpath": "f18_aperture10/scene3339",
+   "src_cam": 3,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene452/videos",
+   "relpath": "f24_aperture5/scene452",
+   "src_cam": 2,
+   "tgt_cam": 8
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene779/videos",
+   "relpath": "f35_aperture2.4/scene779",
+   "src_cam": 7,
+   "tgt_cam": 6
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2680/videos",
+   "relpath": "f24_aperture5/scene2680",
+   "src_cam": 2,
+   "tgt_cam": 6
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene3016/videos",
+   "relpath": "f35_aperture2.4/scene3016",
+   "src_cam": 7,
+   "tgt_cam": 5
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene2127/videos",
+   "relpath": "f35_aperture2.4/scene2127",
+   "src_cam": 9,
+   "tgt_cam": 2
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene1670/videos",
+   "relpath": "f18_aperture10/scene1670",
+   "src_cam": 3,
+   "tgt_cam": 7
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene987/videos",
+   "relpath": "f50_aperture2.4/scene987",
+   "src_cam": 4,
+   "tgt_cam": 5
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f24_aperture5/scene2857/videos",
+   "relpath": "f24_aperture5/scene2857",
+   "src_cam": 6,
+   "tgt_cam": 8
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene1241/videos",
+   "relpath": "f35_aperture2.4/scene1241",
+   "src_cam": 2,
+   "tgt_cam": 4
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f18_aperture10/scene461/videos",
+   "relpath": "f18_aperture10/scene461",
+   "src_cam": 4,
+   "tgt_cam": 1
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f50_aperture2.4/scene1159/videos",
+   "relpath": "f50_aperture2.4/scene1159",
+   "src_cam": 3,
+   "tgt_cam": 5
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene941/videos",
+   "relpath": "f35_aperture2.4/scene941",
+   "src_cam": 8,
+   "tgt_cam": 5
+  },
+  {
+   "videos_dir": "/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train/f35_aperture2.4/scene2981/videos",
+   "relpath": "f35_aperture2.4/scene2981",
+   "src_cam": 5,
+   "tgt_cam": 10
+  }
+ ]
+}
