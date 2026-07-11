@@ -385,6 +385,22 @@ checkpoint step 13999):
 - Q10 gain variants (g03/g01) reach step 13999 in ~1 day; same eval then completes the
   6-run table.
 
+### F30b: per-pair anatomy of the ccv gains (2026-07-12)
+Geometry note: in MultiCamVideo all 10 cameras START at the same pose and diverge along
+different trajectories — relative geometry must be measured as trajectory divergence
+(mean per-frame relative rotation 0.9-48 deg across our 64 pairs), not frame-0 offset.
+1. Gains are GEOMETRY-UNIFORM: spearman vs divergence ~0 for all three effects; terciles
+   input +5.6/+5.9/+4.4%, full +9.4/+10.5/+7.0%, hidden increment +3.9/+4.6/+2.6%
+   (small/mid/large). Mild mid-divergence peak; slight relative fade at extreme
+   divergence. Lens sets (f18-f50) uniform. The rotary earns broadly, not on a
+   viewpoint-outlier subset.
+2. CHANNELS CO-VARY: spearman(input gain, hidden increment) = +0.86 across pairs — the
+   pairs where the input rotation helps most are the same pairs where the hidden adds
+   most. A common per-pair factor ("how much the pair exercises fast-weight recall")
+   drives both — the video analogue of NVS F25 sub-additivity, and direct evidence for
+   the shared-recall-pathway picture. Pair difficulty (base loss) correlates mildly with
+   gain (+0.28).
+
 ## F29: hidden-normalization (hnorm/rms_rot) full verdict — a 1D-specific fix, neutral in 6D (2026-07-11)
 User idea: RMS-normalize the rotated hidden dims before the hidden rotary (make the
 hidden code spherical like the input q/k; F27c geometry hypothesis). Verified exact
