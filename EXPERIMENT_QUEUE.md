@@ -101,7 +101,30 @@ not run learnable-frequency variants; consistent with F20 (1D degeneration) and 
 collision avoidance; beating it hidden-only is a stretch goal — win or lose, the search
 maps the 1D ceiling of the hidden channel (paper value either way).
 
-## Q10. Video revisit with Q9-informed variants  [REQUESTED 2026-07-10, starts after Q9 wraps]
+## Q11. ReCamMaster-frozen + TTT-adapter 2x2  [ACTIVE 2026-07-12, user decision — supersedes Q10]
+User (2026-07-12): the full-TTT-replacement ccv architecture caps quality too low —
+all 30 Wan self-attn were replaced and retrained, discarding Wan's compute-heavy
+pretraining ("Wan 파라미터를 건드리면 안 될 것"). New design, small-compute:
+- Start from the released **ReCamMaster step20000** checkpoint; FREEZE everything
+  pretrained (Wan + their fine-tuned self_attn / cam_encoder / projector).
+- Replace only ReCamMaster's newly-introduced mechanism (cross-video concat
+  attention) with TTT: attention becomes per-video (frozen weights), and a NEW
+  trainable TTT fast-weight branch (zero-init output, q/k/v warm-started from the
+  block's self_attn) is the only src->tgt channel: update on 7 src chunks (3 latent
+  frames each), apply on the tgt half. Trained in THEIR pipeline (envs/recam,
+  diffsynth), their loss (flow matching, MSE on tgt half), lr 1e-4 adapters-only.
+- Ablation (paper table): {base, in, h, both} — rotary site 2x2, **fixed ladders
+  only** (no learnable freqs; user: "논문에는 learnable 안쓸 거"), Plucker phases
+  relative to src frame0 (ReCamMaster's own camera convention), gain 1.0, frac 0.5.
+- Budget: ~12h x 1 B200 per run, 4 runs parallel (gpus 0-3). Deterministic shared
+  data stream + per-step seeded noise/timestep -> paired per-step analysis.
+- Eval: val loss on the 64-pair holdout (deterministic) + their 50-step sampler on
+  8 pairs vs the ReCamMaster external anchor (gen_recam_anchor, running).
+- Infra: latents precomputed once (4066 videos, non-tiled VAE, bf16) to
+  datasets/mcv_latents_recam/ (6 shards, gpus 1-6, 2026-07-12 morning);
+  save_every 250 checkpointing + auto-resume (user rule).
+
+## Q10. Video revisit with Q9-informed variants  [CANCELLED 2026-07-12 — superseded by Q11 (user pivot); g03/g01 killed at step ~650. The 4-anchor grid + evals remain valid as the "replace-everything" data point: F30/F30b + generation metrics @13999]
 User: F21/F22 neutrality was measured with the PLAIN hidden ladder; the Q9 discovery
 (low-gain slow ladder turns hidden-1D from coin-flip/negative into a draw-robust WIN)
 may transfer to video — and video's spacetime coordinate is multi-dimensional, where the
