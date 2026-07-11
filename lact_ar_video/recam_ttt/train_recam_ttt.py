@@ -199,7 +199,9 @@ def probe_val(pipe, ttt_ctx, cfg, context, device):
     with open(HOLDOUT_JSON) as f:
         holdout = json.load(f)["pairs"][: int(cfg.probe_pairs)]
     scheduler = pipe.scheduler
-    timestep = scheduler.timesteps[int(cfg.probe_timestep_id)].to(
+    # keep the timestep 1-D ([1], like the training path) — the DiT's
+    # sinusoidal_embedding_1d rejects 0-D input
+    timestep = scheduler.timesteps[[int(cfg.probe_timestep_id)]].to(
         dtype=torch.bfloat16, device=device)
     need_coords = bool(cfg.ttt_input_rope) or bool(cfg.ttt_hidden_rope)
 
