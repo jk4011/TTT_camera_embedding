@@ -363,6 +363,48 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F31: Q11 frozen-ReCamMaster + TTT-adapter 2x2 (fixed ladders, 3250 steps, 2026-07-12)
+Design (user pivot): released ReCamMaster step20000, EVERYTHING pretrained frozen
+(incl. their fine-tuned self_attn + cam_encoder); attention reverted to per-video;
+a zero-init TTT fast-weight branch (496M params, update on 7 src chunks / apply on
+tgt) is the ONLY cross-video channel. 4 runs (base/in/h/both), fixed Plucker
+ladders, identical data stream + per-step seeded noise/timesteps, lr 1e-4 cosine,
+bs1, 3250 steps (~6h/GPU). Trainers in lact_ar_video/recam_ttt/ (commits e29f6bc,
+11f4c6b, 88bf9e7).
+
+Phase-1 val loss (64 pairs x fixed timesteps {100,500,900}, paired n=192):
+| variant | mean loss | delta vs base | t | lower |
+|---|---|---|---|---|
+| base | 0.140407 | — | — | — |
+| in   | 0.139392 | **-0.72%** | **-6.15** | 156/192 |
+| h    | 0.140045 | -0.26% | -3.05 | 143/192 |
+| both | 0.139481 | -0.66% | -5.48 | 143/192 |
+both-in = +0.06% (t=+0.95, n.s.); in-h = -0.47% (t=-4.86).
+
+Phase-2 generation (official sampler 50 steps CFG 5, 8 pairs): base 10.74/0.368/
+0.718 (PSNR/SSIM/LPIPS), in 10.93/-/0.716, h 10.46/-/0.730, both 11.08/0.374/0.715.
+Deltas n.s. at n=8 (in/both directionally positive: PSNR +0.19/+0.34, t=+1.7).
+
+Reading:
+1. THE ROTARY EARNS EVEN ON A FROZEN, TASK-TUNED BACKBONE: input site -0.72% at
+   t=-6.15 with only 3250 adapter steps, on top of an existing camera channel
+   (frozen cam_encoder). This is the cleanest "one knob, everything else frozen"
+   isolation of PRA so far.
+2. SITE HIERARCHY FLIPS vs the full-replacement ccv grid (F30: hidden increment
+   t=-9.0): here INPUT dominates and hidden adds nothing over it (t=+0.95). With
+   the fast-weight branch as a fresh adapter doing content transport next to a
+   frozen absolute-pose channel, the addressing-level relative geometry is
+   captured by the input rotary alone; the hidden site's extra leverage appears
+   when the whole layer stack is trained around it (F30) — consistent with the
+   graded-boundary story (F21/F22/F28).
+3. ABSOLUTE QUALITY GAP: all four sit at PSNR ~10.5-11.1 / LPIPS ~0.72 vs
+   ReCamMaster's 15.71/0.453 (F30c) — 3250 steps of a zero-init adapter do not
+   yet replace the concat-attention channel their 20k-step 8xH800 fine-tune
+   built. The 2x2 delta is paper-usable; the absolute row needs longer training
+   (fresh longer cosine, not a post-anneal extension) if wanted.
+Artifacts: outputs/recam_ttt/{valloss,gen}_*_3250*, training logs + jsonl with
+probe_val trajectories; eval protocol row-compatible with F30c's external anchor.
+
 ## F30: ccv held-out eval — the video boundary FLIPS when memory is load-bearing (2026-07-12)
 New eval path (commit 92e2486; Phase-1 = deterministic held-out val loss, 64 fixed pairs
 disjoint from the training index, per-pair fixed noise/timesteps; EMA weights, common

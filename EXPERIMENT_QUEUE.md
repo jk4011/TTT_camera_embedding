@@ -101,7 +101,7 @@ not run learnable-frequency variants; consistent with F20 (1D degeneration) and 
 collision avoidance; beating it hidden-only is a stretch goal — win or lose, the search
 maps the 1D ceiling of the hidden channel (paper value either way).
 
-## Q11. ReCamMaster-frozen + TTT-adapter 2x2  [ACTIVE 2026-07-12, user decision — supersedes Q10]
+## Q11. ReCamMaster-frozen + TTT-adapter 2x2  [DONE 2026-07-12 -> F31: input rotary -0.72% t=-6.15 on the frozen backbone; hidden adds nothing over input (flip vs F30); absolute quality needs longer training]
 User (2026-07-12): the full-TTT-replacement ccv architecture caps quality too low —
 all 30 Wan self-attn were replaced and retrained, discarding Wan's compute-heavy
 pretraining ("Wan 파라미터를 건드리면 안 될 것"). New design, small-compute:
