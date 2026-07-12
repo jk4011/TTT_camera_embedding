@@ -107,15 +107,18 @@ def main():
         set_ctx_phases(ttt_ctx, coords6, pipe.dit.blocks[0].ttt_branch)
 
         tic = time.time()
-        frames = pipe(
-            prompt=[caption],
-            negative_prompt=RECAM_NEGATIVE_PROMPT,
-            source_video=source_video,
-            target_camera=target_camera,
-            cfg_scale=args.cfg_scale,
-            num_inference_steps=args.steps,
-            seed=args.seed, tiled=True,
-        )
+        # their pipeline runs without autocast (pure-bf16 weights); the fp32
+        # TTT branch needs the same bf16 autocast the training forward used
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            frames = pipe(
+                prompt=[caption],
+                negative_prompt=RECAM_NEGATIVE_PROMPT,
+                source_video=source_video,
+                target_camera=target_camera,
+                cfg_scale=args.cfg_scale,
+                num_inference_steps=args.steps,
+                seed=args.seed, tiled=True,
+            )
         rec["gen_seconds"] = time.time() - tic
 
         gen = torch.stack(
