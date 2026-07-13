@@ -6,10 +6,14 @@ pretrained weight, and replaces ReCamMaster's newly-introduced mechanism
   1. per-video attention (frozen weights): the block's self_attn runs on each
      of the two videos separately with the single-video rope table, so no
      token ever attends across videos;
-  2. a trainable TTT fast-weight branch (the only trainable thing) that
-     carries the cross-video information: LaCT SwiGLU fast weights are
-     UPDATEd on the clean SRC half (7 chunks of 3 latent frames) and then
-     APPLYed to the TGT half.
+  2. a trainable TTT fast-weight branch that carries the cross-video
+     information: LaCT SwiGLU fast weights are UPDATEd on the clean SRC half
+     in sequential chunks of ttt_chunk_frames latent frames (default 3 = 7
+     chunks; Stage 1 uses 1 = 21 chunks) and then APPLYed to the TGT half.
+     Stage 1 additions: inter_multi 4 (2x fast-weight capacity), Muon (NS5)
+     on the chunk updates, and train_recam_modules (each block's
+     cam_encoder + projector — ReCamMaster's own additions, not Wan weights
+     — train at a lower lr alongside the branches).
 
 PRA (camera rotary) sites, FIXED frequency ladders only (no learnable gains):
   - input site: Plucker rotary on the fast q/k after l2-norm;
@@ -52,8 +56,12 @@ from diffsynth.models.wan_video_dit import RMSNorm, modulate  # noqa: E402
 LATENT_F = 21          # latent frames per video
 TOK_H, TOK_W = 30, 52  # token grid per frame
 HW = TOK_H * TOK_W     # 1560 tokens per latent frame
-CHUNK_FRAMES = 3       # SRC chunk = 3 latent frames
-CHUNK_TOKENS = CHUNK_FRAMES * HW  # 4680
+# NOTE: the SRC chunk size is per-branch config now (ttt_chunk_frames in the
+# variant yaml; default 3 = the original F31 recipe, Stage 1 uses 1). These
+# module constants only give the default.
+DEFAULT_CHUNK_FRAMES = 3   # SRC chunk = 3 latent frames (F31 recipe)
+CHUNK_FRAMES = DEFAULT_CHUNK_FRAMES              # kept for old callers
+CHUNK_TOKENS = DEFAULT_CHUNK_FRAMES * HW         # 4680, kept for old callers
 SEQ_PER_VIDEO = LATENT_F * HW     # 32760
 SEQ_TOTAL = 2 * SEQ_PER_VIDEO     # 65520
 
@@ -80,6 +88,34 @@ def inv_softplus(x):
     if isinstance(x, torch.Tensor):
         return x + torch.log(-torch.expm1(-x))
     return x + math.log(-math.expm1(-x))
+
+
+def zeropower_via_newtonschulz5(G: torch.Tensor, steps: int) -> torch.Tensor:
+    """Newton-Schulz orthogonalization of a batch of matrices (Muon).
+
+    LOCAL UNCOMPILED copy of lact_nvs/lact_ttt.py::zeropower_via_newtonschulz5
+    (== minVid/models/blocks/functions.py; both carry @torch.compile which we
+    must not use on this noexec-/tmp node). Semantics identical to both
+    references: cast to bf16, transpose tall matrices so rows <= cols,
+    normalize by the Frobenius norm (spectral norm <= 1), run `steps` quintic
+    NS iterations, transpose back. Returns ~US'V^T (S'_ii ~ U(0.5, 1.5)).
+
+    G: [b, m, n]; returns [b, m, n] in bf16.
+    """
+    assert len(G.shape) == 3
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    if G.size(1) > G.size(2):
+        X = X.transpose(1, 2)
+    # Ensure spectral norm is at most 1
+    X = X / (X.norm(dim=(1, 2), keepdim=True) + 1e-7)
+    for _ in range(steps):
+        A = X @ X.transpose(1, 2)
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    if G.size(1) > G.size(2):
+        X = X.transpose(1, 2)
+    return X
 
 
 def inv_silu(y: float) -> float:
@@ -156,6 +192,8 @@ def recam_fast_weight_update_apply(
     hcos: torch.Tensor = None,  # [P, L] hidden-rotary tables (h-PRA)
     hsin: torch.Tensor = None,
     weight_norm: bool = True,
+    use_muon: bool = False,
+    num_muon_iters: int = 5,
 ):
     """SwiGLU fast weights f(x) = w1 @ (silu(w0 x) * (w2 x)).
 
@@ -167,6 +205,15 @@ def recam_fast_weight_update_apply(
     post-update weights. Finally the whole TGT half is APPLYed with the final
     weights. With hcos=1/hsin=0 (or None) this reduces exactly to the plain
     LaCT update/apply.
+
+    use_muon: orthogonalize each chunk's dw0/dw1/dw2 with Newton-Schulz
+    (Muon) before adding. Reference order (minVid ar_lact_swa_repeat.py and
+    lact_nvs lact_ttt.py agree): the raw chunk gradient — with the per-token
+    lr and w_scale already INSIDE the outer product — is passed through NS5
+    (bf16 internally), then added, then weight-norm re-normalizes. The h-PRA
+    manual backward (inverse rotation on dhidden) is unchanged; only the
+    final dw matrices are orthogonalized. With use_muon=False the kernel is
+    bit-identical to the pre-Stage-1 version.
     """
     L = k.shape[1]
     assert (L - tgt_len) % chunk_size == 0, (L, tgt_len, chunk_size)
@@ -224,6 +271,11 @@ def recam_fast_weight_update_apply(
         dw0 = torch.bmm(dgate_before_act, ki * lr0i * w_scale)
         dw2 = torch.bmm(dhidden_before_mul, ki * lr2i * w_scale)
 
+        if use_muon:
+            dw1 = zeropower_via_newtonschulz5(dw1, num_muon_iters)
+            dw0 = zeropower_via_newtonschulz5(dw0, num_muon_iters)
+            dw2 = zeropower_via_newtonschulz5(dw2, num_muon_iters)
+
         w1 = w1 + dw1
         w0 = w0 + dw0
         w2 = w2 + dw2
@@ -255,8 +307,9 @@ class RecamTTTBranch(nn.Module):
     Structure ported from minVid ARFastWeightSwiGLU with the ccv settings:
     q/k/v Linear copies of the block's self_attn (+ norm_q/norm_k RMSNorm
     copies), qk_l2_norm, qkv_silu off, fw_head_dim 768 (2 fast-weight heads),
-    inter_multi 2, mamba lr (lr_dim 1), muon off, weight_norm on, o_norm on
-    (fresh RMSNorm), learnable scalar ttt_scale, w_init "clean".
+    inter_multi 2 (Stage 1: 4), mamba lr (lr_dim 1), muon off (Stage 1: on,
+    NS5 reference semantics), weight_norm on, o_norm on (fresh RMSNorm),
+    learnable scalar ttt_scale, w_init "clean".
 
     Init deviation from minVid (documented): the output projection `o` is
     ZERO-initialized (spec: step-0 forward bit-identical to the per-video
@@ -267,7 +320,9 @@ class RecamTTTBranch(nn.Module):
 
     def __init__(self, dim, self_attn, ttt_input_rope=False,
                  ttt_hidden_rope=False, fw_head_dim=768, inter_multi=2,
-                 lr_dim=1, base_lr=0.001, hrope_frac=0.5, eps=1e-6):
+                 lr_dim=1, base_lr=0.001, hrope_frac=0.5, eps=1e-6,
+                 ttt_chunk_frames=DEFAULT_CHUNK_FRAMES, use_muon=False,
+                 num_muon_iters=5):
         super().__init__()
         assert dim % fw_head_dim == 0
         self.dim = dim
@@ -277,6 +332,12 @@ class RecamTTTBranch(nn.Module):
         self.ttt_hidden_rope = ttt_hidden_rope
         self.w_scale = 1.0
         self.weight_norm = True
+        # SRC update granularity: chunk = ttt_chunk_frames latent frames
+        assert LATENT_F % int(ttt_chunk_frames) == 0, ttt_chunk_frames
+        self.chunk_tokens = int(ttt_chunk_frames) * HW
+        # Muon on the chunk updates (NS5 on dw0/dw1/dw2 before adding)
+        self.use_muon = bool(use_muon)
+        self.num_muon_iters = int(num_muon_iters)
 
         # q/k/v (+ qk norms) initialized as COPIES of the frozen
         # ReCamMaster-trained self_attn, then trained in fp32
@@ -338,10 +399,13 @@ class RecamTTTBranch(nn.Module):
             self.register_buffer("cam_gain_in", torch.ones(6, nf_in),
                                  persistent=False)
         if ttt_hidden_rope:
-            # rotate hrope_frac of the SwiGLU hidden: 1536 -> 768 dims
+            # rotate hrope_frac of the SwiGLU hidden; all dims scale with
+            # d_h = fw_head_dim * inter_multi (no hardcoded sizes):
+            #   inter_multi 2: d_h 1536 -> 768 rotated dims, nf_h 64
+            #   inter_multi 4: d_h 3072 -> 1536 rotated dims, nf_h 128
             P_h = max(1, int(d_h * hrope_frac / 2.0))
             self.h_rope_dim = 2 * P_h
-            nf_h = (self.h_rope_dim // 2) // 6  # 768 -> 64
+            nf_h = (self.h_rope_dim // 2) // 6
             self.cam_num_freqs_h = nf_h
             self.register_buffer("cam_omega_h", make_cam_ladder(nf_h),
                                  persistent=False)
@@ -354,8 +418,9 @@ class RecamTTTBranch(nn.Module):
         [TGT fhw || SRC fhw]. ctx: shared per-step camera/phase context."""
         b, s, _ = x.shape
         assert b == 1, "recam_ttt assumes batch size 1"
-        assert s % (2 * CHUNK_TOKENS) == 0, s
+        assert s % (2 * HW) == 0, s
         tgt_len = s // 2
+        assert tgt_len % self.chunk_tokens == 0, (tgt_len, self.chunk_tokens)
 
         q = self.norm_q(self.q(x))
         k = self.norm_k(self.k(x))
@@ -394,8 +459,10 @@ class RecamTTTBranch(nn.Module):
 
         fw_x, _, _, _ = recam_fast_weight_update_apply(
             w0, w1, w2, fast_q, fast_k, fast_v, lr0, lr1, lr2,
-            w_scale=self.w_scale, tgt_len=tgt_len, chunk_size=CHUNK_TOKENS,
+            w_scale=self.w_scale, tgt_len=tgt_len,
+            chunk_size=self.chunk_tokens,
             hcos=hcos, hsin=hsin, weight_norm=self.weight_norm,
+            use_muon=self.use_muon, num_muon_iters=self.num_muon_iters,
         )
 
         ttt_x = self.output_norm(fw_x)
@@ -488,7 +555,8 @@ def patch_dit(dit, variant_cfg, device="cuda"):
     Must be called AFTER the ReCamMaster checkpoint has been loaded
     (strict=True) into `dit`. Returns the shared per-step context dict.
     variant_cfg: mapping with ttt_input_rope / ttt_hidden_rope (+ optional
-    fw_head_dim / inter_multi / lr_dim / base_lr overrides)."""
+    fw_head_dim / inter_multi / lr_dim / base_lr / ttt_chunk_frames /
+    use_muon / num_muon_iters overrides)."""
     ctx = {"ttt_enabled": True}
     for block in dit.blocks:
         branch = RecamTTTBranch(
@@ -499,6 +567,10 @@ def patch_dit(dit, variant_cfg, device="cuda"):
             inter_multi=int(variant_cfg.get("inter_multi", 2)),
             lr_dim=int(variant_cfg.get("lr_dim", 1)),
             base_lr=float(variant_cfg.get("base_lr", 0.001)),
+            ttt_chunk_frames=int(variant_cfg.get("ttt_chunk_frames",
+                                                 DEFAULT_CHUNK_FRAMES)),
+            use_muon=bool(variant_cfg.get("use_muon", False)),
+            num_muon_iters=int(variant_cfg.get("num_muon_iters", 5)),
         )
         branch.to(device=device, dtype=torch.float32)
         block.ttt_branch = branch          # registered submodule (trainable)
@@ -507,18 +579,29 @@ def patch_dit(dit, variant_cfg, device="cuda"):
     return ctx
 
 
-def freeze_all_but_ttt(dit):
-    """Freeze every pretrained weight; only the TTT branches train.
+def freeze_all_but_ttt(dit, train_recam_modules=False):
+    """Freeze every pretrained weight; the TTT branches train, and (Stage 1,
+    train_recam_modules=True) so do each block's cam_encoder + projector —
+    these are ReCamMaster's OWN new modules (added on top of Wan, trained for
+    the concat-attention regime), NOT Wan weights. They are upcast to fp32
+    (same dtype contract as the branches; values are preserved exactly, and
+    under bf16 autocast the forward is bit-identical to the bf16 copies).
     Returns (trainable_params, n_trainable, n_frozen)."""
     dit.requires_grad_(False)
     for block in dit.blocks:
         block.ttt_branch.requires_grad_(True)
+        if train_recam_modules:
+            block.cam_encoder.float().requires_grad_(True)
+            block.projector.float().requires_grad_(True)
     trainable = [p for p in dit.parameters() if p.requires_grad]
     n_train = sum(p.numel() for p in trainable)
     n_frozen = sum(p.numel() for p in dit.parameters() if not p.requires_grad)
-    # every trainable param must live under a ttt_branch
+    # trainable set must be exactly {ttt_branch} (+ {cam_encoder, projector})
     for name, p in dit.named_parameters():
-        assert p.requires_grad == ("ttt_branch" in name), name
+        is_branch = "ttt_branch" in name
+        is_recam = (".cam_encoder." in name) or (".projector." in name)
+        expected = is_branch or (train_recam_modules and is_recam)
+        assert p.requires_grad == expected, name
     return trainable, n_train, n_frozen
 
 

@@ -153,11 +153,36 @@ def build_patched_pipe(cfg, device):
     pipe.scheduler.set_timesteps(1000, training=True)
 
     ttt_ctx = patch_dit(pipe.dit, cfg, device=device)
-    trainable, n_train, n_frozen = freeze_all_but_ttt(pipe.dit)
+    trainable, n_train, n_frozen = freeze_all_but_ttt(
+        pipe.dit,
+        train_recam_modules=bool(cfg.get("train_recam_modules", False)))
     pipe.dit.train()
     print(f"[train] variant={cfg.variant}  trainable={n_train/1e6:.1f}M  "
           f"frozen={n_frozen/1e6:.1f}M", flush=True)
     return pipe, ttt_ctx, trainable
+
+
+def build_param_groups(dit, cfg):
+    """Two optimizer param groups: TTT branches at cfg.lr, ReCamMaster's own
+    cam_encoder/projector (Stage 1, train_recam_modules) at cfg.recam_lr.
+    Each group carries its base_lr; the shared warmup+cosine schedule scales
+    both by the same factor (lr_factor_at)."""
+    ttt_params, recam_params = [], []
+    for n, p in dit.named_parameters():
+        if not p.requires_grad:
+            continue
+        (ttt_params if "ttt_branch" in n else recam_params).append(p)
+    groups = [{"params": ttt_params, "lr": float(cfg.lr),
+               "base_lr": float(cfg.lr), "name": "ttt"}]
+    if recam_params:
+        recam_lr = float(cfg.get("recam_lr", cfg.lr))
+        groups.append({"params": recam_params, "lr": recam_lr,
+                       "base_lr": recam_lr, "name": "recam"})
+    for g in groups:
+        print(f"[train] param group '{g['name']}': "
+              f"{sum(p.numel() for p in g['params'])/1e6:.1f}M params, "
+              f"base_lr {g['base_lr']}", flush=True)
+    return groups
 
 
 def training_loss(pipe, latents, cam_emb, context, step_seed,
@@ -300,15 +325,21 @@ def load_ckpt(path, dit, optimizer):
 # schedule
 # ---------------------------------------------------------------------------
 
-def lr_at(step, cfg, max_steps):
-    """0-based step; linear warmup then cosine to final_lr_frac * peak."""
-    peak = float(cfg.lr)
+def lr_factor_at(step, cfg, max_steps):
+    """0-based step; linear warmup then cosine to final_lr_frac, as a factor
+    of the peak — every param group scales its own base_lr by this SAME
+    factor (identical schedule shape for TTT and recam groups)."""
     warmup = int(cfg.warmup_steps)
-    final = peak * float(cfg.final_lr_frac)
+    final = float(cfg.final_lr_frac)
     if step < warmup:
-        return peak * (step + 1) / warmup
+        return (step + 1) / warmup
     t = (step - warmup) / max(1, max_steps - warmup)
-    return final + 0.5 * (peak - final) * (1.0 + math.cos(math.pi * t))
+    return final + 0.5 * (1.0 - final) * (1.0 + math.cos(math.pi * t))
+
+
+def lr_at(step, cfg, max_steps):
+    """Absolute lr of the TTT group (peak = cfg.lr); kept for logging."""
+    return float(cfg.lr) * lr_factor_at(step, cfg, max_steps)
 
 
 # ---------------------------------------------------------------------------
@@ -323,8 +354,8 @@ def run_training(args):
 
     pipe, ttt_ctx, trainable = build_patched_pipe(cfg, device)
     optimizer = torch.optim.AdamW(
-        trainable, lr=float(cfg.lr), betas=tuple(cfg.betas),
-        weight_decay=float(cfg.weight_decay))
+        build_param_groups(pipe.dit, cfg), lr=float(cfg.lr),
+        betas=tuple(cfg.betas), weight_decay=float(cfg.weight_decay))
 
     start_step = 0
     if args.auto_resume:
@@ -351,9 +382,10 @@ def run_training(args):
                                                need_coords, device)
         set_ctx_phases(ttt_ctx, coords6, pipe.dit.blocks[0].ttt_branch)
 
-        lr_now = lr_at(step, cfg, args.max_steps)
+        factor = lr_factor_at(step, cfg, args.max_steps)
         for grp in optimizer.param_groups:
-            grp["lr"] = lr_now
+            grp["lr"] = grp["base_lr"] * factor
+        lr_now = float(cfg.lr) * factor  # TTT-group lr (for the log)
 
         loss = training_loss(pipe, latents, cam_emb, context,
                              step_seed=int(cfg.loss_seed_base) + step)
@@ -361,16 +393,25 @@ def run_training(args):
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
 
-        if not grad_checked:  # one-time: grads land ONLY on TTT params
+        if not grad_checked:  # one-time: grads land ONLY on trainable params
             grad_checked = True
             for n, p in pipe.dit.named_parameters():
                 if not p.requires_grad:
                     assert p.grad is None, f"frozen param got grad: {n}"
-            nz = sum(1 for p in trainable
-                     if p.grad is not None and p.grad.abs().sum() > 0)
+            nz_by = {"ttt_branch": 0, "cam_encoder": 0, "projector": 0}
+            nz = 0
+            for n, p in pipe.dit.named_parameters():
+                if (p.requires_grad and p.grad is not None
+                        and p.grad.abs().sum() > 0):
+                    nz += 1
+                    for key in nz_by:
+                        if key in n:
+                            nz_by[key] += 1
             print(f"[train] grad check OK: {nz} trainable tensors with "
-                  f"nonzero grad, frozen params untouched", flush=True)
+                  f"nonzero grad {nz_by}, frozen params untouched", flush=True)
             assert nz > 0
+            if bool(cfg.get("train_recam_modules", False)):
+                assert nz_by["cam_encoder"] > 0 and nz_by["projector"] > 0
 
         torch.nn.utils.clip_grad_norm_(trainable, float(cfg.grad_clip))
         optimizer.step()

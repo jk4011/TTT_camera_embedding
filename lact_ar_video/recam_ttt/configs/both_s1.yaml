@@ -1,0 +1,43 @@
+# Q11 Stage-1 recam_ttt variant: both_s1  (input + hidden Plucker rotary, fixed ladders)
+# Stage 1 = quality push over the F31 recipe: 2x fast-weight capacity
+# (inter_multi 4), 1-frame update chunks (21 sequential chunks of 1560
+# tokens), Muon (NS5, 5 iters) on the chunk updates, ReCamMaster's own
+# cam_encoder+projector trainable at recam_lr, 6000-pair data.
+variant: both_s1
+ttt_input_rope: true
+ttt_hidden_rope: true
+
+# TTT branch (see ttt_adapter.RecamTTTBranch)
+fw_head_dim: 768
+inter_multi: 4
+lr_dim: 1
+base_lr: 0.001
+ttt_chunk_frames: 1
+use_muon: true
+num_muon_iters: 5
+
+# ReCamMaster's own new modules (cam_encoder + projector; NOT Wan weights)
+train_recam_modules: true
+recam_lr: 1.0e-5
+
+# optimizer / schedule (shared by all 4 variants)
+lr: 1.0e-4
+betas: [0.9, 0.95]
+weight_decay: 0.01
+warmup_steps: 200
+final_lr_frac: 0.1
+grad_clip: 1.0
+
+# data (identical stream for all 4 variants -> paired analysis)
+data_root: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train
+latent_cache: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/mcv_latents_recam
+num_pairs: 6000
+index_seed: 42
+data_seed: 1
+loss_seed_base: 123457
+
+# deterministic validation probe
+probe_every: 1000
+probe_pairs: 8
+probe_timestep_id: 500
+probe_noise_seed_base: 777000
