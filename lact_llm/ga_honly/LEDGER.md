@@ -199,3 +199,21 @@ address space has real relative structure to exploit.
 Selection rule: keep top-2 by fitness, mutate around them (one gene per child ±,
 plus one crossover), population 3-4 per generation. Winners at proxy budget get a
 full 3B confirmation run before any paper claim.
+
+
+## Q12: STACKING program (user goal 2026-07-13/14: make hidden ADD on top of input rope; /goal = hidden increment in all 3 tasks)
+Target: rope+hidden < rope 18.405 (3B ds42). Baseline stacked: hpra-g0.1 = 18.415 (neutral).
+Wave 1 (3B finals, 2026-07-14): ALL FAIL —
+| variant | ppl | vs rope |
+| stack gain 0.2 | 18.46 | +0.05 |
+| stack gain 0.05 | 18.65 | +0.24 |
+| stack frac 0.25 x gain 0.2 | 18.70 | +0.29 |
+Reading: the stacked optimum sits at ~gain 0.1 and is neutral; simple gain/frac axes do
+not stack. Wave 2 (in flight): (a) q12w2_stack_hnrot_g01 = rope + hnorm rms_rot x gain
+0.1 (F27c geometry hypothesis applied to stacking; hidden-only it was seed-fragile),
+(b) q13L pair = learnable ladder init at the champion spectrum, per-layer vs SHARED
+across layers (Q13 idea; shared = cross-layer regularization). Note: q13L_shared runs
+at ~70k tok/s vs 141k (perlayer) — shared Parameter appears to halve throughput
+(compile/fusion effect); science unaffected, wall doubles.
+Q13-NVS side result (seed 95): shared learnable 22.338 vs per-layer 22.420 — sharing
+does NOT help the NVS input-site gains (single seed, within noise of fixed 22.389).
