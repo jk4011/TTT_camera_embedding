@@ -124,6 +124,17 @@ pretraining ("Wan 파라미터를 건드리면 안 될 것"). New design, small-
   datasets/mcv_latents_recam/ (6 shards, gpus 1-6, 2026-07-12 morning);
   save_every 250 checkpointing + auto-resume (user rule).
 
+## Q13. Shared learnable frequency across layers (NVS)  [QUEUED 2026-07-13, user request]
+User: per-layer learnable gains may be the reason learnable ladders lose to fixed
+(each of 6 layers gets its own 6xF gain -> too much freedom). Test ONE learnable gain
+tensor shared by every layer ('sharedf' cam_mode flag, commit pending: class-level
+registry; named_parameters dedupes so the optimizer sees it once).
+- Wave 1 (paired, seed 95, standard protocol): cam_qk_rope_cam (per-layer learnable,
+  fresh rerun) vs cam_qkrope_sharedf (shared learnable). Reference points: fixed-ladder
+  pra_hi 22.389 (F25), old-env per-layer learnable qk_rope_cam 22.375.
+- Auto-launches on gpus 4/5 when the Q12 wave-1 g02/g005 runs finish (~evening).
+- If shared > per-layer: seeds 137/211 + hidden-site shared (gain_h) follow.
+
 ## Q10. Video revisit with Q9-informed variants  [CANCELLED 2026-07-12 — superseded by Q11 (user pivot); g03/g01 killed at step ~650. The 4-anchor grid + evals remain valid as the "replace-everything" data point: F30/F30b + generation metrics @13999]
 User: F21/F22 neutrality was measured with the PLAIN hidden ladder; the Q9 discovery
 (low-gain slow ladder turns hidden-1D from coin-flip/negative into a draw-robust WIN)

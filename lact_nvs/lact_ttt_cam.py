@@ -659,6 +659,8 @@ def fast_weight_mlp2_weight_norm_apply(
 
 
 class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
+    # 'sharedf' cam_mode: one learnable gain tensor shared across all layers
+    _sharedf_registry = {}
     _layer_counter = 0  # construction-order depth index (mip staggering)
 
     def __init__(
@@ -688,10 +690,25 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
                  "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2",
-                 "hnrot"}
+                 "hnrot", "sharedf"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
+
+        def _gain(name, *shape):
+            """Learnable ladder gain. With the 'sharedf' flag ONE parameter
+            (per name/shape) is created by the first layer and reused by every
+            later layer, so all layers train the same frequency spectrum.
+            Registry is class-level: valid for the usual one-model-per-process
+            train/eval scripts, not for building two different models in one
+            process."""
+            if "sharedf" not in self.cam_modes:
+                return nn.Parameter(torch.ones(*shape))
+            key = (name, tuple(shape))
+            reg = CamFastWeightGluMLPMultihead._sharedf_registry
+            if key not in reg:
+                reg[key] = nn.Parameter(torch.ones(*shape))
+            return reg[key]
         # Q2 depth-3 fast weights: standalone modes; rot2/rot3 reuse the stock
         # qk_rope_cam machinery for the input rotary site.
         self.fw3l = bool(self.cam_modes & {"fw3l", "fw3l_rot2", "fw3l_rot3"})
@@ -733,7 +750,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 math.log2(0.5), math.log2(16.0), num_freqs, base=2.0
             )
             self.register_buffer("omega", omega, persistent=False)
-            self.freq_gain = nn.Parameter(torch.ones(6, num_freqs))
+            self.freq_gain = _gain("freq_gain", 6, num_freqs)
 
         if "pra_sinc" in self.cam_modes:
             # Split rotary budget: Plucker line identity (6 x num_freqs pairs)
@@ -758,7 +775,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 math.log2(0.5), math.log2(16.0), num_freqs_h, base=2.0
             )
             self.register_buffer("omega_h", omega_h, persistent=False)
-            self.gain_h = nn.Parameter(torch.ones(6, num_freqs_h))
+            self.gain_h = _gain("gain_h", 6, num_freqs_h)
 
         if self.fw3l:
             # Depth-3 inner net: f(x) = w1( rot_s2( silu( wb( rot_h1(
