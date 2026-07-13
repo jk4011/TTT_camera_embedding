@@ -42,7 +42,8 @@ def unique_videos():
     """Deterministic sorted list of (relpath, cam) across train + holdout."""
     from minVid.data.multicam_pair_dataset import MultiCamPairDataset
     ds = MultiCamPairDataset(
-        data_root=DATA_ROOT, cam_root=DATA_ROOT, num_pairs=2000, index_seed=42,
+        data_root=DATA_ROOT, cam_root=DATA_ROOT,
+        num_pairs=int(os.environ.get("PRE_NUM_PAIRS", "6000")), index_seed=42,
         num_frames=81, height=480, width=832, caption="x")
     uniq = set()
     for _, rel, s, t in ds.pairs:

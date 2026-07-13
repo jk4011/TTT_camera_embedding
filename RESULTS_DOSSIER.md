@@ -335,8 +335,15 @@ ttt_hrope_frac / gain / theta / delta_only (audited kernels; ledger lact_llm/ga_
 HEADLINE (3B, full F27 protocol, ds42): **honly + ladder gain 0.1 = 18.53** vs nope 18.62
 (−0.09; gap stable −0.09..−0.10 across 53k-91.5k checkpoints) vs plain honly 18.85 (+0.23).
 The gentle ladder converts the hidden-only deficit into a gain: swing +0.32 ppl. It also
-beats hpra 18.64. Input rope alone (18.40) remains best; stacking test (rope + gain-0.1
-hidden, 3B) running.
+beats hpra 18.64. Input rope alone (18.40) remains best.
+STACKING RESULT (recorded 2026-07-13; the run finished in the overnight batch but was
+left out of the write-up): **ga_hpra_gain01_full (input rope + gain-0.1 hidden) = 18.415**
+vs rope 18.405 — the gentle ladder removes the old stacking TAX entirely (plain hpra
+18.639 -> 18.415, -0.22) but adds NO increment over input alone (+0.01, noise). Best
+hidden recipe, same verdict: in 1D the hidden site earns nothing on top of the input
+site — mirrors the frozen-video F31 both-vs-in (+0.06%, n.s.); the hidden increment
+only appears in full-training multi-D video (F30, t=-9.0). Completed LLM grid (3B ds42):
+nope 18.620 / rope 18.405 / honly-g0.1 18.53 / hpra-g0.1 18.415 / hpra-plain 18.639.
 CONFIRMATIONS (overnight 3B batch, 2026-07-10/11):
 - Seed replicate COMPLETE (rerun after the 75k hf-streaming crash): s137 endpoint
   gain01 18.64 vs nope 18.68 = −0.04. Two-seed summary: −0.09 (s42) / −0.04 (s137),

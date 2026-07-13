@@ -106,6 +106,7 @@ DECISION BUDGET = 3B. There, gain01 honly 18.53 beats nope 18.62 (F28), trajecto
 Overnight 3B batch (launched): gain003_full (is 0.03 better at decision budget?),
 gain01_full_s137 + nope_full_s137 (seed replicate of the F28 headline pair),
 ga_hpra_gain01_full (does the low-gain hidden stack on input rope? vs rope 18.40).
+  -> RESULT (recorded late, 2026-07-13): 18.415 vs rope 18.405 — stacking tax gone (plain hpra 18.639), increment nil (+0.01). See F28 addendum.
 
 ## Gen-3.5: hnorm variants (user idea 2026-07-11, implemented + verified)
 Idea: the input site is rotation-friendly because q/k are L2-normalized (F27c geometry
