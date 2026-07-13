@@ -71,7 +71,13 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    vids = unique_videos()
+    order_file = os.environ.get("PRE_ORDER_FILE")
+    if order_file:
+        # priority order (training-stream first-need); striding preserves it
+        with open(order_file) as f:
+            vids = [(r, int(c)) for r, c in json.load(f)]
+    else:
+        vids = unique_videos()
     mine = vids[args.shard::args.num_shards]
     todo = [(r, c) for r, c in mine
             if not os.path.exists(latent_path(args.out, r, c))]
