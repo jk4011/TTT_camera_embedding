@@ -370,6 +370,35 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F32: Q11-S1 — the hidden increment APPEARS in the frozen regime once the memory works (2026-07-14)
+Stage-1 recipe on the frozen-ReCamMaster adapter (user-approved): fast-weight capacity
+x2 (inter_multi 4), 21x1-frame update chunks, Muon on the chunk updates, ReCamMaster's
+own cam_encoder+projector trainable (1e-5 group; Wan still fully frozen), 6000-pair
+index, 6000 steps (1 epoch). Same eval protocol as F31.
+
+Val loss (64 pairs x t{100,500,900}, paired n=192):
+| variant | mean | vs base | t |
+|---|---|---|---|
+| base_s1 | 0.12253 | — | — |
+| in_s1 | 0.11772 | -3.93% | -6.53 |
+| h_s1 | 0.12078 | -1.43% | -3.95 |
+| both_s1 | **0.11620** | **-5.16%** | **-7.33** |
+**both-in (hidden increment) = -1.24%, t=-6.08 (130/192)** — zero at F31 (3250 steps,
+weaker memory recipe: +0.06%, n.s.), decisive after Stage-1. The increment tracks how
+hard the memory works, in a SECOND video regime (frozen backbone) after F30
+(full-training, t=-9.0). Rotary deltas grew ~5x vs F31 (in: -0.72% -> -3.93%).
+
+Generation (8 pairs, official sampler): base 12.58/0.4234/0.6289 ->
+in 14.55/0.4774/0.5142, h 14.45/0.4597/0.5301 (8/8 pairs LPIPS), both
+14.49/0.4711/**0.5092** (PSNR/SSIM/LPIPS). Rotary buys ~2 dB in generation; the
+rotary variants' LPIPS now BEAT the old full-replacement ccv best (0.545 @14k steps)
+with a frozen backbone and 6000 adapter steps. both-in n.s. at n=8 (t=-0.69); val loss
+is the discriminator. Gap to ReCamMaster (15.71/0.453): base recovery 42% of the
+removed-channel hole (19% at F31); in/both ~49%.
+Mechanics kept honest: all Stage-1 changes shared by all four variants; identical
+data stream + per-step seeded noise; sanity 16/16 incl. muon-off bitwise-equal to the
+old kernel (commit f2ea68b).
+
 ## F31: Q11 frozen-ReCamMaster + TTT-adapter 2x2 (fixed ladders, 3250 steps, 2026-07-12)
 Design (user pivot): released ReCamMaster step20000, EVERYTHING pretrained frozen
 (incl. their fine-tuned self_attn + cam_encoder); attention reverted to per-video;
