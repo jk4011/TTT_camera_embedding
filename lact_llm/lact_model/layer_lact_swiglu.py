@@ -50,6 +50,10 @@ def inv_softplus(x):
     return y
 
 
+# ttt_sharedf: cross-layer shared learnable-frequency Parameters (Q13-LLM)
+_SHAREDF_REGISTRY = {}
+
+
 class LowRankFastWeight(nn.Module):
     """
     Low rank fast weight. This is a compromise to keep the number of parameters low when comparing against baselines.
@@ -146,6 +150,7 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_hrope_delta_only: bool = False,
         ttt_hrope_hnorm: str = "none",
         ttt_learnable_freqs: bool = False,
+        ttt_sharedf: bool = False,
         ttt_freq_tilt: float = 0.1,
         rope_theta: float = 500000.0,
         layer_idx: int = None,
@@ -266,6 +271,20 @@ class LaCTSWIGLULayer(nn.Module):
         self.ttt_hrope_delta_only = ttt_hrope_delta_only
         self.ttt_hrope_hnorm = ttt_hrope_hnorm
         self.ttt_learnable_freqs = ttt_learnable_freqs
+        self.ttt_sharedf = ttt_sharedf
+
+        def _freq_param(name, tensor):
+            """Learnable frequency Parameter. With ttt_sharedf ONE Parameter
+            (per name/shape) is created by the first layer and shared by every
+            later layer (named_parameters dedupes, so the optimizer sees it
+            once). Registry is module-level: one model per process."""
+            if not ttt_sharedf:
+                return nn.Parameter(tensor)
+            key = (name, tuple(tensor.shape))
+            if key not in _SHAREDF_REGISTRY:
+                _SHAREDF_REGISTRY[key] = nn.Parameter(tensor)
+            return _SHAREDF_REGISTRY[key]
+
         if ttt_hidden_rope:
             # RoPE-style ladder over positions. Q9 GA genes: ttt_hrope_frac sets the
             # fraction of hidden dims rotated (0.5 reproduces the F27 setting of
@@ -277,7 +296,7 @@ class LaCTSWIGLULayer(nn.Module):
             h_inv = ttt_hrope_gain / (h_theta ** (torch.arange(P_h).float() / max(P_h, 1)))
             if ttt_learnable_freqs:
                 h_inv = h_inv * (1.0 + ttt_freq_tilt * torch.randn(P_h))
-                self.h_inv_freq = nn.Parameter(h_inv)
+                self.h_inv_freq = _freq_param("h_inv_freq", h_inv)
             else:
                 self.register_buffer("h_inv_freq", h_inv, persistent=False)
         if ttt_learnable_freqs:
@@ -285,7 +304,8 @@ class LaCTSWIGLULayer(nn.Module):
             # (composes with the base RoPE: total angle = base + t * dfreq).
             P_qk = self.head_dim // 2
             base_inv = 1.0 / (rope_theta ** (torch.arange(P_qk).float() / P_qk))
-            self.fwqk_dfreq = nn.Parameter(ttt_freq_tilt * torch.randn(P_qk) * base_inv)
+            self.fwqk_dfreq = _freq_param(
+                "fwqk_dfreq", ttt_freq_tilt * torch.randn(P_qk) * base_inv)
 
         assert self.ttt_loss_type in [
             "dot_product"
