@@ -134,6 +134,13 @@ registry; named_parameters dedupes so the optimizer sees it once).
   pra_hi 22.389 (F25), old-env per-layer learnable qk_rope_cam 22.375.
 - Auto-launches on gpus 4/5 when the Q12 wave-1 g02/g005 runs finish (~evening).
 - If shared > per-layer: seeds 137/211 + hidden-site shared (gain_h) follow.
+- **Q13-LLM extension (user 2026-07-14)**: ttt_sharedf in lact_llm — h_inv_freq (hidden
+  ladder, init = gentle gain-0.1 champion) + fwqk_dfreq (input additive deltas) shared
+  across all 12 layers. Pair (3B ds42, rope ON): q13L_stack_lf_perlayer (control; the
+  regime where learnable degenerated in F20) vs q13L_stack_lf_shared. References:
+  rope 18.405 (fixed), hpra-g0.1 18.415 (fixed gentle). Doubles as a Q12 wave-2
+  candidate: a shared learnable ladder starting at the champion spectrum. Auto-launch
+  queued (gpu6 after Q12 f25_g02; gpu4 after the Q13-NVS pair).
 
 ## Q10. Video revisit with Q9-informed variants  [CANCELLED 2026-07-12 — superseded by Q11 (user pivot); g03/g01 killed at step ~650. The 4-anchor grid + evals remain valid as the "replace-everything" data point: F30/F30b + generation metrics @13999]
 User: F21/F22 neutrality was measured with the PLAIN hidden ladder; the Q9 discovery
