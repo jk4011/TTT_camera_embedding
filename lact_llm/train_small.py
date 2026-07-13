@@ -34,8 +34,10 @@ os.environ.setdefault("TRITON_CACHE_DIR", os.path.join(_REPO_ROOT, ".cache_trito
 os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", os.path.join(_REPO_ROOT, ".cache_inductor"))
 
 import argparse
+import glob
 import json
 import math
+import re
 import time
 
 import torch
@@ -93,6 +95,13 @@ def parse_args():
     p.add_argument("--val_every", type=int, default=1000)
     p.add_argument("--val_bs", type=int, default=8)
     p.add_argument("--out_dir", type=str, required=True)
+    # checkpointing / resume
+    p.add_argument("--save_every", type=int, default=2000,
+                   help="Save a full resume checkpoint every N steps (0 disables).")
+    p.add_argument("--keep_ckpts", type=int, default=2,
+                   help="Keep only the newest N periodic checkpoints.")
+    p.add_argument("--auto_resume", type=str2bool, default=True,
+                   help="Resume from the newest ckpt_step*.pt in out_dir if present.")
     return p.parse_args()
 
 
@@ -188,6 +197,76 @@ def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path
     return val_loss
 
 
+# Args that must match between the checkpoint and the resuming run for the
+# resumed run to reproduce an uninterrupted run (data stream + lr schedule).
+_RESUME_CRITICAL_ARGS = ("data_seed", "seq_len", "bs", "grad_accum", "val_tokens",
+                         "lr", "warmup", "min_lr_ratio", "steps", "token_budget")
+
+
+def find_latest_ckpt(out_dir):
+    """Newest ckpt_step*.pt in out_dir by step number, or None."""
+    best, best_step = None, -1
+    for path in glob.glob(os.path.join(out_dir, "ckpt_step*.pt")):
+        m = re.fullmatch(r"ckpt_step(\d+)\.pt", os.path.basename(path))
+        if m and int(m.group(1)) > best_step:
+            best, best_step = path, int(m.group(1))
+    return best
+
+
+def save_checkpoint(args, step, tokens_seen, model, optimizer, scheduler, stream_state):
+    """Atomic (tmp+rename) full resume checkpoint; keeps the newest keep_ckpts."""
+    t0 = time.time()
+    ckpt = {
+        "step": step,
+        "tokens_seen": tokens_seen,
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "scheduler": scheduler.state_dict(),
+        "torch_rng": torch.get_rng_state(),
+        "cuda_rng": torch.cuda.get_rng_state(),
+        "stream": stream_state,  # {"n_raw_consumed", "buf"} from PackedBlockStream
+        "args": {k: getattr(args, k) for k in _RESUME_CRITICAL_ARGS},
+    }
+    path = os.path.join(args.out_dir, f"ckpt_step{step}.pt")
+    tmp = path + ".tmp"
+    torch.save(ckpt, tmp)
+    os.replace(tmp, path)
+    # rotate: keep only the newest keep_ckpts periodic checkpoints
+    ckpts = sorted(
+        (p for p in glob.glob(os.path.join(args.out_dir, "ckpt_step*.pt"))
+         if re.fullmatch(r"ckpt_step(\d+)\.pt", os.path.basename(p))),
+        key=lambda p: int(re.fullmatch(r"ckpt_step(\d+)\.pt", os.path.basename(p)).group(1)),
+    )
+    for old in ckpts[:-max(1, args.keep_ckpts)]:
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+    print(f"[ckpt] saved {path} (stream at {stream_state['n_raw_consumed']:,} raw examples, "
+          f"{len(stream_state['buf'])} carry-over tokens) in {time.time() - t0:.1f}s", flush=True)
+
+
+def load_checkpoint(path, args, model, optimizer, scheduler, device):
+    """Restore model/optimizer/scheduler/RNG; returns (step, tokens_seen, stream_state)."""
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
+    for k in _RESUME_CRITICAL_ARGS:
+        old = ckpt["args"].get(k)
+        new = getattr(args, k)
+        if old != new:
+            raise RuntimeError(
+                f"--auto_resume arg mismatch: checkpoint has {k}={old!r} but this run "
+                f"has {k}={new!r}; resumed run would not reproduce the original stream/schedule. "
+                f"Use a fresh --out_dir or --auto_resume false.")
+    model.load_state_dict(ckpt["model"])
+    optimizer.load_state_dict(ckpt["optimizer"])  # moves state to param devices
+    scheduler.load_state_dict(ckpt["scheduler"])
+    torch.set_rng_state(ckpt["torch_rng"].cpu())
+    torch.cuda.set_rng_state(ckpt["cuda_rng"].cpu(), device=torch.device(device).index or 0)
+    print(f"[ckpt] resumed from {path}: step={ckpt['step']} "
+          f"tokens_seen={ckpt['tokens_seen']:,}", flush=True)
+    return ckpt["step"], ckpt["tokens_seen"], ckpt["stream"]
+
+
 def main():
     args = parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
@@ -217,10 +296,17 @@ def main():
     optimizer = build_optimizer(model, args)
     scheduler = build_scheduler(optimizer, args.warmup, total_steps, args.min_lr_ratio)
 
+    # ---- auto-resume -----------------------------------------------------
+    start_step, start_tokens, resume_stream_state = 0, 0, None
+    resume_path = find_latest_ckpt(args.out_dir) if args.auto_resume else None
+    if resume_path is not None:
+        start_step, start_tokens, resume_stream_state = load_checkpoint(
+            resume_path, args, model, optimizer, scheduler, device)
+
     # ---- data ----------------------------------------------------------
     # Identical shuffled stream for every run with the same data_seed.
     stream = data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000)
-    block_gen = data_utils.packed_block_generator(stream, tokenizer, args.seq_len, eos_id)
+    block_gen = data_utils.PackedBlockStream(stream, tokenizer, args.seq_len, eos_id)
 
     n_val_blocks = args.val_tokens // args.seq_len
     # data_seed in the filename: the val set is the head of the seed's stream,
@@ -228,32 +314,57 @@ def main():
     # once clobbered the seed-42 cache through the mismatch-overwrite guard).
     val_cache = os.path.join(SCRIPT_DIR,
                              f"val_cache_{tok_name.replace('/', '_')}_{args.seq_len}_ds{args.data_seed}.pt")
-    val_set = data_utils.get_or_build_val_set(block_gen, n_val_blocks, val_cache)
+    if resume_stream_state is None:
+        val_set = data_utils.get_or_build_val_set(block_gen, n_val_blocks, val_cache)
+    else:
+        # The saved stream position already accounts for the val-set blocks
+        # (they are the head of the stream), so do NOT consume them again.
+        if os.path.exists(val_cache):
+            val_set = torch.load(val_cache, map_location="cpu")
+            print(f"[data] resume: reusing cached val set {val_cache} "
+                  f"({val_set.numel()} tokens)", flush=True)
+        else:
+            # cache lost: rebuild from a throwaway fresh stream (same head)
+            tmp_gen = data_utils.PackedBlockStream(
+                data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000),
+                tokenizer, args.seq_len, eos_id)
+            val_set = data_utils.get_or_build_val_set(tmp_gen, n_val_blocks, val_cache)
+            del tmp_gen
+        # fast-forward the training stream to the exact checkpointed position
+        block_gen.restore(resume_stream_state)
 
-    batches = data_utils.batch_generator(block_gen, args.bs)
+    batches = data_utils.batch_generator(block_gen, args.bs, with_state=True)
 
     val_log_path = os.path.join(args.out_dir, "val_log.jsonl")
     print(f"[train] steps={total_steps} bs={args.bs} grad_accum={args.grad_accum} "
           f"seq_len={args.seq_len} tokens/step={tokens_per_step} "
           f"token_budget~{total_steps * tokens_per_step:,}", flush=True)
 
+    # Debug: LLM_BATCH_FP=1 prints a data fingerprint (token-id sum) for the
+    # batches of every 100th step — used by the crash-resume gold test.
+    batch_fp = str2bool(os.environ.get("LLM_BATCH_FP", "0"))
+
     # ---- training loop -------------------------------------------------
-    step = 0
-    tokens_seen = 0
+    step = start_step
+    tokens_seen = start_tokens
     running_loss, running_count = 0.0, 0
     t_last = time.time()
-    tokens_last = 0
+    tokens_last = tokens_seen
     exhausted = False
+    last_stream_state = resume_stream_state  # position after the last consumed batch
 
     while step < total_steps and not exhausted:
         optimizer.zero_grad(set_to_none=True)
         micro_losses = []
-        for _ in range(args.grad_accum):
+        for micro in range(args.grad_accum):
             try:
-                x = next(batches)
+                x, last_stream_state = next(batches)
             except StopIteration:
                 exhausted = True
                 break
+            if batch_fp and (step + 1) % 100 == 0:
+                print(f"[fp] step={step + 1} micro={micro} tok_sum={int(x.sum().item())}",
+                      flush=True)
             x = x.to(device, non_blocking=True)
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 loss = model(input_ids=x, labels=x).loss
@@ -286,6 +397,15 @@ def main():
         if step % args.val_every == 0:
             run_validation(model, val_set, args, step, tokens_seen, device, val_log_path)
             t_last = time.time()  # don't count eval time in tokens/sec
+            tokens_last = tokens_seen
+
+        # Periodic resume checkpoint (after val, so a resumed run continues at
+        # the next val point; vals between the last ckpt and a crash re-run and
+        # append duplicate-step entries to val_log.jsonl — accepted tradeoff).
+        if args.save_every > 0 and step % args.save_every == 0 and last_stream_state is not None:
+            save_checkpoint(args, step, tokens_seen, model, optimizer, scheduler,
+                            last_stream_state)
+            t_last = time.time()  # don't count ckpt time in tokens/sec
             tokens_last = tokens_seen
 
     # ---- final val + checkpoint ----------------------------------------
