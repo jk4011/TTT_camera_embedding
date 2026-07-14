@@ -59,7 +59,8 @@ class LaCTBlock(nn.Module):
             use_muon=config.use_muon,
             ttt_prenorm=config.ttt_prenorm,
             ttt_nope=config.ttt_nope,
-            ttt_hidden_rope=getattr(config, "ttt_hidden_rope", False),
+            ttt_hidden_rope=(getattr(config, "ttt_hidden_rope", False)
+                             and layer_idx >= getattr(config, "ttt_hrope_min_layer", 0)),
             ttt_hrope_frac=getattr(config, "ttt_hrope_frac", 0.5),
             ttt_hrope_gain=getattr(config, "ttt_hrope_gain", 1.0),
             ttt_hrope_theta=getattr(config, "ttt_hrope_theta", None),

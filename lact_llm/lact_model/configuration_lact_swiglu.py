@@ -55,6 +55,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         # tests the F27c geometry hypothesis). "rms_rot" normalizes only the rotated dims.
         ttt_learnable_freqs: bool = False,  # omega_map(1D): learnable frequency deltas
         ttt_sharedf: bool = False,  # share the learnable frequency Parameters across ALL layers
+        ttt_hrope_min_layer: int = 0,  # apply the hidden rotary only from this layer index on
         ttt_freq_tilt: float = 0.1,  # random-tilt init scale for learnable freqs
         w0_w2_low_rank: int = -1,  # -1 means fully learnable.  > 1 means low rank parameterization of the initial learnable weights.
         window_size: int = 2048,
@@ -106,6 +107,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.ttt_hrope_hnorm = ttt_hrope_hnorm
         self.ttt_learnable_freqs = ttt_learnable_freqs
         self.ttt_sharedf = ttt_sharedf
+        self.ttt_hrope_min_layer = ttt_hrope_min_layer
         self.ttt_freq_tilt = ttt_freq_tilt
         self.rope_theta = rope_theta
         self.max_position_embeddings = max_position_embeddings
