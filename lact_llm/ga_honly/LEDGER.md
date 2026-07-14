@@ -217,3 +217,22 @@ at ~70k tok/s vs 141k (perlayer) — shared Parameter appears to halve throughpu
 (compile/fusion effect); science unaffected, wall doubles.
 Q13-NVS side result (seed 95): shared learnable 22.338 vs per-layer 22.420 — sharing
 does NOT help the NVS input-site gains (single seed, within noise of fixed 22.389).
+
+
+## Q12 wave 3+4: BREAKTHROUGH — shared learnable hidden ladder stacks (2026-07-14)
+Wave 2 results (all fail): stack hnorm-rms_rot 19.11 / learnable per-layer 18.63 /
+delta-only 18.62. 2-seed check of the fixed gentle ladder: s137 rope 18.19 vs
+hpra-g0.1 18.38 (+0.19) — the s42 "neutral" (+0.01) was the favorable draw; the FIXED
+gentle ladder does not stack across seeds.
+Wave 3 attribution triangle (s42): shared learnable {hidden+input} 18.371 (-0.034,
+gap stable -0.030..-0.034 over the last 6.5k steps) -> decomposed:
+  sharedH (hidden ladder only) **18.204 (-0.200 vs rope)** | sharedI (input deltas
+  only) 18.73 (+0.33, harmful) | combined s137 18.44 (+0.25, input deltas dominate).
+THE ACTIVE INGREDIENT: ONE learnable hidden ladder SHARED by all 12 layers, init at
+the gentle g0.1 spectrum, input rope untouched. Gap trajectory -0.20..-0.28 from step
+7k to the end (not an LR-tail artifact). Same recipe per-layer degenerates (18.63) —
+cross-layer sharing is what rescues the learnable ladder (Q13 idea; opposite of NVS
+where sharing was neutral-negative).
+Wave 4 (in flight): sharedH s137 + s211 (3-seed), honly+sharedH s42 (new 2x2 cell).
+If replicated: LLM increment = -0.20, comparable to the input rotary's own -0.22,
+and the /goal (hidden adds in all three tasks) is complete.
