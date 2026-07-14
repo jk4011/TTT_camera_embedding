@@ -68,6 +68,7 @@ class LaCTBlock(nn.Module):
             ttt_hrope_hnorm=getattr(config, "ttt_hrope_hnorm", "none"),
             ttt_learnable_freqs=getattr(config, "ttt_learnable_freqs", False),
             ttt_sharedf=getattr(config, "ttt_sharedf", False),
+            ttt_learnable_input_freqs=getattr(config, "ttt_learnable_input_freqs", True),
             ttt_freq_tilt=getattr(config, "ttt_freq_tilt", 0.1),
             lr_parameterization=config.lr_parameterization,
             learnable_ttt_scale=config.learnable_ttt_scale,

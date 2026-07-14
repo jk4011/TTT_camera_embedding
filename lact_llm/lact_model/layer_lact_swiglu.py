@@ -151,6 +151,7 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_hrope_hnorm: str = "none",
         ttt_learnable_freqs: bool = False,
         ttt_sharedf: bool = False,
+        ttt_learnable_input_freqs: bool = True,
         ttt_freq_tilt: float = 0.1,
         rope_theta: float = 500000.0,
         layer_idx: int = None,
@@ -299,7 +300,7 @@ class LaCTSWIGLULayer(nn.Module):
                 self.h_inv_freq = _freq_param("h_inv_freq", h_inv)
             else:
                 self.register_buffer("h_inv_freq", h_inv, persistent=False)
-        if ttt_learnable_freqs:
+        if ttt_learnable_freqs and ttt_learnable_input_freqs:
             # additive learnable frequency deltas on the fast-weight q/k rotary
             # (composes with the base RoPE: total angle = base + t * dfreq).
             P_qk = self.head_dim // 2
@@ -489,7 +490,7 @@ class LaCTSWIGLULayer(nn.Module):
                 cu_seqlens=cu_seqlens,
             )
 
-            if self.ttt_learnable_freqs:
+            if self.ttt_learnable_freqs and hasattr(self, "fwqk_dfreq"):
                 # omega_map (1D): extra rotary with learnable frequency deltas,
                 # rotate_half convention to match the base RoPE pairing.
                 pos = torch.arange(
