@@ -236,3 +236,17 @@ where sharing was neutral-negative).
 Wave 4 (in flight): sharedH s137 + s211 (3-seed), honly+sharedH s42 (new 2x2 cell).
 If replicated: LLM increment = -0.20, comparable to the input rotary's own -0.22,
 and the /goal (hidden adds in all three tasks) is complete.
+
+
+## Q12 wave 4 verdict: sharedH is SEED-FRAGILE (2026-07-15)
+3-seed replication FAILED: s42 18.204 (-0.200) / s137 18.75 (+0.56 vs rope 18.19) /
+s211 18.92 (worse than nope; rope_s211 reference queued). honly+sharedH s42 = 18.36
+(beats nope by -0.26 and fixed honly-g0.1 18.53 — but s42-only, same suspicion).
+Diagnosis: both s42 and s137 gap trajectories are SMOOTH and sign-stable from step
+~4k — the outcome is set by the initial condition (the +-10% random tilt draw x model
+init), not by late training. Same failure family as rms_rot (F29).
+Wave 6 (in flight): tilt=0 deterministic init at the g0.1 spectrum, s42+s137 — if the
+fragility is the tilt lottery, this rescues the recipe; if it is the learnable-ladder
+training dynamics itself, the learnable line dies for good. Also queued: rope s211
+reference. Side wave-5 runs (sharedHI0, initg1, both s42-only) will be read in this
+light.
