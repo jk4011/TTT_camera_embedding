@@ -152,6 +152,7 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_learnable_freqs: bool = False,
         ttt_sharedf: bool = False,
         ttt_learnable_input_freqs: bool = True,
+        ttt_input_freq_tilt=None,
         ttt_freq_tilt: float = 0.1,
         rope_theta: float = 500000.0,
         layer_idx: int = None,
@@ -305,8 +306,9 @@ class LaCTSWIGLULayer(nn.Module):
             # (composes with the base RoPE: total angle = base + t * dfreq).
             P_qk = self.head_dim // 2
             base_inv = 1.0 / (rope_theta ** (torch.arange(P_qk).float() / P_qk))
+            in_tilt = ttt_freq_tilt if ttt_input_freq_tilt is None else ttt_input_freq_tilt
             self.fwqk_dfreq = _freq_param(
-                "fwqk_dfreq", ttt_freq_tilt * torch.randn(P_qk) * base_inv)
+                "fwqk_dfreq", in_tilt * torch.randn(P_qk) * base_inv)
 
         assert self.ttt_loss_type in [
             "dot_product"
