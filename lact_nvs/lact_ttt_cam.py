@@ -686,7 +686,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
         known = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
-                 "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
+                 "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
                  "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2",
@@ -926,7 +926,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if "vo_rel" in self.cam_modes:
             pass  # parameter-free
 
-        if self.cam_modes & {"prope_ttt", "prope_in", "gta_in", "prope_in_raw"}:
+        if self.cam_modes & {"prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw"}:
             assert head_dim % 8 == 0
 
         if "cam_lr" in self.cam_modes:
@@ -1057,15 +1057,25 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
         k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
 
-        if "prope_in_raw" in modes:
-            # Q15: as-is input-only PRoPE — projective P on the L2-NORMALIZED
-            # fast q/k, no re-normalization afterward. The score cancellation
-            # <P^T q, P^-1 k> = <q, k> is exact; the norm distortion of the
-            # addresses flows into update strength (what weight-norm/Muon see).
+        prope_raw_P_h = None
+        if modes & {"prope_in_raw", "prope_raw"}:
+            # Q15: as-is PRoPE port — projective P on the L2-NORMALIZED fast
+            # q/k, no re-normalization afterward (original PRoPE order). The
+            # score cancellation <P^T q, P^-1 k> = <q, k> is exact; the norm
+            # distortion of the addresses flows into update strength.
+            # prope_raw additionally carries the v/o transforms (full PRoPE).
             P, P_inv = self._prope_mats(info)
-            half = self.head_dim // 2
-            q = apply_tiled_mat4(q, to_heads(P, nh).transpose(-1, -2), tpv, half)
-            k = apply_tiled_mat4(k, to_heads(P_inv, nh), tpv, half)
+            # prope_raw follows the ORIGINAL PRoPE: tile over the FULL head
+            # dim (all 4-dim blocks); prope_in_raw keeps the half-dim tiling
+            # of the earlier port for comparability.
+            span = self.head_dim if "prope_raw" in modes else self.head_dim // 2
+            P_h = to_heads(P, nh)
+            P_inv_h = to_heads(P_inv, nh)
+            q = apply_tiled_mat4(q, P_h.transpose(-1, -2), tpv, span)
+            k = apply_tiled_mat4(k, P_inv_h, tpv, span)
+            if "prope_raw" in modes:
+                v = apply_tiled_mat4(v, P_inv_h, tpv, span)
+                prope_raw_P_h = P_h
 
         if "qk_rope_cam" in modes:
             ccos, csin = self._rope_coeffs(
@@ -1264,6 +1274,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             output = apply_block_rot(output, R_tok, transpose=True)
         if "prope_ttt" in modes:
             output = apply_tiled_mat4(output, P_h, tpv, self.head_dim // 2)
+        if prope_raw_P_h is not None:
+            output = apply_tiled_mat4(output, prope_raw_P_h, tpv, self.head_dim)
 
         output = self.o_norm(output)
         output = rearrange(
