@@ -386,13 +386,14 @@ fast-q/k L2-norm. Grid (standard protocol, s95, baseline 21.970 / our input rota
 | gta_in (rigid, q/k, pre-norm renorm) | 21.833 | -0.137 |
 | prope_in (projective, q/k, pre-norm renorm) | 21.786 | -0.184 |
 | prope_raw (= prope_orig MINUS image ropes) | 21.676 | -0.294 |
-| prope_imgrope (= prope_orig MINUS projective; attribution cell) | running | |
+| **prope_imgrope (= prope_orig MINUS projective)** | **22.349 / LPIPS 0.2767** | **+0.379** |
 Readings:
 1. The coworker's claim replicates in our stack once the port is faithful.
-2. The DECOMPOSITION vindicates F1/F3's mechanism: removing only the image-coordinate
-   ropes (prope_raw) flips +0.285 to -0.294 — PRoPE's positive contribution rides on
-   its ORTHOGONAL rotary component; the projective half is negative-to-neutral in the
-   L2-norm + weight-norm + Muon regime in every arrangement tried (5 cells).
+2. The DECOMPOSITION vindicates F1/F3's mechanism and is now airtight: the orthogonal
+   image-rope component ALONE scores +0.379 (nearly our input rotary's +0.405); adding
+   the projective half SUBTRACTS ~0.09 (+0.379 -> +0.285); the projective half alone
+   is -0.294. PRoPE's entire gain in the LaCT stack is its orthogonal rotary part;
+   the projective transform is a consistent liability in every arrangement (6 cells).
 3. Ranking preserved: faithful PRoPE (+0.29) < our input rotary (+0.41) < our full
    recipe (+1.08; fw3l_rot3 +1.69). F3's claim needs scoping, not retraction: the
    projective TRANSFORM is what loses; PRoPE-the-package wins via its rotary part.
