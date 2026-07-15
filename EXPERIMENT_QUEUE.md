@@ -124,6 +124,30 @@ pretraining ("Wan 파라미터를 건드리면 안 될 것"). New design, small-
   datasets/mcv_latents_recam/ (6 shards, gpus 1-6, 2026-07-12 morning);
   save_every 250 checkpointing + auto-resume (user rule).
 
+## Q15. Input-only PRoPE / GTA ports (NVS)  [QUEUED 2026-07-15, user request]
+Motivation: a coworker reports PRoPE-in-TTT works well in a ViTTT-based NVS setup
+(their setting: ViTTT structure, NO Muon, gate-only 1-layer MLP inner model =
+SwiGLU minus W2, PRoPE applied as-is to the TTT path, baseline = ViTTT-for-NVS).
+Our F3 negative (prope_ttt 21.852, -0.118) was the FULL q/k/v/o port inside the
+LaCT stack (qk L2-norm + weight-norm + Muon), where projective norm distortion is
+punished. Missing cells: input-only ports, which is what PRoPE originally is.
+- Runs (standard protocol, seed 95, paired vs baseline 21.970 and qk_rope_cam +0.41):
+  (a) cam_prope_in: P = lift(K)E_w2c applied to fast q/k ONLY (q <- rep(P^T)q,
+      k <- rep(P^-1)k; v/o untouched), at the same site as our input rotary.
+      Decision: transform BEFORE the qk L2-norm (document; the norm partially
+      breaks projective cancellation either way — that is part of what we test).
+  (b) cam_gta_in: same but with the rigid-transform rep (rotation+translation
+      homogeneous 4x4, no intrinsics lift) — closer-to-orthogonal control.
+- Reading: if (a) recovers to ~baseline or better, F3 must be scoped to the full
+  port / value path; if (a) still loses while (b) is neutral and qk_rope_cam wins,
+  the orthogonality ladder (projective < rigid < orthogonal rotary) is confirmed
+  at matched site and budget.
+- Follow-up (optional, closer replication of the coworker): gate-only 1-layer MLP
+  inner model (mlp1 variant of F26's mlp2) + no Muon + prope_in.
+- Implementation: reuse the existing prope_ttt rep machinery in lact_ttt_cam.py
+  (restrict application points); ~2 new cam_modes + configs. 2 runs x 1.6h.
+- Schedule: after Q14 wave-1 (LLM) frees a GPU, or on the video-12k GPUs when done.
+
 ## Q13. Shared learnable frequency across layers (NVS)  [QUEUED 2026-07-13, user request]
 User: per-layer learnable gains may be the reason learnable ladders lose to fixed
 (each of 6 layers gets its own 6xF gain -> too much freedom). Test ONE learnable gain
