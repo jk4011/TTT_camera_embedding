@@ -142,8 +142,8 @@ punished. Missing cells: input-only ports, which is what PRoPE originally is.
   port / value path; if (a) still loses while (b) is neutral and qk_rope_cam wins,
   the orthogonality ladder (projective < rigid < orthogonal rotary) is confirmed
   at matched site and budget.
-- Follow-up (optional, closer replication of the coworker): gate-only 1-layer MLP
-  inner model (mlp1 variant of F26's mlp2) + no Muon + prope_in.
+- (1-layer-MLP coworker replication DROPPED per user 2026-07-15 — not our interest;
+  the two input-only ports on OUR stack answer the scoping question.)
 - Implementation: reuse the existing prope_ttt rep machinery in lact_ttt_cam.py
   (restrict application points); ~2 new cam_modes + configs. 2 runs x 1.6h.
 - Schedule: after Q14 wave-1 (LLM) frees a GPU, or on the video-12k GPUs when done.
