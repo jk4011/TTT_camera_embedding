@@ -370,6 +370,31 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F33: Q12 stacking program CLOSED — no 1D hidden increment survives seeds; learnable ladders are an init lottery (2026-07-15)
+Program (user /goal): make rope+hidden < rope (18.405/18.19/18.26 at s42/137/211) at
+the F27 3B protocol. 16 stacked variants + seed replication, all on identical data
+(ds42) with per-step seeded draws. Complete inventory:
+1. FIXED gentle ladder (champion g0.1): +0.01 (s42) / +0.19 (s137) — non-negative
+   both seeds; the F28-addendum s42 "neutral" was the favorable draw.
+2. Gain/frac/theta axes (0.05/0.15/0.2, frac 25/75): all +0.05..+0.29 at s42.
+3. Mechanism axes: delta-only +0.22, hnorm-rms_rot +0.71, late-layer(8-11) +0.10,
+   per-layer learnable +0.23, learnable input deltas +0.33 (harmful even from
+   ZERO init: sharedHI0 18.42 vs sharedH 18.20 at s42).
+4. SHARED learnable hidden ladder (Q13 idea): the one s42 winner — 18.204 (-0.200,
+   gap smooth from 7k; init-robust at s42: g1.0-init 18.17). But 3-seed kills it:
+   s137 18.75 (+0.56), s211 18.92 (+0.66). Deterministic init (tilt=0) does NOT
+   rescue s137 (18.84): the fragility is the model-init x learnable-ladder training
+   dynamics, not the tilt draw. Gap sign is set in the first ~4k steps and stays
+   smooth — a mirror of the s42 win. Extends F20/F29: 1D learnable frequency
+   ladders are an initialization lottery at this scale, in every parameterization
+   (per-layer, shared, deterministic-init, input-additive).
+VERDICT: in 1D at 200M/3B, the hidden site does not add on top of the input rotary.
+What stands: hidden-only gentle ladder beats NoPE (18.53/18.64 2-seed, F28) — the
+1D hidden channel is real but subsumed by the input score. The graded-boundary
+narrative is now backed by 3 domains x 16 variants x 3 seeds. Remaining (untested,
+out of protocol): longer contexts / larger models, where 1D relative structure and
+memory load both grow. Ledger: lact_llm/ga_honly/LEDGER.md (Q12 waves 1-6).
+
 ## F32: Q11-S1 — the hidden increment APPEARS in the frozen regime once the memory works (2026-07-14)
 Stage-1 recipe on the frozen-ReCamMaster adapter (user-approved): fast-weight capacity
 x2 (inter_multi 4), 21x1-frame update chunks, Muon on the chunk updates, ReCamMaster's
