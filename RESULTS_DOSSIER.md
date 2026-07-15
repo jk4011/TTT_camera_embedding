@@ -397,6 +397,11 @@ Readings:
 3. Ranking preserved: faithful PRoPE (+0.29) < our input rotary (+0.41) < our full
    recipe (+1.08; fw3l_rot3 +1.69). F3's claim needs scoping, not retraction: the
    projective TRANSFORM is what loses; PRoPE-the-package wins via its rotary part.
+s137 replication (2026-07-16): prope_orig 22.019, prope_imgrope 22.110 — both above
+the (3-seed-mean) baseline; the projective penalty is eerily seed-stable (imgrope minus
+orig: +0.094 s95, +0.091 s137); ordering vs our input rotary holds per seed
+(imgrope 22.110 < pra_hi_s137 22.385; s95: 22.349 < 22.375). Two-seed verdict FINAL:
+faithful PRoPE works, its engine is the orthogonal part, and our rotary stays ahead.
 Paper untouched (freeze); this entry is the record.
 
 ## F33: Q12 stacking program CLOSED — no 1D hidden increment survives seeds; learnable ladders are an init lottery (2026-07-15)
