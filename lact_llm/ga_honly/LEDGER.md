@@ -263,3 +263,13 @@ failure, now reproduced in 1D. The organize-a-subspace hypothesis is not refuted
 (rotation earned -0.13 on top of the U burden); the implementation was norm-unsafe.
 Wave 2: ORTHOGONAL U (h_basis = matrix_exp(A - A^T), A zero-init: exact reduction at
 init, norm-preserving always, wd pulls toward I) — queued after the Q15 NVS runs.
+
+
+## Q14 wave 2 verdict: orthogonal U also fails — learned-basis line CLOSED (2026-07-16)
+s42: ropeUorthctl (expm(A-A^T), zero phases) 18.55 (+0.15 tax; orthogonality halves the
+dense +0.28 but does not eliminate it) | hpraUorth 18.56 (increment over its own control
+= ZERO; dense showed -0.13). Residual tax = feature-axis identity mixing + optimization
+interference, not norm distortion. Conclusion: no learned-basis parameterization (dense,
+orthogonal) unlocks a 1D hidden increment. LLM attack moves entirely to the structural
+levers: Q16 (exact-offset copy, precision+load maxed) and Q17-A (window 128, load-bearing
+memory in natural language).
