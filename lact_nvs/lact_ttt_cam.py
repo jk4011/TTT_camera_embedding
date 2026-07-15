@@ -686,7 +686,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
         known = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
-                 "prope_ttt", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
+                 "prope_ttt", "prope_in", "gta_in", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
                  "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2",
@@ -926,7 +926,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if "vo_rel" in self.cam_modes:
             pass  # parameter-free
 
-        if "prope_ttt" in self.cam_modes:
+        if self.cam_modes & {"prope_ttt", "prope_in", "gta_in"}:
             assert head_dim % 8 == 0
 
         if "cam_lr" in self.cam_modes:
@@ -1038,6 +1038,21 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             q = apply_tiled_mat4(q, P_h.transpose(-1, -2), tpv, half)
             k = apply_tiled_mat4(k, P_inv_h, tpv, half)
             v = apply_tiled_mat4(v, P_inv_h, tpv, half)
+        elif modes & {"prope_in", "gta_in"}:
+            # Q15: INPUT-ONLY ports (PRoPE's original form) — transform the fast
+            # q/k only; v and the output stay untouched. prope_in keeps the full
+            # projective P = lift(K) @ w2c; gta_in drops the intrinsics lift
+            # (rigid 4x4 rep only), the closer-to-orthogonal control.
+            if "prope_in" in modes:
+                P, P_inv = self._prope_mats(info)
+            else:
+                P = info["view_w2c"].float()
+                P_inv = info["view_c2w"].float()
+            half = self.head_dim // 2
+            P_h = to_heads(P, nh)
+            P_inv_h = to_heads(P_inv, nh)
+            q = apply_tiled_mat4(q, P_h.transpose(-1, -2), tpv, half)
+            k = apply_tiled_mat4(k, P_inv_h, tpv, half)
 
         q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
         k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
