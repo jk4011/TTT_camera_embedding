@@ -48,6 +48,7 @@ if SCRIPT_DIR not in sys.path:
 
 from lact_model import LaCTForCausalLM, LaCTSWIGLUConfig  # noqa: E402
 import data_utils  # noqa: E402
+import synthetic_copy  # noqa: E402
 
 
 def str2bool(v):
@@ -72,6 +73,9 @@ def parse_args():
     p.add_argument("--extra_json", type=str, default="{}",
                    help="JSON dict merged into the config dict LAST.")
     # data
+    p.add_argument("--synthetic", type=str, default="none", choices=["none", "copy"],
+                   help="'copy': exact-offset-copy diagnostic task (synthetic_copy.py) "
+                        "instead of fineweb-edu; loss/val on the copy region only.")
     p.add_argument("--tokenizer", type=str, default=None,
                    help="Optional preferred tokenizer; falls back through the standard chain.")
     p.add_argument("--seq_len", type=int, default=4096)
@@ -180,27 +184,63 @@ def evaluate(model, val_set, val_bs, device):
     return total_loss / max(1, total_tokens)
 
 
+@torch.no_grad()
+def evaluate_copy(model, val_set, val_bs, device):
+    """Copy-region mean loss + argmax accuracy for --synthetic copy.
+
+    Loss is computed OUTSIDE the model (fp32 cross-entropy on the copy-region
+    logits) so it cannot depend on the fused-CE masking path; the model
+    forward shifts labels internally (logits at t score the token at t+1), so
+    the logits scoring copy positions [COPY_START, COPY_END) live at
+    [COPY_START-1, COPY_END-1)."""
+    sc = synthetic_copy
+    was_training = model.training
+    model.eval()
+    total_loss, total_correct, total = 0.0, 0, 0
+    for i in range(0, val_set.shape[0], val_bs):
+        x = val_set[i:i + val_bs].to(device, non_blocking=True)
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            logits = model(input_ids=x).logits
+        pred = logits[:, sc.COPY_START - 1:sc.COPY_END - 1, :].float()
+        tgt = x[:, sc.COPY_START:sc.COPY_END]
+        total_loss += torch.nn.functional.cross_entropy(
+            pred.reshape(-1, pred.shape[-1]), tgt.reshape(-1), reduction="sum").item()
+        total_correct += (pred.argmax(-1) == tgt).sum().item()
+        total += tgt.numel()
+    if was_training:
+        model.train()
+    return total_loss / max(1, total), total_correct / max(1, total)
+
+
 def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path):
     t0 = time.time()
-    val_loss = evaluate(model, val_set, args.val_bs, device)
-    ppl = math.exp(min(20.0, val_loss))
-    print(f"VAL step={step} loss={val_loss:.4f} ppl={ppl:.2f} "
-          f"(eval took {time.time() - t0:.1f}s)", flush=True)
+    entry = {"step": step}
+    if args.synthetic == "copy":
+        val_loss, acc = evaluate_copy(model, val_set, args.val_bs, device)
+        ppl = math.exp(min(20.0, val_loss))
+        entry.update({"val_loss": val_loss, "ppl": ppl, "copy_acc": acc})
+        print(f"VAL step={step} copy_loss={val_loss:.4f} ppl={ppl:.2f} "
+              f"copy_acc={acc:.4f} (eval took {time.time() - t0:.1f}s)", flush=True)
+    else:
+        val_loss = evaluate(model, val_set, args.val_bs, device)
+        ppl = math.exp(min(20.0, val_loss))
+        entry.update({"val_loss": val_loss, "ppl": ppl})
+        print(f"VAL step={step} loss={val_loss:.4f} ppl={ppl:.2f} "
+              f"(eval took {time.time() - t0:.1f}s)", flush=True)
+    entry.update({"tokens_seen": tokens_seen, "time": time.time()})
     with open(val_log_path, "a") as f:
-        f.write(json.dumps({
-            "step": step,
-            "val_loss": val_loss,
-            "ppl": ppl,
-            "tokens_seen": tokens_seen,
-            "time": time.time(),
-        }) + "\n")
+        f.write(json.dumps(entry) + "\n")
     return val_loss
 
 
 # Args that must match between the checkpoint and the resuming run for the
 # resumed run to reproduce an uninterrupted run (data stream + lr schedule).
 _RESUME_CRITICAL_ARGS = ("data_seed", "seq_len", "bs", "grad_accum", "val_tokens",
-                         "lr", "warmup", "min_lr_ratio", "steps", "token_budget")
+                         "lr", "warmup", "min_lr_ratio", "steps", "token_budget",
+                         "synthetic")
+# Defaults for critical args missing from OLD checkpoints (saved before the
+# arg existed) so they stay resumable.
+_RESUME_ARG_DEFAULTS = {"synthetic": "none"}
 
 
 def find_latest_ckpt(out_dir):
@@ -250,7 +290,7 @@ def load_checkpoint(path, args, model, optimizer, scheduler, device):
     """Restore model/optimizer/scheduler/RNG; returns (step, tokens_seen, stream_state)."""
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
     for k in _RESUME_CRITICAL_ARGS:
-        old = ckpt["args"].get(k)
+        old = ckpt["args"].get(k, _RESUME_ARG_DEFAULTS.get(k))
         new = getattr(args, k)
         if old != new:
             raise RuntimeError(
@@ -304,34 +344,47 @@ def main():
             resume_path, args, model, optimizer, scheduler, device)
 
     # ---- data ----------------------------------------------------------
-    # Identical shuffled stream for every run with the same data_seed.
-    stream = data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000)
-    block_gen = data_utils.PackedBlockStream(stream, tokenizer, args.seq_len, eos_id)
-
-    n_val_blocks = args.val_tokens // args.seq_len
-    # data_seed in the filename: the val set is the head of the seed's stream,
-    # so caches from different seeds must never share a file (a seed-43 run
-    # once clobbered the seed-42 cache through the mismatch-overwrite guard).
-    val_cache = os.path.join(SCRIPT_DIR,
-                             f"val_cache_{tok_name.replace('/', '_')}_{args.seq_len}_ds{args.data_seed}.pt")
-    if resume_stream_state is None:
-        val_set = data_utils.get_or_build_val_set(block_gen, n_val_blocks, val_cache)
+    if args.synthetic == "copy":
+        # Synthetic exact-offset-copy task: pure function of (data_seed,
+        # sample index) -> no val cache needed (rebuilt identically each run),
+        # val indices disjoint from the training stream by construction.
+        block_gen = synthetic_copy.SyntheticCopyStream(args.data_seed, args.seq_len)
+        if resume_stream_state is not None:
+            block_gen.restore(resume_stream_state)
+        val_set = synthetic_copy.build_val_set(args.data_seed, n_seqs=64,
+                                               seq_len=args.seq_len)
+        print(f"[data] synthetic copy task: val set {tuple(val_set.shape)}, "
+              f"copy region [{synthetic_copy.COPY_START}, {synthetic_copy.COPY_END}) "
+              f"offset {synthetic_copy.COPY_OFFSET}", flush=True)
     else:
-        # The saved stream position already accounts for the val-set blocks
-        # (they are the head of the stream), so do NOT consume them again.
-        if os.path.exists(val_cache):
-            val_set = torch.load(val_cache, map_location="cpu")
-            print(f"[data] resume: reusing cached val set {val_cache} "
-                  f"({val_set.numel()} tokens)", flush=True)
+        # Identical shuffled stream for every run with the same data_seed.
+        stream = data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000)
+        block_gen = data_utils.PackedBlockStream(stream, tokenizer, args.seq_len, eos_id)
+
+        n_val_blocks = args.val_tokens // args.seq_len
+        # data_seed in the filename: the val set is the head of the seed's stream,
+        # so caches from different seeds must never share a file (a seed-43 run
+        # once clobbered the seed-42 cache through the mismatch-overwrite guard).
+        val_cache = os.path.join(SCRIPT_DIR,
+                                 f"val_cache_{tok_name.replace('/', '_')}_{args.seq_len}_ds{args.data_seed}.pt")
+        if resume_stream_state is None:
+            val_set = data_utils.get_or_build_val_set(block_gen, n_val_blocks, val_cache)
         else:
-            # cache lost: rebuild from a throwaway fresh stream (same head)
-            tmp_gen = data_utils.PackedBlockStream(
-                data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000),
-                tokenizer, args.seq_len, eos_id)
-            val_set = data_utils.get_or_build_val_set(tmp_gen, n_val_blocks, val_cache)
-            del tmp_gen
-        # fast-forward the training stream to the exact checkpointed position
-        block_gen.restore(resume_stream_state)
+            # The saved stream position already accounts for the val-set blocks
+            # (they are the head of the stream), so do NOT consume them again.
+            if os.path.exists(val_cache):
+                val_set = torch.load(val_cache, map_location="cpu")
+                print(f"[data] resume: reusing cached val set {val_cache} "
+                      f"({val_set.numel()} tokens)", flush=True)
+            else:
+                # cache lost: rebuild from a throwaway fresh stream (same head)
+                tmp_gen = data_utils.PackedBlockStream(
+                    data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000),
+                    tokenizer, args.seq_len, eos_id)
+                val_set = data_utils.get_or_build_val_set(tmp_gen, n_val_blocks, val_cache)
+                del tmp_gen
+            # fast-forward the training stream to the exact checkpointed position
+            block_gen.restore(resume_stream_state)
 
     batches = data_utils.batch_generator(block_gen, args.bs, with_state=True)
 
@@ -366,8 +419,11 @@ def main():
                 print(f"[fp] step={step + 1} micro={micro} tok_sum={int(x.sum().item())}",
                       flush=True)
             x = x.to(device, non_blocking=True)
+            # copy task: supervise ONLY the copy region (-100 elsewhere);
+            # otherwise plain LM (labels = inputs, shifted inside the model).
+            labels = synthetic_copy.make_labels(x) if args.synthetic == "copy" else x
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                loss = model(input_ids=x, labels=x).loss
+                loss = model(input_ids=x, labels=labels).loss
             (loss / args.grad_accum).backward()
             micro_losses.append(loss.float().item())
             tokens_seen += x.numel()
