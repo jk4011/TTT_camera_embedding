@@ -81,6 +81,28 @@ def apply_block_rot(x, R, transpose=False):
     return torch.cat([rotated.to(x.dtype), x[..., nb * 3 :]], dim=-1)
 
 
+
+def _prope_rope_coeffs(positions, feat_dim, device):
+    """Official PRoPE image-coordinate RoPE coefficients (freq_base 100,
+    split pairing): positions [L] -> (cos, sin) [L, feat_dim//2]."""
+    num_freqs = feat_dim // 2
+    freqs = 100.0 ** (-torch.arange(num_freqs, device=device, dtype=torch.float32)
+                      / num_freqs)
+    ang = positions.float()[:, None] * freqs[None]
+    return ang.cos(), ang.sin()
+
+
+def _prope_rope_apply(x, cos, sin, inverse=False):
+    """Official split-convention rope on the LAST dim of x [(bh), L, feat_dim]."""
+    h = x.shape[-1] // 2
+    x1, x2 = x[..., :h].float(), x[..., h:].float()
+    if not inverse:
+        out = torch.cat([cos * x1 + sin * x2, -sin * x1 + cos * x2], dim=-1)
+    else:
+        out = torch.cat([cos * x1 - sin * x2, sin * x1 + cos * x2], dim=-1)
+    return out.to(x.dtype)
+
+
 def apply_tiled_mat4(x, M, tokens_per_view, num_dims):
     """Apply per-view 4x4 matrix to 4-dim blocks of x[..., :num_dims].
 
@@ -686,7 +708,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
         known = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
-                 "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
+                 "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
                  "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2",
@@ -926,7 +948,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if "vo_rel" in self.cam_modes:
             pass  # parameter-free
 
-        if self.cam_modes & {"prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw"}:
+        if self.cam_modes & {"prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig"}:
             assert head_dim % 8 == 0
 
         if "cam_lr" in self.cam_modes:
@@ -1058,6 +1080,38 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
 
         prope_raw_P_h = None
+        prope_orig_state = None
+        if "prope_orig" in modes:
+            # Q15: FAITHFUL original PRoPE (prope/prope/torch.py): on q/k/v/o,
+            # [head_dim/2 = tiled projective | head_dim/4 = image-x RoPE |
+            #  head_dim/4 = image-y RoPE], freq_base 100, split pairing,
+            # inverse rotations on the output. Applied after the q/k L2-norm
+            # (the official code has no q/k normalization of its own).
+            P, P_inv = self._prope_mats(info)
+            hd = self.head_dim
+            half, quart = hd // 2, hd // 4
+            P_h = to_heads(P, nh)
+            P_inv_h = to_heads(P_inv, nh)
+            import math as _m
+            px = int(_m.sqrt(tpv)); assert px * px == tpv, tpv
+            pos = torch.arange(tpv, device=q.device)
+            cx, sx = _prope_rope_coeffs(pos % px, quart, q.device)
+            cy, sy = _prope_rope_coeffs(pos // px, quart, q.device)
+            V = P.shape[1]
+            cx, sx = cx.repeat(V, 1), sx.repeat(V, 1)
+            cy, sy = cy.repeat(V, 1), sy.repeat(V, 1)
+
+            def _prope_apply(t, mat, inv=False):
+                t2 = apply_tiled_mat4(t, mat, tpv, half)
+                a = _prope_rope_apply(t2[..., half:half + quart], cx, sx, inv)
+                b = _prope_rope_apply(t2[..., half + quart:], cy, sy, inv)
+                return torch.cat([t2[..., :half], a, b], dim=-1)
+
+            q = _prope_apply(q, P_h.transpose(-1, -2))
+            k = _prope_apply(k, P_inv_h)
+            v = _prope_apply(v, P_inv_h)
+            prope_orig_state = (P_h, _prope_apply)
+
         if modes & {"prope_in_raw", "prope_raw"}:
             # Q15: as-is PRoPE port — projective P on the L2-NORMALIZED fast
             # q/k, no re-normalization afterward (original PRoPE order). The
@@ -1276,6 +1330,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             output = apply_tiled_mat4(output, P_h, tpv, self.head_dim // 2)
         if prope_raw_P_h is not None:
             output = apply_tiled_mat4(output, prope_raw_P_h, tpv, self.head_dim)
+        if prope_orig_state is not None:
+            P_h, _prope_apply = prope_orig_state
+            output = _prope_apply(output, P_h, inv=True)
 
         output = self.o_norm(output)
         output = rearrange(
