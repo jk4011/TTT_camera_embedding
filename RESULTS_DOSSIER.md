@@ -370,6 +370,34 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F34: Q15 — faithful PRoPE port WINS; its gain is the orthogonal component (2026-07-15)
+Trigger: a coworker reports LaCT + PRoPE (as-is) beats baseline. Our F3 cell was a
+LOSS (-0.118) — but our old port re-L2-normalized q/k AFTER the projective transform
+(breaking the score cancellation), tiled only half the head dim, and omitted PRoPE's
+image-coordinate ropes. Faithful port from the official reference (prope/prope/torch.py):
+q/k/v/o each get [head_dim/2 tiled projective P | head_dim/4 image-x RoPE | head_dim/4
+image-y RoPE], freq_base 100, split pairing, inverse rotations on o; applied after our
+fast-q/k L2-norm. Grid (standard protocol, s95, baseline 21.970 / our input rotary
+22.375 / our full recipe 22.971 3-seed):
+| cell | PSNR | delta |
+|---|---|---|
+| **prope_orig (faithful)** | **22.255 / LPIPS 0.2795** | **+0.285 — coworker REPLICATED** |
+| prope_ttt (old F3 port) | 21.852 | -0.118 |
+| gta_in (rigid, q/k, pre-norm renorm) | 21.833 | -0.137 |
+| prope_in (projective, q/k, pre-norm renorm) | 21.786 | -0.184 |
+| prope_raw (= prope_orig MINUS image ropes) | 21.676 | -0.294 |
+| prope_imgrope (= prope_orig MINUS projective; attribution cell) | running | |
+Readings:
+1. The coworker's claim replicates in our stack once the port is faithful.
+2. The DECOMPOSITION vindicates F1/F3's mechanism: removing only the image-coordinate
+   ropes (prope_raw) flips +0.285 to -0.294 — PRoPE's positive contribution rides on
+   its ORTHOGONAL rotary component; the projective half is negative-to-neutral in the
+   L2-norm + weight-norm + Muon regime in every arrangement tried (5 cells).
+3. Ranking preserved: faithful PRoPE (+0.29) < our input rotary (+0.41) < our full
+   recipe (+1.08; fw3l_rot3 +1.69). F3's claim needs scoping, not retraction: the
+   projective TRANSFORM is what loses; PRoPE-the-package wins via its rotary part.
+Paper untouched (freeze); this entry is the record.
+
 ## F33: Q12 stacking program CLOSED — no 1D hidden increment survives seeds; learnable ladders are an init lottery (2026-07-15)
 Program (user /goal): make rope+hidden < rope (18.405/18.19/18.26 at s42/137/211) at
 the F27 3B protocol. 16 stacked variants + seed replication, all on identical data
