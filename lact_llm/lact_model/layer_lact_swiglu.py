@@ -303,6 +303,12 @@ class LaCTSWIGLULayer(nn.Module):
                 # IDENTITY (not toward zero, which would shrink the addresses)
                 self.h_basis_delta = nn.Parameter(torch.zeros(self.d_h, self.d_h))
                 self.register_buffer("h_basis_eye", torch.eye(self.d_h), persistent=False)
+                # "orth" variant (Q14 wave 2): U = expm(A - A^T), always a
+                # rotation matrix -> norm-preserving (the dense variant's +0.28
+                # control tax was address-norm distortion, the F3 mechanism);
+                # A = h_basis_delta, zero-init -> U = I exactly at init, and
+                # weight decay pulls A -> 0, i.e., U -> I.
+                self.ttt_basis_orth = str(ttt_hidden_basis) == "orth"
             h_theta = ttt_hrope_theta if ttt_hrope_theta is not None else rope_theta
             h_inv = ttt_hrope_gain / (h_theta ** (torch.arange(P_h).float() / max(P_h, 1)))
             if ttt_learnable_freqs:
@@ -590,7 +596,12 @@ class LaCTSWIGLULayer(nn.Module):
                 momentum=momentum,
                 delta_only=self.ttt_hrope_delta_only,
                 hnorm=self.ttt_hrope_hnorm,
-                h_basis=(self.h_basis_eye + self.h_basis_delta)
+                h_basis=(
+                    torch.matrix_exp(
+                        (self.h_basis_delta - self.h_basis_delta.transpose(0, 1)).float()
+                    ).to(self.h_basis_delta.dtype)
+                    if getattr(self, "ttt_basis_orth", False)
+                    else self.h_basis_eye + self.h_basis_delta)
                 if getattr(self, "ttt_hidden_basis", False) else None,
             )
         elif self.ttt_prenorm:

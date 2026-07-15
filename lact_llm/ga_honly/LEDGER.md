@@ -250,3 +250,16 @@ fragility is the tilt lottery, this rescues the recipe; if it is the learnable-l
 training dynamics itself, the learnable line dies for good. Also queued: rope s211
 reference. Side wave-5 runs (sharedHI0, initg1, both s42-only) will be read in this
 light.
+
+
+## Q14 wave 1: dense U-basis fails via NORM DISTORTION; rotation earns vs its own control (2026-07-15)
+s42, refs rope 18.405 / hpra-g0.1 18.415 / honly-g0.1 18.53 / nope 18.62:
+| ropeUctl (U only, zero phases) | 18.68 | the dense in-path matrix ALONE costs +0.28 |
+| hpraU (rope + hidden g0.1 + U) | 18.55 | loses to rope, but beats its control by -0.13 |
+| honlyU | 18.74 | |
+Reading: a dense learnable matrix in the hidden ADDRESS path distorts address norms
+-> collides with the weight-norm regime — the same mechanism as F3's projective
+failure, now reproduced in 1D. The organize-a-subspace hypothesis is not refuted
+(rotation earned -0.13 on top of the U burden); the implementation was norm-unsafe.
+Wave 2: ORTHOGONAL U (h_basis = matrix_exp(A - A^T), A zero-init: exact reduction at
+init, norm-preserving always, wd pulls toward I) — queued after the Q15 NVS runs.
