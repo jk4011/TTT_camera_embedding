@@ -708,7 +708,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
         known = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
-                 "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
+                 "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
                  "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2",
@@ -948,7 +948,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if "vo_rel" in self.cam_modes:
             pass  # parameter-free
 
-        if self.cam_modes & {"prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig"}:
+        if self.cam_modes & {"prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope"}:
             assert head_dim % 8 == 0
 
         if "cam_lr" in self.cam_modes:
@@ -1081,13 +1081,19 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
 
         prope_raw_P_h = None
         prope_orig_state = None
-        if "prope_orig" in modes:
+        if modes & {"prope_orig", "prope_imgrope"}:
             # Q15: FAITHFUL original PRoPE (prope/prope/torch.py): on q/k/v/o,
             # [head_dim/2 = tiled projective | head_dim/4 = image-x RoPE |
             #  head_dim/4 = image-y RoPE], freq_base 100, split pairing,
             # inverse rotations on the output. Applied after the q/k L2-norm
             # (the official code has no q/k normalization of its own).
             P, P_inv = self._prope_mats(info)
+            if "prope_imgrope" in modes:
+                # attribution cell: the ORTHOGONAL part of PRoPE only — the
+                # projective half replaced by identity, image x/y ropes kept
+                eye = torch.eye(4, device=P.device, dtype=P.dtype)[None, None]
+                P = eye.expand_as(P).contiguous()
+                P_inv = P
             hd = self.head_dim
             half, quart = hd // 2, hd // 4
             P_h = to_heads(P, nh)
