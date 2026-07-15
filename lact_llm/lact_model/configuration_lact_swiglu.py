@@ -58,6 +58,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         ttt_hrope_min_layer: int = 0,  # apply the hidden rotary only from this layer index on
         ttt_learnable_input_freqs: bool = True,  # fwqk_dfreq input deltas (off = hidden ladder only)
         ttt_input_freq_tilt: Optional[float] = None,  # input-delta init scale; None -> ttt_freq_tilt; 0.0 = start exactly at the fixed ladder
+        ttt_hidden_basis: bool = False,  # learned rotation basis U (init I) on the hidden address
         ttt_freq_tilt: float = 0.1,  # random-tilt init scale for learnable freqs
         w0_w2_low_rank: int = -1,  # -1 means fully learnable.  > 1 means low rank parameterization of the initial learnable weights.
         window_size: int = 2048,
@@ -112,6 +113,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.ttt_hrope_min_layer = ttt_hrope_min_layer
         self.ttt_learnable_input_freqs = ttt_learnable_input_freqs
         self.ttt_input_freq_tilt = ttt_input_freq_tilt
+        self.ttt_hidden_basis = ttt_hidden_basis
         self.ttt_freq_tilt = ttt_freq_tilt
         self.rope_theta = rope_theta
         self.max_position_embeddings = max_position_embeddings

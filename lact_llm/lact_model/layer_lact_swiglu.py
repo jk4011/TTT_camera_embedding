@@ -153,6 +153,7 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_sharedf: bool = False,
         ttt_learnable_input_freqs: bool = True,
         ttt_input_freq_tilt=None,
+        ttt_hidden_basis: bool = False,
         ttt_freq_tilt: float = 0.1,
         rope_theta: float = 500000.0,
         layer_idx: int = None,
@@ -294,6 +295,14 @@ class LaCTSWIGLULayer(nn.Module):
             # ttt_hrope_theta overrides the ladder base (default: attention rope_theta).
             P_h = max(1, int(self.d_h * ttt_hrope_frac / 2.0))
             assert 2 * P_h <= self.d_h, f"ttt_hrope_frac too large: {ttt_hrope_frac}"
+            self.ttt_hidden_basis = ttt_hidden_basis
+            if ttt_hidden_basis:
+                assert not ttt_hrope_delta_only, "basis + delta_only not supported"
+                # per-layer, head-shared learned basis U = I + V, V zero-init:
+                # exact baseline at init, and weight decay pulls U toward the
+                # IDENTITY (not toward zero, which would shrink the addresses)
+                self.h_basis_delta = nn.Parameter(torch.zeros(self.d_h, self.d_h))
+                self.register_buffer("h_basis_eye", torch.eye(self.d_h), persistent=False)
             h_theta = ttt_hrope_theta if ttt_hrope_theta is not None else rope_theta
             h_inv = ttt_hrope_gain / (h_theta ** (torch.arange(P_h).float() / max(P_h, 1)))
             if ttt_learnable_freqs:
@@ -581,6 +590,8 @@ class LaCTSWIGLULayer(nn.Module):
                 momentum=momentum,
                 delta_only=self.ttt_hrope_delta_only,
                 hnorm=self.ttt_hrope_hnorm,
+                h_basis=(self.h_basis_eye + self.h_basis_delta)
+                if getattr(self, "ttt_hidden_basis", False) else None,
             )
         elif self.ttt_prenorm:
             # pre-norm version of ttt.   state = state + f(norm(state))

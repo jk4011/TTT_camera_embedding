@@ -398,6 +398,11 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     momentum: torch.Tensor = None,
     delta_only: bool = False,
     hnorm: str = "none",  # "none" | "rms" (whole hidden) | "rms_rot" (rotated dims only)
+    h_basis: torch.Tensor = None,  # [d_h, d_h] learned rotation basis U (slow weight,
+    # init I): hidden ADDRESS = R(theta) @ (U @ h) on both update and apply; the
+    # score h_q^T U^T R(dtheta) U h_k stays purely relative, U=I reduces exactly
+    # to the plain hidden rotary. Gives the hidden site the same freedom the
+    # input site has via to_qkv (organize a rotation-friendly subspace).
 ):
     """prenorm_block_causal_lact_swiglu + h-PRA (hidden rotary).
 
@@ -491,7 +496,8 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
         hq = gate * h
         if hnorm != "none":
             hq, _, _ = _hn_fwd(hq)
-        hq_rot = apply_rotary_cols(hq, hci, hsi)
+        hq_addr = torch.matmul(h_basis, hq) if h_basis is not None else hq
+        hq_rot = apply_rotary_cols(hq_addr, hci, hsi)
         if delta_only:
             # initial readout unrotated; only the accumulated delta probes rotated
             output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(
@@ -506,11 +512,16 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
             hidden_n, hn_y, hn_rms = _hn_fwd(hidden)
         else:
             hidden_n = hidden
-        hidden_rot = apply_rotary_cols(hidden_n, hci, hsi)
+        hidden_addr = (torch.matmul(h_basis, hidden_n)
+                       if h_basis is not None else hidden_n)
+        hidden_rot = apply_rotary_cols(hidden_addr, hci, hsi)
 
         # backprop through the rotation: R^T = rotary with negated sin
         dhidden_rot = torch.bmm(w1.transpose(1, 2), vi)
         dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+        if h_basis is not None:
+            # inner-loop gradient back through the basis: d(pre-basis hidden)
+            dhidden = torch.matmul(h_basis.transpose(0, 1), dhidden)
         if hnorm != "none":
             # exact RMSNorm Jacobian back to the pre-norm hidden
             dhidden = _hn_bwd(dhidden, hn_y, hn_rms)
@@ -555,7 +566,8 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     hq = gate * h
     if hnorm != "none":
         hq, _, _ = _hn_fwd(hq)
-    hq_rot = apply_rotary_cols(hq, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
+    hq_addr = torch.matmul(h_basis, hq) if h_basis is not None else hq
+    hq_rot = apply_rotary_cols(hq_addr, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
     if delta_only:
         output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(
             w1 - w1_init, hq_rot)
