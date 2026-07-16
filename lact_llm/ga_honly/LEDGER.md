@@ -283,3 +283,13 @@ Conclusion: input and hidden encode the SAME Delta-t information regardless of f
 placement; a multi-freq ladder spans the band either way. Stacking fails informationally.
 The live natural-language path remains SUBSTITUTION: honly-g1 > rope at w128
 (-0.06 s42 / -0.04 s137; s211 pending). Next per user order: Q20 per-head AdaFreq.
+
+
+## Q20 verdict: per-head AdaFreq FAILS in the TTT hidden site (2026-07-17)
+w128, delta-form per-fw-head learnable log-freqs (exact fixed-ladder init):
+honly_perhead 18.61 (s42; fixed 18.55) / 18.58 (s137; fixed 18.56) — worse or equal;
+hpra_perhead 18.64 = fixed hpra, still behind rope 18.61. The AdaRoPE recipe
+(per-head direct log-freq learning) does not transfer to fast-weight hidden ladders
+at this scale. Every learnable-frequency parameterization is now negative here:
+shared (F33 lottery), per-layer (18.63), per-head (Q20). Last learnable card: Q21
+LieRE (joint plane+angle generators), agent in flight.
