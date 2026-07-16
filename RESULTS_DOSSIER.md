@@ -370,6 +370,39 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F35: Q16 exact-offset copy — the 1D hidden rotary CARRIES precise positional retrieval when the task demands it (2026-07-16)
+Task: 256-token random span, reproduce at offset 2560 (= 2.5x the 1024 attention window,
+crosses 2 chunk boundaries) — only the fast-weight memory can carry it; the answer
+depends on exact relative offset. 200M production arch, 800M tokens, copy-region loss,
+grokking-like transition. Grid (final copy accuracy | transition step acc>50%):
+| variant | final acc | transition |
+|---|---|---|
+| NoPE | **0.2% (random floor — NEVER learns)** | never |
+| rope (input) | 100% | 8500 |
+| honly g0.1 | 100% | 11000 |
+| **honly g1.0** | 100% | **4000 (fastest)** |
+| hpra g0.1 | 100% (loss 0.0002, lowest) | 6000 |
+| hpra g1.0 | 100% | 4500 |
+Readings:
+1. WITHOUT a positional code the task is unlearnable at this budget (content-induction
+   alternative did not materialize) — position is effectively necessary.
+2. **The hidden rotary ALONE fully solves precise long-range retrieval** (honly 100% vs
+   NoPE 0.2%): first clean demonstration that the 1D hidden site can carry exact
+   positional addressing when the memory is load-bearing and the task rewards precision.
+   The 1D failures in natural language (F27/F33) were the TASK's thinness, not an
+   inability of the hidden channel.
+3. Ladder-band prediction confirmed: on a precision task the STANDARD ladder beats the
+   gentle one (honly g1.0 transitions at 4000 vs g0.1 at 11000) — the F28 gentle-ladder
+   rule was a property of the w1024 natural-language band, not universal.
+4. Stacking accelerates: hpra transitions before rope at both gains (4500/6000 vs 8500)
+   and reaches the lowest loss — on THIS task input+hidden > input in learning speed,
+   though all saturate at 100%.
+Contrast cell (same day): Q17-A w128 natural language — tripling the memory-exclusive
+zone did NOT open the hpra-rope increment (18.61 vs 18.64). Together: the binding
+constraint in natural language is that its long-range retrievals are content-addressed,
+not position-addressed; when retrieval is position-addressed (copy), every rotary site
+earns and hidden alone suffices. Remaining w128 cells (nope/honly, g1.0) will refine.
+
 ## F34: Q15 — faithful PRoPE port WINS; its gain is the orthogonal component (2026-07-15)
 Trigger: a coworker reports LaCT + PRoPE (as-is) beats baseline. Our F3 cell was a
 LOSS (-0.118) — but our old port re-L2-normalized q/k AFTER the projective transform
