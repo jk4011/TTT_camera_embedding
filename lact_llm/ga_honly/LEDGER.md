@@ -273,3 +273,13 @@ interference, not norm distortion. Conclusion: no learned-basis parameterization
 orthogonal) unlocks a 1D hidden increment. LLM attack moves entirely to the structural
 levers: Q16 (exact-offset copy, precision+load maxed) and Q17-A (window 128, load-bearing
 memory in natural language).
+
+
+## Q19 verdict: frequency-relationship engineering FAILS — the redundancy is informational, not spectral (2026-07-17)
+w128 s42 (refs: nope 18.81 / rope 18.61 / honly-g1 18.55 / hpra-g1 18.64):
+| band-split (input theta100 local + hidden g0.1 long) | 18.85 | worse than NoPE — starving the input rope of its full band destroys its value; hidden cannot replace it |
+| interleave (same band, half-log-step shifted freqs) | 18.66 | == same-freq hpra; shifting individual frequencies changes nothing |
+Conclusion: input and hidden encode the SAME Delta-t information regardless of frequency
+placement; a multi-freq ladder spans the band either way. Stacking fails informationally.
+The live natural-language path remains SUBSTITUTION: honly-g1 > rope at w128
+(-0.06 s42 / -0.04 s137; s211 pending). Next per user order: Q20 per-head AdaFreq.
