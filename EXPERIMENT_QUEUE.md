@@ -148,6 +148,41 @@ punished. Missing cells: input-only ports, which is what PRoPE originally is.
   (restrict application points); ~2 new cam_modes + configs. 2 runs x 1.6h.
 - Schedule: after Q14 wave-1 (LLM) frees a GPU, or on the video-12k GPUs when done.
 
+## Q20. AdaRoPE-style PER-HEAD learnable frequencies (LLM + all tasks)  [QUEUED 2026-07-16, user request + paper]
+Paper: "AdaRoPE: Not All Attention Heads Should Rotate and Scale Equally" (Tsinghua/Tencent,
+PMLR 2026; PDF in claude_portable/config/uploads/.../AdaRoPE.pdf). Learnable RoPE that WORKS
+on transformer LLMs (up to 2.7B, FineWeb-100B): beats RoPE/PRoPE/ALiBi/NoPE on 7 NLU tasks
+(+0.91 avg) and pretrain loss (-0.016).
+METHOD (two parts): (1) AdaFreq — learn a log-frequency xi_f^(h) in R PER HEAD, per
+dim-pair; map theta_f^(h) = exp(xi_f^(h)); store fp32; INIT from the standard geometric
+schedule then learn. (2) AdaScale — per-head length-aware attention temperature lambda(L)
+(counteracts attention dilution; less relevant to our fixed-4096 / TTT-no-softmax setting).
+WHY IT MAY UNLOCK OUR LEARNABLE FAILURES (F20/F33): AdaRoPE's OWN ablations reproduce our
+negatives and show the fix —
+  - "Share Freq" (all heads share one learnable schedule) DEGRADES (51.23 -> 50.90 avg;
+    loss 2.663 -> 2.685) == our F33 shared-learnable seed-lottery. Sharing is wrong.
+  - "Learned Base" (learn a single base b, recover theta=b^(-2f/d)) DEGRADES (-> 50.77)
+    == our gain/theta knobs (whole-ladder scale). Wrong parameterization.
+  - WINNER: per-dim-pair log-freq, learned directly, PER HEAD. We never tried per-head:
+    our h_inv_freq is per-LAYER or globally shared, broadcast across all fast-weight heads.
+TRANSPLANT PLAN:
+  - AdaFreq on the TTT HIDDEN ladder: h_inv_freq -> [num_fw_heads, P_h] learnable log-freq
+    (xi, theta=exp(xi)), fp32, init from the current fixed ladder (gentle g0.1 or standard
+    g1.0 per the F35 band rule for the setting). Kernel already takes per-token hcos/hsin;
+    make them per-fw-head [num_fw_heads, P_h, S]. This is the one untested learnable axis.
+  - Optionally AdaFreq on the input fast-q/k rope too (harder: fla RotaryEmbedding; would
+    need a manual per-head rotary like the band-split fast_rotary).
+  - Skip AdaScale initially (TTT has no softmax temperature; revisit if a fast-weight
+    analogue is motivated).
+  - Grid (w128 default per user 2026-07-16): {rope, honly-perhead-adafreq, hpra-perhead-
+    adafreq} x seeds; controls = our existing shared/per-layer learnable (F33) and fixed.
+  - Deeper-layer freq drift (paper Fig 3-4: early layers lower freq, deep layers higher):
+    our per-layer h_inv_freq already allows this; per-head adds the within-layer axis.
+Implementation: extend ttt_learnable_freqs to a per-head parameter [num_fw_heads, P_h] with
+xi=log parameterization; ~1 kernel-shape change (broadcast hcos/hsin over fw heads). Sanity:
+reduces to current when per-head params tied; fp32; init-from-fixed exact at step 0.
+Cost: 3B runs ~5-6h each at w128. Read AdaRoPE appendix B/G for exact init + lr before impl.
+
 ## Q13. Shared learnable frequency across layers (NVS)  [QUEUED 2026-07-13, user request]
 User: per-layer learnable gains may be the reason learnable ladders lose to fixed
 (each of 6 layers gets its own 6xF gain -> too much freedom). Test ONE learnable gain
