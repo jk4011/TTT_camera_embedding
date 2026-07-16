@@ -395,10 +395,14 @@ Readings (all s42, single seed — REPLICATION s137/s211 RUNNING):
 4. ODDITY: combining both (hpra 18.64) is WORSE than either alone (rope 18.61, honly
    18.55) — destructive when stacked at w128. So this is hidden REPLACING input, not
    input+hidden > input; the original goal cell (hpra > rope) still fails.
-Seed replication: **s137 CONFIRMS the reversal** — honly-g1 18.56 vs rope 18.60
-(-0.04; s42 was -0.06). Unlike the F33 lottery (swings of 0.7+), the effect size is
-consistent across seeds. s211 pair running; if it holds, "hidden-only beats input-only
-under a load-bearing memory" becomes a 3-seed natural-language headline.
+Seed replication FINAL (3 seeds): s42 -0.06, s137 -0.04, **s211 +0.13** (honly 18.67
+vs rope 18.54) — the REVERSAL DOES NOT SURVIVE the third seed (mean gap +0.01, mixed
+signs). Corrected 3-seed statement: at w128 hidden-only becomes statistically
+INDISTINGUISHABLE from input-only (up from consistently ~+0.13 behind at w1024). The
+load-bearing TREND is real — the honly-rope gap shrinks from ~+0.12 (w1024) to ~0
+(w128), consistent with the channel-value decomposition — but "hidden beats input" in
+natural language is NOT established. The decomposition claim (hidden value grows with
+memory workload) stands as a trend; the overtake was seed luck at s42/s137.
 
 ## F35: Q16 exact-offset copy — the 1D hidden rotary CARRIES precise positional retrieval when the task demands it (2026-07-16)
 Task: 256-token random span, reproduce at offset 2560 (= 2.5x the 1024 attention window,
