@@ -147,6 +147,8 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_hrope_frac: float = 0.5,
         ttt_hrope_gain: float = 1.0,
         ttt_hrope_theta: float = None,
+        ttt_input_theta: float = None,
+        ttt_hrope_interleave: bool = False,
         ttt_hrope_delta_only: bool = False,
         ttt_hrope_hnorm: str = "none",
         ttt_learnable_freqs: bool = False,
@@ -185,6 +187,12 @@ class LaCTSWIGLULayer(nn.Module):
 
         self.rope_theta = rope_theta
         self.rotary = RotaryEmbedding(dim=self.head_dim, base=self.rope_theta)
+        # band-split: a separate, LOCAL-band input rope for the fast q/k
+        self.ttt_input_theta = ttt_input_theta
+        if ttt_input_theta is not None:
+            self.fast_rotary = RotaryEmbedding(dim=self.head_dim, base=float(ttt_input_theta))
+        else:
+            self.fast_rotary = self.rotary
         self.layer_idx = layer_idx
         self.max_position_embeddings = max_position_embeddings
 
@@ -310,7 +318,8 @@ class LaCTSWIGLULayer(nn.Module):
                 # weight decay pulls A -> 0, i.e., U -> I.
                 self.ttt_basis_orth = str(ttt_hidden_basis) == "orth"
             h_theta = ttt_hrope_theta if ttt_hrope_theta is not None else rope_theta
-            h_inv = ttt_hrope_gain / (h_theta ** (torch.arange(P_h).float() / max(P_h, 1)))
+            _off = 0.5 if ttt_hrope_interleave else 0.0
+            h_inv = ttt_hrope_gain / (h_theta ** ((torch.arange(P_h).float() + _off) / max(P_h, 1)))
             if ttt_learnable_freqs:
                 h_inv = h_inv * (1.0 + ttt_freq_tilt * torch.randn(P_h))
                 self.h_inv_freq = _freq_param("h_inv_freq", h_inv)
@@ -499,7 +508,7 @@ class LaCTSWIGLULayer(nn.Module):
             fast_q = rearrange(fast_q, "b s (n_h d) -> b s n_h d", n_h=self.num_heads)
             fast_k = rearrange(fast_k, "b s (n_h d) -> b s n_h d", n_h=self.num_heads)
 
-            fast_q, fast_k = self.rotary(
+            fast_q, fast_k = self.fast_rotary(
                 fast_q,
                 fast_k,
                 seqlen_offset=seqlen_offset,
