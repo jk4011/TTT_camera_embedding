@@ -395,8 +395,10 @@ Readings (all s42, single seed — REPLICATION s137/s211 RUNNING):
 4. ODDITY: combining both (hpra 18.64) is WORSE than either alone (rope 18.61, honly
    18.55) — destructive when stacked at w128. So this is hidden REPLACING input, not
    input+hidden > input; the original goal cell (hpra > rope) still fails.
-Caveat: single seed; F33 taught that w128 single-seed flips can be seed luck. Verdict
-waits on s137/s211 (honly-g1 + rope pairs, running gpu4/5/6).
+Seed replication: **s137 CONFIRMS the reversal** — honly-g1 18.56 vs rope 18.60
+(-0.04; s42 was -0.06). Unlike the F33 lottery (swings of 0.7+), the effect size is
+consistent across seeds. s211 pair running; if it holds, "hidden-only beats input-only
+under a load-bearing memory" becomes a 3-seed natural-language headline.
 
 ## F35: Q16 exact-offset copy — the 1D hidden rotary CARRIES precise positional retrieval when the task demands it (2026-07-16)
 Task: 256-token random span, reproduce at offset 2560 (= 2.5x the 1024 attention window,
