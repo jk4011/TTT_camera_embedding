@@ -370,6 +370,34 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F36: Q17 window sweep — the hidden rotary's value GROWS with memory workload and OVERTAKES the input rotary (PROVISIONAL, s42; seeds in flight) (2026-07-16)
+Lever: shrink the sliding-window attention 1024 -> 128 so the fast-weight memory becomes
+load-bearing for the mid-range positional structure in NATURAL language (memory-exclusive
+positions 31.5% -> ~90%). Full 6-cell grid, 3B ds42, standard protocol.
+Channel value = ppl reduction vs NoPE (the clean decomposition):
+| rotary | window 1024 | window 128 |
+|---|---|---|
+| input (rope) | +0.22 | +0.20 |
+| hidden (honly) | +0.09 (g0.1) | **+0.26 (g1.0)** |
+Absolute (w128): nope 18.81 / rope 18.61 / honly-g1.0 **18.55** / hpra 18.64 (both ladders).
+Readings (all s42, single seed — REPLICATION s137/s211 RUNNING):
+1. **The input rotary's value is window-INVARIANT (~0.2); the hidden rotary's value
+   TRIPLES as the window shrinks and OVERTAKES the input** (0.26 > 0.20). The NoPE anchor
+   proves this is the hidden channel getting more valuable, not the input getting worse.
+   First quantitative natural-language evidence for the load-bearing-memory picture that
+   NVS/ccv/copy showed: the hidden site lives in the memory's address space, so its value
+   scales with how much work the memory does.
+2. **hidden-only BEATS input-only at w128** (18.55 < 18.61) — reverses the w1024 ordering
+   (there honly 18.53 > rope 18.40). In a load-bearing regime the best single place for
+   the rotary is the HIDDEN site.
+3. Ladder-band rule confirmed again (F35): at w128 the STANDARD ladder wins for honly
+   (g1.0 18.55; g0.1 pending) — the gentle-ladder rule was a w1024-band artifact.
+4. ODDITY: combining both (hpra 18.64) is WORSE than either alone (rope 18.61, honly
+   18.55) — destructive when stacked at w128. So this is hidden REPLACING input, not
+   input+hidden > input; the original goal cell (hpra > rope) still fails.
+Caveat: single seed; F33 taught that w128 single-seed flips can be seed luck. Verdict
+waits on s137/s211 (honly-g1 + rope pairs, running gpu4/5/6).
+
 ## F35: Q16 exact-offset copy — the 1D hidden rotary CARRIES precise positional retrieval when the task demands it (2026-07-16)
 Task: 256-token random span, reproduce at offset 2560 (= 2.5x the 1024 attention window,
 crosses 2 chunk boundaries) — only the fast-weight memory can carry it; the answer
