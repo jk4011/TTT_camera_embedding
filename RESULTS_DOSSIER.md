@@ -491,6 +491,22 @@ Mechanics kept honest: all Stage-1 changes shared by all four variants; identica
 data stream + per-step seeded noise; sanity 16/16 incl. muon-off bitwise-equal to the
 old kernel (commit f2ea68b).
 
+### F32b: 12k-step extension of in/both (fresh cosine, 2026-07-16)
+Doubling the schedule (6000 -> 12000 steps, fresh cosine) sharpens everything:
+| variant | 6k val | 12k val | 12k gen (PSNR/LPIPS) |
+|---|---|---|---|
+| in_s1 | 0.11772 | 0.09951 | 16.11 / 0.4282 |
+| both_s1 | 0.11620 | **0.09706** | **16.34 / 0.4152** |
+- Both improve hugely over 6k (in -0.0182 t=-12.6; both -0.0191 t=-13.8) — the 6k probe
+  was NOT plateaued, memory recall keeps improving with budget.
+- **Hidden increment SHARPENS: both-in = -0.00245, t=-10.05 (178/192 pairs)** vs t=-6.08
+  at 6k. The more the memory works (longer training), the more the hidden rotary earns —
+  cleanest confirmation yet of the load-bearing-memory picture.
+- **Generation now BEATS the ReCamMaster anchor**: both 16.34 dB / LPIPS 0.4152 vs
+  ReCamMaster 15.71 / 0.4534. A frozen-backbone TTT adapter (12k steps, ~1 B200-day)
+  surpasses the released 8xH800x3day model on our held-out pairs, and the input+hidden
+  rotary is the best cell on both metrics. base/h_12k evals pending to complete the 2x2.
+
 ## F31: Q11 frozen-ReCamMaster + TTT-adapter 2x2 (fixed ladders, 3250 steps, 2026-07-12)
 Design (user pivot): released ReCamMaster step20000, EVERYTHING pretrained frozen
 (incl. their fine-tuned self_attn + cam_encoder); attention reverted to per-video;
