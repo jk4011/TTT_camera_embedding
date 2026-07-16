@@ -49,6 +49,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         ttt_hrope_theta: Optional[float] = None,  # ladder base; None -> rope_theta
         ttt_input_theta: Optional[float] = None,  # base for the fast-q/k INPUT rope; None -> rope_theta. Small = local (high-freq) band, for band-split vs the hidden site.
         ttt_hrope_interleave: bool = False,  # offset the hidden ladder by half a log-step so its frequencies sit BETWEEN the input's (same band, complementary frequencies).
+        ttt_perhead_freqs: bool = False,  # AdaRoPE-style AdaFreq: PER-FW-HEAD learnable log-frequencies xi [num_fw_heads, P_h], theta=exp(xi), fp32, init from the fixed ladder.
         ttt_hrope_delta_only: bool = False,  # rotate only the fast-weight DELTA path on apply:
         # out = w_init @ h + (w - w_init) @ R(phi) h. Removes the absolute-phase tax on the
         # initial readout (F27b) while keeping relative update->apply recall.
@@ -110,6 +111,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.ttt_hrope_theta = ttt_hrope_theta
         self.ttt_input_theta = ttt_input_theta
         self.ttt_hrope_interleave = ttt_hrope_interleave
+        self.ttt_perhead_freqs = ttt_perhead_freqs
         self.ttt_hrope_delta_only = ttt_hrope_delta_only
         self.ttt_hrope_hnorm = ttt_hrope_hnorm
         self.ttt_learnable_freqs = ttt_learnable_freqs

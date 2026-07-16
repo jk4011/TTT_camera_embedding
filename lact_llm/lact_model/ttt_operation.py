@@ -366,12 +366,16 @@ def prenorm_block_causal_lact_swiglu(
 def apply_rotary_cols(x, cos, sin):
     """Rotate adjacent row-pairs of column-major tokens.
 
-    x: [b, d, l]; cos/sin: [P, l] with 2P <= d. Rotates rows [0:2P].
+    x: [b, d, l]; cos/sin: [P, l] (shared) or [b, P, l] (per-row, e.g.
+    per-fw-head AdaFreq ladders) with 2P <= d. Rotates rows [0:2P].
     """
-    P = cos.shape[0]
+    P = cos.shape[-2]
     x_rot = x[:, : 2 * P, :].float().reshape(x.shape[0], P, 2, x.shape[2])
     x1, x2 = x_rot[:, :, 0], x_rot[:, :, 1]
-    c, s_ = cos[None], sin[None]
+    if cos.dim() == 3:
+        c, s_ = cos, sin
+    else:
+        c, s_ = cos[None], sin[None]
     y = torch.stack((x1 * c - x2 * s_, x1 * s_ + x2 * c), dim=2)
     y = y.reshape(x.shape[0], 2 * P, x.shape[2]).type_as(x)
     if 2 * P == x.shape[1]:
@@ -432,7 +436,7 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     """
     assert hnorm in ("none", "rms", "rms_rot")
     assert not (delta_only and hnorm != "none"), "delta_only + hnorm not combined (keep variants separable)"
-    P_rot = hcos.shape[0]
+    P_rot = hcos.shape[-2]
 
     def _hn_fwd(x):
         """RMS-normalize columns of x [B, d, L] over the feature dim (mode-aware).
@@ -487,8 +491,8 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
         lr1i = lr1[:, s_index:e_index, :]
         lr2i = lr2[:, s_index:e_index, :]
         lr0i = lr0[:, s_index:e_index, :]
-        hci = hcos[:, s_index:e_index]
-        hsi = hsin[:, s_index:e_index]
+        hci = hcos[..., s_index:e_index]
+        hsi = hsin[..., s_index:e_index]
 
         # apply with previous weights; hidden of queries rotated by their phases
         h = torch.bmm(w2, qi)
@@ -567,7 +571,7 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
     if hnorm != "none":
         hq, _, _ = _hn_fwd(hq)
     hq_addr = torch.matmul(h_basis, hq) if h_basis is not None else hq
-    hq_rot = apply_rotary_cols(hq_addr, hcos[:, s_index:e_index], hsin[:, s_index:e_index])
+    hq_rot = apply_rotary_cols(hq_addr, hcos[..., s_index:e_index], hsin[..., s_index:e_index])
     if delta_only:
         output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(
             w1 - w1_init, hq_rot)

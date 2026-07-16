@@ -66,6 +66,7 @@ class LaCTBlock(nn.Module):
             ttt_hrope_theta=getattr(config, "ttt_hrope_theta", None),
             ttt_input_theta=getattr(config, "ttt_input_theta", None),
             ttt_hrope_interleave=getattr(config, "ttt_hrope_interleave", False),
+            ttt_perhead_freqs=getattr(config, "ttt_perhead_freqs", False),
             ttt_hrope_delta_only=getattr(config, "ttt_hrope_delta_only", False),
             ttt_hrope_hnorm=getattr(config, "ttt_hrope_hnorm", "none"),
             ttt_learnable_freqs=getattr(config, "ttt_learnable_freqs", False),

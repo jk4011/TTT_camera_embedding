@@ -149,6 +149,7 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_hrope_theta: float = None,
         ttt_input_theta: float = None,
         ttt_hrope_interleave: bool = False,
+        ttt_perhead_freqs: bool = False,
         ttt_hrope_delta_only: bool = False,
         ttt_hrope_hnorm: str = "none",
         ttt_learnable_freqs: bool = False,
@@ -320,7 +321,17 @@ class LaCTSWIGLULayer(nn.Module):
             h_theta = ttt_hrope_theta if ttt_hrope_theta is not None else rope_theta
             _off = 0.5 if ttt_hrope_interleave else 0.0
             h_inv = ttt_hrope_gain / (h_theta ** ((torch.arange(P_h).float() + _off) / max(P_h, 1)))
-            if ttt_learnable_freqs:
+            self.ttt_perhead_freqs = ttt_perhead_freqs
+            if ttt_perhead_freqs:
+                # AdaRoPE AdaFreq transplant, delta form: theta_h = h_inv *
+                # exp(delta_h), delta [num_fw_heads, P_h] ZERO-init — exact
+                # reduction to the fixed ladder at step 0 even under bf16
+                # (exp(0)=1 exactly), log-space learning per head as in the
+                # paper, and weight decay pulls back toward the fixed ladder.
+                self.h_freq_delta_perhead = nn.Parameter(
+                    torch.zeros(num_lact_heads, h_inv.shape[0]))
+                self.register_buffer("h_inv_freq", h_inv, persistent=False)
+            elif ttt_learnable_freqs:
                 h_inv = h_inv * (1.0 + ttt_freq_tilt * torch.randn(P_h))
                 self.h_inv_freq = _freq_param("h_inv_freq", h_inv)
             else:
@@ -594,7 +605,14 @@ class LaCTSWIGLULayer(nn.Module):
             pos = torch.arange(
                 fast_q.shape[1], device=fast_q.device, dtype=torch.float32
             ) + seqlen_offset
-            h_ang = self.h_inv_freq.float()[:, None] * pos[None, :]  # [P_h, s]
+            if getattr(self, "ttt_perhead_freqs", False):
+                theta_ph = (self.h_inv_freq.float()[None]
+                            * self.h_freq_delta_perhead.float().exp())  # [nh, P_h]
+                h_ang = theta_ph[:, :, None] * pos[None, None, :]  # [nh, P_h, s]
+                b_true = fast_q.shape[0] // self.num_fw_heads
+                h_ang = h_ang.repeat(b_true, 1, 1)  # [b*nh, P_h, s]
+            else:
+                h_ang = self.h_inv_freq.float()[:, None] * pos[None, :]  # [P_h, s]
             fw_x = prenorm_block_causal_lact_swiglu_hidden_rope(
                 fw_w0, fw_w1, fw_w2,
                 fast_q, fast_k, fast_v,
