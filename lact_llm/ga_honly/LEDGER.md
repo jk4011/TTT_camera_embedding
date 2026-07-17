@@ -434,3 +434,29 @@ single-branch rope is therefore a TASK-DEPENDENT trade, not a free win — predi
 for the ports: coordinate-addressed tasks (NVS/CCV) should PREFER both-branch rotation
 (or need the hidden site to carry what the content branch gives up). The w1024 cell
 (gpu3) and the gate+hidden stack (q26_gatehpra, gpu4) are now the decisive cells.
+
+## Q26 seed update: gate s211 flips sign (2026-07-17)
+q25b_gate_w128_s211: 18.603 vs rope s211 18.54 -> +0.063 (s42 was -0.138). Same-seed
+paired deltas now MIXED SIGN. 2-seed means: gate 18.537 vs rope 18.575 (-0.038, gate
+still ahead on average). s137 pair (gate gpu2 vs rope 18.60) decides whether this is
+a real but seed-noisy ~0.04 effect or an s42 fluke. Content seeds still running.
+Tempered read: the s42 -0.14 was the tail of the distribution, not the center.
+
+## Q26 content 3-seed verdict: PARITY (2026-07-17)
+content seeds complete: 18.502 (s42) / 18.563 (s137) / 18.645 (s211) vs rope
+18.609/18.60/18.54. Same-seed deltas {-0.107, -0.037, +0.105}: mean -0.013, mixed
+signs — statistically nothing. gate so far {-0.138, ?, +0.063} (s137 pending). The
+s42 -0.11..-0.14 was a favorable draw, not the effect center. The ROBUST Q26 finding
+remains the copy dissociation (gate-only 7.3% vs standard 100% — a behavioral cliff,
+not noise): single-branch rotation gives up position-addressed retrieval machinery
+and pays NO natural-language price (parity), which is finding D stated in reverse.
+The natural-language ppl win over input rope remains unachieved on every axis tried.
+
+## Q26 gate 3-seed verdict: directional, NOT significant (2026-07-17)
+gate seeds complete: 18.471 (s42) / 18.561 (s137) / 18.603 (s211) vs rope
+18.609/18.60/18.54. Same-seed deltas {-0.138, -0.039, +0.063}: mean -0.038,
+t ~ -0.65, 2/3 negative. Means: gate 18.545 vs rope 18.583. Better centered than
+content (-0.013) but the pre-registered bar (consistent 3-seed win) FAILS on s211.
+Both single-branch variants land at directional-parity; the tax hypothesis survives
+only as a ~0.04 average effect inside seed noise. Remaining decisive Q26 cells:
+gatehpra stack, w1024 tax check, content-copy symmetry, NVS coordinate-task ports.
