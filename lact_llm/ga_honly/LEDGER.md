@@ -385,3 +385,32 @@ q24a_hpra_iropedrop_w128 finished 3B: 18.612 = rope (18.609), better than plain 
 gain, and C(final)=+0.0062 loss is exactly the untreated-hpra ignore signature
 (pre-registered success bar was >0.1). Both interventions confirm: the final model
 discards the hidden rotation regardless of acquisition order. Q24 CLOSED.
+
+## Q25c verdict: conjugate-paired ladder = plain hpra (2026-07-17)
+q25c_hpra_conj_w128 (s42, 3B): 18.629 vs plain hpra 18.64 (within noise), rope 18.609.
+Giving the model an even/odd-separable basis (h_inv = cat([f,-f])) to keep the recency
+envelope and drop the offset code changes nothing — as its own design brief predicted
+(permissive expressivity, no force). Q25c closed at one cell.
+
+## Q25b BREAKTHROUGH CANDIDATE: single-branch input rope BEATS full rope (s42, 2026-07-17)
+GbR decomposition of the input rope's +0.20 (w128, 3B, s42):
+| variant | ppl | vs rope |
+|---|---|---|
+| rope (both branches rotated, standard) | 18.609 | — |
+| GATE-only (silu(w0 Rk) * (w2 k)) | **18.471** | **-0.138** |
+| CONTENT-only (silu(w0 k) * (w2 Rk)) | **18.502** | -0.107 |
+| nope | 18.81 | +0.20 |
+BOTH single-branch variants beat the standard full rope — the finding is not "the
+value lives in one branch" but **rotating both branches at once is a ~0.11-0.14 tax**:
+with both rotated, the SwiGLU product compounds the rotation through the multiplicative
+interaction (the fast weight's content channel is scrambled twice); with one branch
+rotated, the layer gets a full relative code through one channel AND a position-clean
+content channel through the other — the "position modulates, content addresses"
+separation the whole design round was hunting, achieved at the INPUT site by removing
+half the standard rope rather than adding anything. Gate-only earns +0.34 over NoPE
+(the raw positional value net of tax). SINGLE SEED so far: gate s137/s211 (gpu2/6) and
+content s137/s211 (gpu0/1) launched immediately. If 3 seeds hold: this is the 1D win
+(a TTT-RoPE-system change beating standard input rope), and the immediate follow-ups
+are (a) gate-rope + hidden rotary stacking (content channel now clean — the redundancy
+calculus may change), (b) NVS/CCV ports (same SwiGLU fast weight; cam rotary currently
+rotates both branches there too).
