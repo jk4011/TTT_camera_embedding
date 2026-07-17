@@ -476,3 +476,28 @@ the lowest of the three standard variants. The honest w128 statement: input / hi
 comparison mixed-sign); the ONLY robust effect is the NoPE gap (+0.23, s42 only —
 nope s137/s211 launched on gpu2/5 to complete the 6-cell x 3-seed matrix). gate
 remains the lowest mean (18.545) but n=3 cannot separate it from the pack.
+
+## Q26 w1024 cell: gate 18.309 vs rope 18.405 (s42) — but the band kills it (2026-07-17)
+q25b_gate_w1024 (s42): 18.309, nominally -0.096 vs the s42 rope anchor 18.405. However
+q12_rope_s137 (verified plain rope, w1024, 3B) = 18.193: the rope w1024 SEED BAND is
+[18.19, 18.41] (spread 0.21, larger than w128's 0.07). Gate's 18.309 sits mid-band.
+Same conclusion as w128: the single-branch effect cannot be separated from seed noise.
+No further w1024 gate seeds (a paired point cannot reach significance at these effect
+sizes). Q26's remaining live cells: gatehpra (gpu4), content-copy (gpu6), NVS ports.
+
+## Q26 copy symmetry: the dissociation is BRANCH-SPECIFIC (2026-07-17)
+q25b_copy_content: copy_acc 100%, transition at 8000 steps (= standard rope's 8500).
+Contrast gate-only: 7.3% flat. So:
+| input-rotary placement | copy@2560 | natural language (3-seed mean) |
+|---|---|---|
+| both branches (standard) | 100% @ 8.5k | 18.583 |
+| content branch only (w2) | 100% @ 8.0k | 18.570 (parity) |
+| gate branch only (w0) | FAILS (7.3%) | 18.545 (parity, best mean) |
+MECHANISM: exact offset retrieval requires the relative phase to enter the stored
+address h = silu(w0 k) * (w2 k) through the LINEAR content path — rotation through
+the silu gate is squashed nonlinearly and the phase structure needed for offset
+decoding does not survive. This pins down WHICH path is the "address space" of the
+one-rotary-per-address-space rule: the linear (w2) path. content-rope is therefore a
+capability-preserving variant of standard rope (nothing gained, nothing lost);
+gate-rope trades position-addressing away for nothing robust. Clean mechanistic
+finding for the paper's SwiGLU analysis; no ppl win anywhere.
