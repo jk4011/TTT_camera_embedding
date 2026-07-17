@@ -526,3 +526,25 @@ input features carry camera info redundantly). CROSS-TASK RECIPE CANDIDATE:
 Seed pairs launched (content_rope + qk_rope_cam at s137/s211, gpus 0/1/3/4) per the
 F18 seed rule. Follow-ups if seeds hold: content_rope + h_pra stacking (needs kernel
 combo — currently asserted exclusive), CCV port, dossier F38 + paper-freeze note.
+
+## CORRECTION: NVS content-branch rope does NOT robustly beat both-branch (2026-07-18)
+Matched fixed-comparator seeds (cam_qk_rope_cam, the CORRECT baseline — the s95
+comparison used q13_qkrope_perlayer, a weaker LEARNABLE variant, which inflated the
+gap):
+| seed | content_rope | qk_rope_cam (fixed) | delta |
+|---|---|---|---|
+| s137 | 22.185 | 22.322 | -0.136 (t=-8.5 within-seed) |
+| s211 | 22.573 | 22.231 | +0.342 (t=+24 within-seed) |
+MIXED SIGN, spread 0.48 dB — pure init-seed variance (F18/F36 lesson: single-seed
+NVS gaps of 0.1-0.3 dB are init noise; per-scene t-stats measure scene variance, not
+the decision-relevant across-seed variance). The 2026-07-18 "content wins +0.143 t=+10"
+entry is RETRACTED as a weak-baseline + single-seed artifact. qkrope_s95 (clean fixed
+s95) launched to finish the matched 3-seed; expectation is parity. The ROBUST Q26
+finding remains ONLY the copy dissociation (gate 7.3% vs content/both 100%) — a
+mechanism result about WHICH branch is the address space, not a quality win.
+
+## LLM w128 nope 3-seed complete (2026-07-18)
+nope s137 18.551 / s211 18.695 (s42 18.81). nope mean 18.685 vs rope 18.583 / honly
+18.593 / hpra 18.577. The NoPE-to-rope gap is ~+0.10 on 3-seed mean (not the +0.23
+seen at s42 alone) — even the "input rope beats NoPE" headline is softer than the
+single seed implied, though still the only consistently-signed effect in the matrix.
