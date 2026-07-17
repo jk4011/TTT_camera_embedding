@@ -548,3 +548,18 @@ nope s137 18.551 / s211 18.695 (s42 18.81). nope mean 18.685 vs rope 18.583 / ho
 18.593 / hpra 18.577. The NoPE-to-rope gap is ~+0.10 on 3-seed mean (not the +0.23
 seen at s42 alone) — even the "input rope beats NoPE" headline is softer than the
 single seed implied, though still the only consistently-signed effect in the matrix.
+
+## Q25/Q26 CLOSED (early stop, user decision 2026-07-18)
+Design-round scorecard final: 10 adopted ideas, 0 natural-language ppl wins.
+- Q22 chunkq, Q23 VaPE, Q24 dynamics, Q25a precession, Q25c conjpairs: all dead/parity.
+- Q26 GbR single-branch: LLM 3-seed parity (gate -0.038 t~-0.65, content -0.013);
+  NVS matched-seed mixed (-0.14/+0.34 = init noise); s95 "+0.14 win" retracted
+  (weak learnable comparator). Confirmation runs (qkrope_s95, gate_rope s137/s211)
+  STOPPED early per user — parity already established, remaining cells add no info.
+The one durable Q26 result is the copy dissociation (gate 7.3% vs content/both 100%):
+positional phase must enter the SwiGLU LINEAR (w2) path to preserve position-addressed
+retrieval — a mechanism finding, not a quality win.
+Verified project state: LLM = all positional variants ~18.58 indistinguishable (3-seed);
+NVS = rope < honly ~= hpra (hidden load-bearing, +0.12 stacking margin); CCV = both >
+in > h > base unanimous. Rotation earns its keep only where retrieval is
+position/coordinate-addressed.
