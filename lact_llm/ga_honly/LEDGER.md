@@ -378,3 +378,10 @@ planes b8, rope- and random-init, honly and hpra) never matches the fixed ladder
 w128. Learnable-frequency wall is now complete across every granularity: shared (F33),
 per-layer, per-head (Q20), joint planes+angles (Q21), and NVS shared (F37, t=-12.5).
 FIXED ladders are the recipe on every task.
+
+## Q24a endpoint: ppl 18.612, C(final)=+0.0062 — Q24 CLOSED (2026-07-17)
+q24a_hpra_iropedrop_w128 finished 3B: 18.612 = rope (18.609), better than plain hpra
+(18.64) by ~0.03 — the annealed dropout removed the w128 stacking tax but produced no
+gain, and C(final)=+0.0062 loss is exactly the untreated-hpra ignore signature
+(pre-registered success bar was >0.1). Both interventions confirm: the final model
+discards the hidden rotation regardless of acquisition order. Q24 CLOSED.
