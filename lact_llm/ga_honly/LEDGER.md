@@ -460,3 +460,19 @@ content (-0.013) but the pre-registered bar (consistent 3-seed win) FAILS on s21
 Both single-branch variants land at directional-parity; the tax hypothesis survives
 only as a ~0.04 average effect inside seed noise. Remaining decisive Q26 cells:
 gatehpra stack, w1024 tax check, content-copy symmetry, NVS coordinate-task ports.
+
+## w128 standard grid 3-seed COMPLETE + revision of the stacking story (2026-07-17)
+q17_hpra_g1_w128_s211: 18.481 — BEATS rope s211 (18.54) by -0.06. Full grid:
+| variant | s42 | s137 | s211 | mean |
+|---|---|---|---|---|
+| rope | 18.609 | 18.60 | 18.54 | 18.583 |
+| honly-g1 | 18.55 | 18.56 | 18.67 | 18.593 |
+| hpra-g1 | 18.64 | 18.611 | 18.481 | 18.577 |
+| gate (Q26) | 18.471 | 18.561 | 18.603 | 18.545 |
+REVISION: the F36 oddity "stacking is destructive at w128" was an s42 artifact —
+hpra-rope paired deltas {+0.031, +0.011, -0.059} = parity, and hpra is numerically
+the lowest of the three standard variants. The honest w128 statement: input / hidden
+/ both / single-branch are all interchangeable at ~18.58 +- 0.06 (every pairwise
+comparison mixed-sign); the ONLY robust effect is the NoPE gap (+0.23, s42 only —
+nope s137/s211 launched on gpu2/5 to complete the 6-cell x 3-seed matrix). gate
+remains the lowest mean (18.545) but n=3 cannot separate it from the pack.
