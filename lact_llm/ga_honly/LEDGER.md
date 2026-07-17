@@ -501,3 +501,12 @@ one-rotary-per-address-space rule: the linear (w2) path. content-rope is therefo
 capability-preserving variant of standard rope (nothing gained, nothing lost);
 gate-rope trades position-addressing away for nothing robust. Clean mechanistic
 finding for the paper's SwiGLU analysis; no ppl win anywhere.
+
+## Q26 gatehpra: stacking on the clean content channel also fails (2026-07-17)
+q26_gatehpra_w128 (gate-branch input rope + hidden rotary g1.0, s42): 18.617 — vs
+gate alone 18.471 (s42), rope 18.609, hpra 18.64. Adding the hidden rotary on top of
+the gate-branch rope reproduces the familiar +0.1-scale stacking non-effect; the
+position-clean content channel does NOT unlock hidden-site value in natural text.
+Consistent with the Q24-probe conclusion: no second positional code earns anything
+here because the data does not demand it. Q26 LLM arm closed; NVS/CCV ports are the
+remaining open cells.
