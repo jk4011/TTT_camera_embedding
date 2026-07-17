@@ -182,8 +182,97 @@ Implementation: extend ttt_learnable_freqs to a per-head parameter [num_fw_heads
 xi=log parameterization; ~1 kernel-shape change (broadcast hcos/hsin over fw heads). Sanity:
 reduces to current when per-head params tied; fp32; init-from-fixed exact at step 0.
 Cost: 3B runs ~5-6h each at w128. Read AdaRoPE appendix B/G for exact init + lr before impl.
+[WAVE-1 DONE 2026-07-17: honly-perhead 18.61 (s42) / 18.58 (s137) vs fixed honly-g1.0
+18.55/18.56; hpra-perhead 18.64 = fixed hpra. Per-head learnable does NOT beat fixed —
+consistent with F33's learnable-ladder wall. No wave 2.]
 
-## Q13. Shared learnable frequency across layers (NVS)  [QUEUED 2026-07-13, user request]
+## Q22. Chunk-quantized rotary phases ("block-relative" chunkq)  [CLOSED 2026-07-17 — FAILED: surgeries hidden +0.15 / input +7.9 (both-site dead); trained s42 cell 18.605 vs per-token honly 18.549. Intra-chunk fine phases carry real value; see LEDGER.]
+From the 4-agent design round (user request 2026-07-16): proposed INDEPENDENTLY by two
+agents (content-position "staircase", attention-transplant "block-relative h-PRA") —
+the strongest convergence of the round.
+MECHANISM: quantize rotary positions to the update-chunk start, pos -> C*floor(t/C)
+(C = lact_chunk_size 1024), hidden site and/or input site. The memory is apply-then-
+update at chunk granularity: a probe only ever retrieves from PREVIOUS chunks, so the
+finest offset the fast weight can resolve is the chunk index. Per-token phases inside a
+chunk only scramble content addressing (the tax the honly GA fought); chunkq removes ALL
+intra-chunk scrambling while keeping the full cross-chunk ladder (recency envelope from
+slow pairs + chunk tags from fast pairs). Zero new parameters (no F33 lottery), pure
+rotation (G-safe), reduces to baseline at gain 0.
+P0 KILL-SWITCH (eval-only, running 2026-07-17 gpu0, surgery_chunkq.py): quantize phases
+on the TRAINED q17 checkpoints. hidden1024 on honly-g1.0: if cost > ~1/3 of the
+honly-NoPE gap (>0.09 ppl), fine phases are load-bearing -> kill before any training.
+input1024 on rope: F27b-style measurement of WHERE input rope's +0.20 lives (also gates
+the both-site variant). input1 = manual-path sanity (must match base).
+TRAINING GRID (gated on P0): honly-chunkq-g1.0 w128 x3 seeds; hpra-chunkq (rope +
+chunkq-hidden) x3 seeds if honly passes s42. Flags implemented: ttt_hrope_chunkq /
+ttt_input_chunkq (layer_lact_swiglu.py; config threaded).
+PREDICTIONS: honly-chunkq <= honly per-token on each seed (tax removal); copy@2560
+should DEGRADE vs per-token honly (no intra-chunk resolution) — mechanism check.
+Cost: 15 min surgeries + 3-6 x 5.5h.
+
+## Q23. VaPE: value-path rotary — position annotates the PAYLOAD, not the address  [CLOSED 2026-07-17 — PARITY: rope+VaPE 18.608 vs rope 18.609 s42; surgery C=+0.0025 loss (tag partially used, zero net value). One cell, no seeds; impl validated in-tree. See LEDGER.]
+Convergent theme #2 (mechanism-first "VaPE" per-token; attention-transplant "vo-chunk"
+chunk-level). The ONLY design class that adds information PROVABLY absent from every
+failed variant: all failures put a second copy of Delta-t inside the addressing inner
+product (findings D/E: redundant, ignored); VaPE leaves addressing bit-identical to
+baseline and phase-tags the retrieved payload with its age.
+MECHANISM: update on rotated target R_t v_t (dw1 and dhidden follow exactly);
+apply o_s = R_s^{-1} f_W(q_s), delta-only variant o_s = w1_init h + R_s^{-1}(w1-w1_init) h
+(removes the F27b absolute-phase tax on the init readout). Retrieval channel becomes
+sum_t lr_t <h_t,h_s> R_{t-s} v_t — content selects, relative phase disambiguates WHICH
+occurrence (recency-resolved induction over superposed matches is a linear readout for
+o_proj). Fixed ladder on frac 0.5 of value dims (escape half), gain sweep {1.0, 0.1}.
+EVADES: D/E by construction (not an address code); F33 (fixed freqs); G (v is not in
+the address path — q/k/h norms untouched); F27b tax (delta-only apply).
+KNOWN COUNTER-EVIDENCE: F4 NVS vo_rel -0.12 — but that was dense appearance payloads
+with no "when was this written" question; at w128 the 1D memory is capacity-stressed
+and recency-disambiguation is real work. One cell first.
+KILL CRITERIA: s42 rope+VaPE < rope 18.61 by >= 0.05 else dead; F27b surgery on the
+trained model must show the counter-rotation is USED (cost > 0.05 when ablated).
+PREDICTION (dissociation): VaPE-only must NOT solve copy@2560 (it changes no addressing).
+IMPL: clone prenorm_block_causal_lact_swiglu_hidden_rope -> *_value_rope in
+ttt_operation.py (~40 lines; apply_rotary_cols works on v as-is, column-major [b,d,l]);
+vi_rot in dhidden + dw1; apply-side inverse via (hcos, -hsin). Autograd-check at phase 0.
+Cost: 0.5 day impl + 4 x 5.5h sweep before seeds.
+
+## Q24. Training-dynamics interventions: break the ignore-the-hidden-copy equilibrium  [DEAD 2026-07-17 by commitment probe: (a) dropout C(t) never left the ignore signature even at p~0.5; (b) hidden-first C=-0.0007 at 4k with NO input rope in the model, killed at 21.2k per pre-registered rule. The ignore-equilibrium is the data's optimum, not an init artifact. C(t) tables in LEDGER; q24a ppl endpoint pending.]
+Training-dynamics lens: F27b's "model ignores the hidden rotation" is an ATTRACTOR
+chosen in the first ~4k steps (finding F); these interventions perturb the acquisition
+order, then ANNEAL AWAY (final model = standard fixed-ladder hpra, no inference change).
+(a) INPUT-ROPE DROPOUT (top pick ~25%): during training, zero the input-rope phases on
+    a random fraction of sequences, p 0.5 -> 0 annealed over the first 30k steps.
+    Batches without input rope make hidden the ONLY relative code -> ignoring it costs
+    loss; by anneal end the model keeps both. Stateless Bernoulli keyed on
+    (data_seed, step, micro) for exact resume.
+(b) HIDDEN-FIRST CURRICULUM (~20%): input-rope scale held 0 for the first 4k steps
+    (the commitment window), cosine-ramp to 1 by 12k.
+INSTRUMENT (both): commitment probe C(t) = val-loss cost of zeroing the hidden rotation
+at each checkpoint (F27b surgery, automated). Success = C(final) > 0.1 (vs 0.003
+baseline) AND ppl <= rope; C(t) collapsing to 0 mid-anneal = early kill.
+EVADES: no architecture change at all — orthogonal to every failed axis; composable
+with Q22/Q23 winners.
+IMPL: ttt_input_scale buffer + schedule in train_small.py; probe script exists
+(surgery pattern). Cost: 2 x 5.5h (a,b at s42) + probes.
+
+## Q25. Lower-priority design-round items  [QUEUED 2026-07-17, run if Q22-Q24 die]
+(a) Chunk precession of the w1 delta: after each chunk update, right-rotate the
+    accumulated delta (w1-w1_init) by a fixed per-chunk angle ladder — stored addresses
+    precess with age (recency kernel in the STATE; the norm-exact "forgetting" the
+    constraint set allows). ~15 lines in ttt_operation.py. Risk: still a Delta-chunk
+    address code (D applies); only 3 offsets at 4096/1024.
+(b) GbR gate-branch-only input rope: rope only the w0(silu-gate) q/k copy, content
+    branch (w2->w1) unrotated. 2x2 {gate-only, content-only} decomposes WHERE finding
+    A's +0.20 lives — mechanism knowledge even on a loss.
+(c) Conjugate-paired ladder: h_inv = cat([f, -f]) — gives the model an even/odd basis
+    to keep the recency envelope and drop the offset code. Cheapest (~5 lines); 4k-step
+    partner-correlation check falsifies for free.
+NOT ADOPTED from the round: delta-decay gamma on the accumulated delta (agent's own
+top pick, but it is a scalar forgetting gate, not a positional embedding — fails the
+"reduces to baseline at zero phase" rule and the DeltaNet-adjacency makes it a framing
+fight); copy-data curriculum (changes training data distribution, weakest expected
+transfer); asymmetric quantization (breaks shift-relativity).
+
+## Q13. Shared learnable frequency across layers (NVS)  [DONE 2026-07-17 -> F37: sharedf 22.338 vs per-layer 22.420, t=-12.5 — sharing strictly hurts; no wave 2. LLM extension subsumed by F33 (shared-ladder lottery).]
 User: per-layer learnable gains may be the reason learnable ladders lose to fixed
 (each of 6 layers gets its own 6xF gain -> too much freedom). Test ONE learnable gain
 tensor shared by every layer ('sharedf' cam_mode flag, commit pending: class-level

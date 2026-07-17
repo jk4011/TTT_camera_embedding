@@ -293,3 +293,88 @@ hpra_perhead 18.64 = fixed hpra, still behind rope 18.61. The AdaRoPE recipe
 at this scale. Every learnable-frequency parameterization is now negative here:
 shared (F33 lottery), per-layer (18.63), per-head (Q20). Last learnable card: Q21
 LieRE (joint plane+angle generators), agent in flight.
+
+## Q22 P0 surgeries: chunk-quantized phases on TRAINED w128 checkpoints (2026-07-17)
+Design fan-out (4 agents) convergent theme #1: quantize rotary positions to update-chunk
+starts (pos -> 1024*floor(t/1024)) — the memory retrieves only whole past chunks, so
+intra-chunk phase differences never appear in an update->apply inner product; the claim
+was that per-token fine phases are pure scrambling tax. surgery_chunkq.py, eval-only:
+| honly-g1.0 base | 18.549 | matches trained final 18.55 — harness validated |
+| honly-g1.0 + hidden chunkq-1024 | 18.699 | +0.15, over the 0.09 pre-registered kill line |
+| rope base | 18.609 | |
+| rope + input manual-path C=1 (sanity) | 18.609 | exact match — manual rotary path correct |
+| rope + input chunkq-1024 | 26.500 | +7.9 — catastrophic |
+Reading: the input result PROVES the surgery conflates information loss with distribution
+shift (+7.9 is 40x input rope's total value +0.20), so the hidden +0.15 is a conservative
+upper bound, not a clean kill. Both-site chunkq is dead regardless. One exploratory
+trained-from-scratch cell q22_honly_chunkq_w128 (s42, gpu0) decides the hidden variant.
+
+## Q22 verdict: chunk-quantized hidden rotary FAILS trained-from-scratch too (2026-07-17)
+q22_honly_chunkq_w128 (s42, 3B): 18.605 vs per-token honly-g1.0 18.549 — quantization
+COSTS +0.056. The surgery's +0.15 signal was directionally right: intra-chunk fine
+phases do real work (within-chunk key dispersion / query-side fine distance weighting),
+they are not pure scrambling tax. The "memory can only resolve chunk offsets" argument
+missed that per-token phases act through the update-side superposition even when
+retrieval is chunk-granular. Q22 CLOSED — no hpra-chunkq, no seeds. Design-round
+theme #1 (convergent across two agents) is dead; themes #2 (VaPE, gpu2) and #3
+(training dynamics, gpu0/6) remain live.
+
+## Q23 verdict: VaPE (value-path rotary) = exact parity with rope (2026-07-17)
+q23_rope_vape_w128 (s42, 3B, delta-only apply, frac 0.5 gain 1.0): 18.608 vs rope
+18.609 — dead on the pre-registered kill line (needed -0.05). Surgery on the trained
+model: zeroing the value phases costs C=+0.0025 loss (+0.05 ppl) — the tag is
+PARTIALLY used (not the pure F27b ignore signature, +0.006 on hidden-address hpra)
+but earns zero net ppl: whatever recency disambiguation it provides, the model
+already gets elsewhere. The "annotate the payload, not the address" channel is
+informationally redundant in natural text too. Q23 CLOSED at one cell, no seeds.
+Design-round themes 1 (chunkq) and 2 (VaPE) are now both dead; live: Q24a/b
+(training dynamics, gpu6/gpu0), Q25c conjugate pairs (gpu2), Q21 LieRE grid (1/3/4/5).
+
+## Q21 wave-1: LieRE b=2 rope-init FAILS (2026-07-17)
+q21_honly_liere_b2_rope_w128 (s42, 3B): 18.621 vs fixed honly-g1.0 18.549 (+0.07).
+b=2 = learnable per-plane frequencies with trivial planes — the same negative as every
+other learnable-frequency parameterization (F33 shared, per-layer, Q20 per-head).
+Remaining LieRE cells (b8-rope, b8-random, hpra-b8) still training; b>2 is the one
+variant that also learns the rotation PLANES, the only untested axis.
+
+## Q24a mid-flight commitment probe: input-rope dropout creates NO commitment (2026-07-17)
+C(t) = val-loss cost of zeroing the hidden rotation, per checkpoint (probe_commitment.py):
+step 2000 (dropout p~0.47): +0.0019 / 4000: +0.0009 / 6000: +0.0020 / 8000: +0.0028 /
+10000: +0.0051 / 20000-68000: flat +0.006 (= the q17 hpra ignore signature, success bar
+was >0.1). DURING the commitment window, with half of all sequences carrying no input
+rope, the model still does not lean on the hidden rotation for natural-text val —
+content addressing + windowed attention absorb the dropped rows. The intervention's
+premise (make hidden the only relative code -> it gets used) is refuted mechanistically,
+not just at the ppl endpoint. Run continues to 91.5k for the ppl datapoint only.
+
+## Q24 verdict: BOTH training-dynamics interventions dead by commitment probe (2026-07-17)
+q24b (hidden-first curriculum, input rope 0 until 4k then cosine ramp to 1 by 12k),
+C(t) trajectory: 2000: +0.0035 / 4000: -0.0007 / 6000 (mid-ramp): +0.0136 / 8000:
++0.0050 / 10000-20000: flat +0.006. Decisive detail: at step 4000 the model has NO
+input rope at all — the hidden rotary is its only positional code — and zeroing it
+STILL costs nothing (C=-0.0007). At 130M-token budget on natural text the hidden
+channel simply has nothing to earn (F35's copy task groks at ~4.5k steps precisely
+because there the channel is REQUIRED). The brief mid-ramp spike (+0.014 at 6k)
+collapses to the ignore signature within 2k steps of the input code arriving:
+"commitment" is not sticky; the model re-optimizes instantly. KILLED q24b at step
+21200 per the pre-registered early-kill rule (C collapsed mid-anneal). q24a runs to
+completion for its ppl endpoint only (probe already showed no commitment ever formed).
+CONCLUSION for the theme: the ignore-equilibrium is not an init/acquisition-order
+artifact — it is the optimum for natural text at this scale. Training-dynamics
+interventions cannot manufacture value the data does not demand (finding D).
+
+## Q21 waves 2-3: LieRE b=8 both inits FAIL (2026-07-17)
+q21_honly_liere_b8_rope_w128: 18.772 (+0.22 vs fixed 18.549) — learning the rotation
+PLANES (the one untested learnable axis) hurts MORE than learning angles alone (b2
++0.07). q21_honly_liere_b8_random_w128: 18.652 (+0.10) — the LieRE-paper random init
+is better than rope-init here (less committed early = less to unlearn, cf. F33) but
+still behind fixed. Learnable-frequency wall now spans: shared, per-layer, per-head,
+LieRE b2 (angles), LieRE b8 (angles+planes), both inits. hpra-liere-b8 (gpu5) is the
+last LieRE cell.
+
+## Q21 final: hpra-liere-b8 18.685 — LieRE closed, 4/4 negative (2026-07-17)
+vs fixed hpra 18.64 / rope 18.61. Full Q21 verdict: LieRE (angles only b2, angles+
+planes b8, rope- and random-init, honly and hpra) never matches the fixed ladder at
+w128. Learnable-frequency wall is now complete across every granularity: shared (F33),
+per-layer, per-head (Q20), joint planes+angles (Q21), and NVS shared (F37, t=-12.5).
+FIXED ladders are the recipe on every task.

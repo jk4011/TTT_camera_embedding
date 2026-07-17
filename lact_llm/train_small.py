@@ -94,6 +94,23 @@ def parse_args():
     p.add_argument("--grad_clip", type=float, default=1.0)
     p.add_argument("--min_lr_ratio", type=float, default=0.0)
     p.add_argument("--seed", type=int, default=42, help="Model init / torch seed.")
+    # Q24 training-dynamics interventions (perturb the ACQUISITION ORDER early
+    # in training, then anneal away; the final architecture is EXACTLY standard
+    # hpra). Both require the manual input-rotary path: ttt_input_chunkq >= 1.
+    p.add_argument("--input_rope_dropout_p0", type=float, default=0.0,
+                   help="Design (a): each sequence independently DROPS its input "
+                        "rope (unrotated fast q/k) with prob p = p0 * max(0, 1 - "
+                        "step/anneal); the hidden rotary is then its only relative "
+                        "code. 0.0 disables. Eval always runs with p=0.")
+    p.add_argument("--input_rope_dropout_anneal", type=int, default=30000,
+                   help="Design (a): steps over which p anneals linearly to 0.")
+    p.add_argument("--input_rope_warmup", type=str, default="none",
+                   choices=["none", "cosine_4k_12k"],
+                   help="Design (b): hidden-first curriculum. A global scalar "
+                        "s(step) multiplies the input-rope ANGLES: s=0 for "
+                        "step<4000, cosine ramp 0->1 by step 12000, then 1. Eval "
+                        "uses the CURRENT s (the deployable model mid-ramp is the "
+                        "current-s model; s anneals to 1 anyway).")
     # logging / io
     p.add_argument("--log_every", type=int, default=100)
     p.add_argument("--val_every", type=int, default=1000)
@@ -212,6 +229,43 @@ def evaluate_copy(model, val_set, val_bs, device):
     return total_loss / max(1, total), total_correct / max(1, total)
 
 
+# ---- Q24 training-dynamics interventions ---------------------------------
+def input_rope_dropout_p(p0, anneal_steps, step):
+    """Design (a) dropout prob at this step: p0 * max(0, 1 - step/anneal)."""
+    return p0 * max(0.0, 1.0 - step / max(1, anneal_steps))
+
+
+def input_rope_dropout_keep(data_seed, step, bs, p):
+    """Per-sequence keep mask [bs] (1.0 = keep input rope, 0.0 = drop).
+
+    STATELESS reproducibility: a pure function of (data_seed, step) via a
+    dedicated CPU Generator — no dependence on global RNG state, so auto-resume
+    reproduces the exact same masks. (CPython's hash of an int tuple is
+    unsalted, hence stable across processes.)"""
+    g = torch.Generator(device="cpu")
+    g.manual_seed(hash((int(data_seed), int(step))) & 0x7FFFFFFF)
+    u = torch.rand(bs, generator=g)
+    return (u >= p).float()
+
+
+def input_rope_warmup_scale(kind, step):
+    """Design (b) global input-rope angle scale s(step)."""
+    if kind == "cosine_4k_12k":
+        if step < 4000:
+            return 0.0
+        if step >= 12000:
+            return 1.0
+        return 0.5 * (1.0 - math.cos(math.pi * (step - 4000) / 8000.0))
+    raise ValueError(f"unknown input_rope_warmup: {kind}")
+
+
+def set_input_rope_scale(ttt_layers, val):
+    """val: None (standard hpra) | float (curriculum s) | tensor [b] (dropout
+    mask). Plain attribute — never enters state_dict."""
+    for lyr in ttt_layers:
+        lyr._input_rope_scale = val
+
+
 def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path):
     t0 = time.time()
     entry = {"step": step}
@@ -237,10 +291,13 @@ def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path
 # resumed run to reproduce an uninterrupted run (data stream + lr schedule).
 _RESUME_CRITICAL_ARGS = ("data_seed", "seq_len", "bs", "grad_accum", "val_tokens",
                          "lr", "warmup", "min_lr_ratio", "steps", "token_budget",
-                         "synthetic")
+                         "synthetic", "input_rope_dropout_p0",
+                         "input_rope_dropout_anneal", "input_rope_warmup")
 # Defaults for critical args missing from OLD checkpoints (saved before the
 # arg existed) so they stay resumable.
-_RESUME_ARG_DEFAULTS = {"synthetic": "none"}
+_RESUME_ARG_DEFAULTS = {"synthetic": "none", "input_rope_dropout_p0": 0.0,
+                        "input_rope_dropout_anneal": 30000,
+                        "input_rope_warmup": "none"}
 
 
 def find_latest_ckpt(out_dir):
@@ -333,6 +390,25 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     print(f"[model] param count: {n_params:,} ({n_params / 1e6:.1f}M)", flush=True)
 
+    # Q24 interventions: resolve mode and grab the TTT layers once.
+    use_iropedrop = args.input_rope_dropout_p0 > 0.0
+    use_iropewarm = args.input_rope_warmup != "none"
+    ttt_layers = []
+    if use_iropedrop or use_iropewarm:
+        assert not (use_iropedrop and use_iropewarm), \
+            "pick ONE intervention: --input_rope_dropout_p0 OR --input_rope_warmup"
+        assert getattr(config, "ttt_input_chunkq", 0) > 0, \
+            "Q24 interventions scale angles in the MANUAL input-rotary path; " \
+            "add \"ttt_input_chunkq\": 1 to --extra_json"
+        assert not getattr(config, "ttt_nope", False), \
+            "Q24 interventions modulate the INPUT rope; ttt_nope must be False"
+        ttt_layers = [blk.attn for blk in model.model.layers]
+        print(f"[q24] intervention="
+              f"{'input_rope_dropout' if use_iropedrop else args.input_rope_warmup} "
+              f"p0={args.input_rope_dropout_p0} "
+              f"anneal={args.input_rope_dropout_anneal} "
+              f"layers={len(ttt_layers)}", flush=True)
+
     optimizer = build_optimizer(model, args)
     scheduler = build_scheduler(optimizer, args.warmup, total_steps, args.min_lr_ratio)
 
@@ -407,6 +483,21 @@ def main():
     last_stream_state = resume_stream_state  # position after the last consumed batch
 
     while step < total_steps and not exhausted:
+        # ---- Q24 intervention schedule for THIS optimizer step (`step` is the
+        # 0-based index of the upcoming step; pure function of it -> resume-safe).
+        keep_mask, p_drop, s_cur = None, 0.0, 1.0
+        if use_iropedrop:
+            p_drop = input_rope_dropout_p(
+                args.input_rope_dropout_p0, args.input_rope_dropout_anneal, step)
+            if p_drop > 0.0:
+                keep_mask = input_rope_dropout_keep(
+                    args.data_seed, step, args.bs, p_drop)
+            set_input_rope_scale(ttt_layers, None)  # set per-micro below
+        elif use_iropewarm:
+            s_cur = input_rope_warmup_scale(args.input_rope_warmup, step)
+            # s == 1.0 -> None: pristine (unscaled) code path, same math.
+            set_input_rope_scale(ttt_layers, None if s_cur >= 1.0 else float(s_cur))
+
         optimizer.zero_grad(set_to_none=True)
         micro_losses = []
         for micro in range(args.grad_accum):
@@ -415,6 +506,11 @@ def main():
             except StopIteration:
                 exhausted = True
                 break
+            if keep_mask is not None:
+                # slice: the stream's last batch can be short; grad_accum>1
+                # reuses the same per-step mask across micro-batches.
+                set_input_rope_scale(
+                    ttt_layers, keep_mask[:x.shape[0]].to(device))
             if batch_fp and (step + 1) % 100 == 0:
                 print(f"[fp] step={step + 1} micro={micro} tok_sum={int(x.sum().item())}",
                       flush=True)
@@ -443,14 +539,24 @@ def main():
         if step % args.log_every == 0:
             dt = time.time() - t_last
             tps = (tokens_seen - tokens_last) / max(1e-9, dt)
+            q24_log = ""
+            if use_iropedrop:
+                q24_log = f" ropedrop_p={p_drop:.3f}"
+            elif use_iropewarm:
+                q24_log = f" irope_s={s_cur:.3f}"
             print(f"step={step} loss={running_loss / running_count:.4f} "
                   f"tokens/sec={tps:,.0f} lr={scheduler.get_last_lr()[0]:.3e} "
-                  f"tokens_seen={tokens_seen:,}", flush=True)
+                  f"tokens_seen={tokens_seen:,}{q24_log}", flush=True)
             running_loss, running_count = 0.0, 0
             t_last = time.time()
             tokens_last = tokens_seen
 
         if step % args.val_every == 0:
+            # Design (a): eval = standard hpra (p=0, no mask). Design (b): keep
+            # the CURRENT s — mid-ramp the deployable model is the current-s
+            # model (and s anneals to 1 anyway); the next step re-sets it.
+            if use_iropedrop:
+                set_input_rope_scale(ttt_layers, None)
             run_validation(model, val_set, args, step, tokens_seen, device, val_log_path)
             t_last = time.time()  # don't count eval time in tokens/sec
             tokens_last = tokens_seen
@@ -465,6 +571,8 @@ def main():
             tokens_last = tokens_seen
 
     # ---- final val + checkpoint ----------------------------------------
+    if use_iropedrop:
+        set_input_rope_scale(ttt_layers, None)  # eval/final = standard hpra
     if step % args.val_every != 0 or step == 0:
         run_validation(model, val_set, args, step, tokens_seen, device, val_log_path)
     ckpt_path = os.path.join(args.out_dir, "final.pt")

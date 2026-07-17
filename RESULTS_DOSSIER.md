@@ -370,7 +370,23 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
-## F36: Q17 window sweep — the hidden rotary's value GROWS with memory workload and OVERTAKES the input rotary (PROVISIONAL, s42; seeds in flight) (2026-07-16)
+## F37: Q13 NVS — SHARING the learnable ladder across layers does not rescue it (2026-07-17)
+Hypothesis (user): per-layer learnable gains lose to fixed because 6 layers x 6xF gains
+is too much freedom; ONE shared gain tensor might fix it. Paired wave-1 (seed 95,
+standard protocol, 'sharedf' registry so the optimizer sees the parameter once):
+| variant | PSNR | LPIPS |
+|---|---|---|
+| qk_rope per-layer learnable (fresh rerun) | 22.420 | 0.2769 |
+| qk_rope sharedf (one ladder, all layers) | 22.338 | 0.2782 |
+shared - per-layer = **-0.082 dB, t=-12.52** (shared better in only 56/256 scenes).
+Sharing strictly HURTS: the freedom-reduction hypothesis is refuted in NVS (and its
+LLM analogue died independently as F33's shared-ladder seed lottery). Combined with
+Q20 (per-head) and Q21 (LieRE b2/b8, both inits, honly+hpra — all 4 cells at w128
+worse than fixed by +0.07..+0.22), every granularity of learnable frequency ladder
+(shared / per-layer / per-head / joint planes+angles) now has a negative result on
+at least one task. Fixed ladders stay the paper recipe. No Q13 wave 2.
+
+## F36: Q17 window sweep — the hidden rotary's value GROWS with memory workload to PARITY with the input rotary (FINAL, 3 seeds; the s42 "overtake" did not survive s211) (2026-07-16, seeds 2026-07-17)
 Lever: shrink the sliding-window attention 1024 -> 128 so the fast-weight memory becomes
 load-bearing for the mid-range positional structure in NATURAL language (memory-exclusive
 positions 31.5% -> ~90%). Full 6-cell grid, 3B ds42, standard protocol.
@@ -539,7 +555,24 @@ Doubling the schedule (6000 -> 12000 steps, fresh cosine) sharpens everything:
 - **Generation now BEATS the ReCamMaster anchor**: both 16.34 dB / LPIPS 0.4152 vs
   ReCamMaster 15.71 / 0.4534. A frozen-backbone TTT adapter (12k steps, ~1 B200-day)
   surpasses the released 8xH800x3day model on our held-out pairs, and the input+hidden
-  rotary is the best cell on both metrics. base/h_12k evals pending to complete the 2x2.
+  rotary is the best cell on both metrics.
+
+**COMPLETE 12k 2x2 (base/h added 2026-07-17)** — val loss (n=192 paired) and
+generation (8 pairs, official sampler):
+| variant | 12k val | vs base | t | gen PSNR / SSIM / LPIPS |
+|---|---|---|---|---|
+| base | 0.11390 | — | — | 14.27 / 0.464 / 0.552 |
+| h    | 0.10893 | -4.36% | -7.87 (180/192) | 15.16 / 0.487 / 0.477 |
+| in   | 0.09951 | -12.63% | -11.08 (191/192) | 16.11 / 0.524 / 0.428 |
+| both | **0.09706** | **-14.78%** | -12.17 (192/192) | **16.34 / 0.533 / 0.415** |
+Increments: both-in -2.47% t=-10.05 (178/192); both-h -10.90% t=-12.22; every cell
+significant, and the ordering both > in > h > base is UNANIMOUS across val loss,
+PSNR, SSIM, and LPIPS. Both sites earn independently on a frozen task-tuned
+backbone (h alone -4.4% over base at t=-7.9 — the hidden channel works standalone
+here, unlike F31's 3250-step readout), and stacking beats each single site. both
+and in both beat the released ReCamMaster anchor (15.71/0.4534); h alone does not.
+This is the cleanest full-hierarchy confirmation of "one rotary per address space"
+outside NVS.
 
 ## F31: Q11 frozen-ReCamMaster + TTT-adapter 2x2 (fixed ladders, 3250 steps, 2026-07-12)
 Design (user pivot): released ReCamMaster step20000, EVERYTHING pretrained frozen

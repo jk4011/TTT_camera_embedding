@@ -21,6 +21,8 @@ from .ttt_operation import (
     block_causal_lact_swiglu,
     prenorm_block_causal_lact_swiglu,
     prenorm_block_causal_lact_swiglu_hidden_rope,
+    prenorm_block_causal_lact_swiglu_value_rope,
+    prenorm_block_causal_lact_swiglu_branch_rope,
     l2_norm,
 )
 
@@ -52,6 +54,28 @@ def inv_softplus(x):
 
 # ttt_sharedf: cross-layer shared learnable-frequency Parameters (Q13-LLM)
 _SHAREDF_REGISTRY = {}
+
+
+def _liere_doubling_scan(step, n_pos: int):
+    """All integer powers step^0 .. step^(n_pos-1) of per-block rotation
+    matrices step [nb, b, b] -> [n_pos, nb, b, b] (same dtype as step).
+
+    Hierarchical doubling: r holds [R_0 .. R_{L-1}]; one level appends
+    [R_0 P .. R_{L-1} P] with P = step^L, so each position is touched once
+    overall. Block products are elementwise mul + sum (tiny batched matmuls
+    are launch-bound in eager cuBLAS). Deliberately NOT torch.compile'd:
+    inductor's fp64 triton codegen is ~3x slower than eager here (measured
+    +132% total step overhead vs +44% eager for b=8)."""
+    nb, b = step.shape[0], step.shape[1]
+    r = torch.eye(b, dtype=step.dtype, device=step.device)[None, None].repeat(1, nb, 1, 1)
+    pow_l = step  # step^L with L = r.shape[0]
+    while r.shape[0] < n_pos:
+        # upper[t, n, i, j] = sum_m r[t, n, i, m] * pow_l[n, m, j]
+        upper = (r.unsqueeze(-1) * pow_l[None, :, None, :, :]).sum(dim=3)
+        r = torch.cat([r, upper], dim=0)
+        if r.shape[0] < n_pos:
+            pow_l = (pow_l.unsqueeze(-1) * pow_l[:, None, :, :]).sum(dim=2)
+    return r
 
 
 class LowRankFastWeight(nn.Module):
@@ -150,8 +174,20 @@ class LaCTSWIGLULayer(nn.Module):
         ttt_input_theta: float = None,
         ttt_hrope_interleave: bool = False,
         ttt_perhead_freqs: bool = False,
+        ttt_liere: int = 0,
+        ttt_liere_init: str = "rope",
         ttt_hrope_delta_only: bool = False,
+        ttt_hrope_chunkq: int = 0,
+        ttt_input_chunkq: int = 0,
+        ttt_w1_precess: float = 0.0,
+        ttt_hrope_conjpairs: bool = False,
         ttt_hrope_hnorm: str = "none",
+        ttt_value_rope: bool = False,
+        ttt_vrope_frac: float = 0.5,
+        ttt_vrope_gain: float = 1.0,
+        ttt_vrope_theta: float = None,
+        ttt_vrope_delta_only: bool = True,
+        ttt_branch_rope: str = "none",
         ttt_learnable_freqs: bool = False,
         ttt_sharedf: bool = False,
         ttt_learnable_input_freqs: bool = True,
@@ -281,6 +317,25 @@ class LaCTSWIGLULayer(nn.Module):
         #### PRA transplant (1D): hidden rotary (h-PRA) + learnable freqs (omega_map).
         self.ttt_hidden_rope = ttt_hidden_rope
         self.ttt_hrope_delta_only = ttt_hrope_delta_only
+        # Q22 chunk-quantized phases: positions floored to multiples of C before
+        # building the rotary angles (0 = off). Behavioral flags, no parameters.
+        self.ttt_hrope_chunkq = int(ttt_hrope_chunkq)
+        self.ttt_input_chunkq = int(ttt_input_chunkq)
+        # Q25a chunk precession of the w1 delta (gain of the per-chunk angle
+        # ladder; 0 = off). Fixed angles delta_p = gain/theta^(p/P) * C over the
+        # first half of the hidden dims; composes with the input rope (the
+        # standard prenorm kernel path only).
+        self.ttt_w1_precess = float(ttt_w1_precess)
+        if self.ttt_w1_precess > 0.0:
+            assert ttt_prenorm and not use_fused_kernel and not ttt_hidden_rope, \
+                "w1 precession: prenorm baseline kernel path only"
+            P_pr = max(1, self.d_h // 4)
+            pr_theta = ttt_hrope_theta if ttt_hrope_theta is not None else rope_theta
+            pr_ang = (self.ttt_w1_precess
+                      / (pr_theta ** (torch.arange(P_pr).float() / P_pr))
+                      ) * float(lact_chunk_size)
+            self.register_buffer("precess_cos", pr_ang.cos(), persistent=False)
+            self.register_buffer("precess_sin", pr_ang.sin(), persistent=False)
         self.ttt_hrope_hnorm = ttt_hrope_hnorm
         self.ttt_learnable_freqs = ttt_learnable_freqs
         self.ttt_sharedf = ttt_sharedf
@@ -321,7 +376,56 @@ class LaCTSWIGLULayer(nn.Module):
             h_theta = ttt_hrope_theta if ttt_hrope_theta is not None else rope_theta
             _off = 0.5 if ttt_hrope_interleave else 0.0
             h_inv = ttt_hrope_gain / (h_theta ** ((torch.arange(P_h).float() + _off) / max(P_h, 1)))
+            if ttt_hrope_conjpairs:
+                # Q25c conjugate-paired ladder: every frequency appears once at +omega
+                # and once at -omega (P_h/2 distinct magnitudes). Tying the fast-weight
+                # content across a +/- partner pair cancels the antisymmetric (offset-
+                # code) term and leaves a pure even cos(omega*dt) recency envelope —
+                # an orthogonal basis for keeping the envelope while dropping the
+                # Delta-t copy the trained model ignores (F27b).
+                assert P_h % 2 == 0, "conjpairs needs an even pair count"
+                f_half = h_inv[: P_h // 2]
+                h_inv = torch.cat([f_half, -f_half])
             self.ttt_perhead_freqs = ttt_perhead_freqs
+            self.ttt_liere = int(ttt_liere)
+            if self.ttt_liere > 0:
+                # LieRE (ICML 2025) on the hidden address: per-layer, head-shared
+                # learnable SKEW generators, one b x b block per contiguous group of
+                # b rotated hidden rows (nb = 2*P_h/b blocks cover the same rotated
+                # span [0:2*P_h] as the cos/sin ladder). Rotation per token t is
+                # matrix_exp(A * t_scaled), orthogonal by construction, so planes
+                # AND angles are learned jointly. Parameterized in the house delta
+                # form raw = base(buffer) + delta(Parameter, zero-init) so (a) step 0
+                # is exactly the chosen init and (b) weight decay pulls the generator
+                # back toward its init, not toward the zero (identity) rotation —
+                # a plain Parameter would have wd shrink every frequency ~4x over a
+                # 3B-token run.
+                b = self.ttt_liere
+                assert not (ttt_perhead_freqs or ttt_learnable_freqs
+                            or ttt_hidden_basis or ttt_hrope_delta_only
+                            or ttt_hrope_hnorm != "none"), \
+                    "ttt_liere is standalone (no other hidden-rotary mutation)"
+                assert (2 * P_h) % b == 0, f"generator block size {b} must divide {2 * P_h}"
+                nb = (2 * P_h) // b
+                if ttt_liere_init == "rope":
+                    # embed the fixed ladder's 2x2 rotations block-diagonally:
+                    # skew A[2m, 2m+1] = -theta_p => matrix_exp(A*t) equals the
+                    # apply_rotary_cols rotation for pair p = j*(b//2)+m exactly.
+                    assert b % 2 == 0, "rope init needs an even generator block size"
+                    raw = torch.zeros(nb, b, b)
+                    for j in range(nb):
+                        for m in range(b // 2):
+                            raw[j, 2 * m, 2 * m + 1] = -h_inv[j * (b // 2) + m]
+                    self.liere_pos_scale = 1.0
+                elif ttt_liere_init == "random":
+                    # LieRE convention: skew entries ~ U[0, 2pi] (RoPE-Mixed init),
+                    # positions assumed O(1) -> normalize by max_position_embeddings.
+                    raw = torch.rand(nb, b, b) * (2.0 * math.pi)
+                    self.liere_pos_scale = 1.0 / float(max_position_embeddings)
+                else:
+                    raise ValueError(f"unknown ttt_liere_init: {ttt_liere_init}")
+                self.register_buffer("liere_base", raw, persistent=True)
+                self.liere_delta = nn.Parameter(torch.zeros(nb, b, b))
             if ttt_perhead_freqs:
                 # AdaRoPE AdaFreq transplant, delta form: theta_h = h_inv *
                 # exp(delta_h), delta [num_fw_heads, P_h] ZERO-init — exact
@@ -336,6 +440,43 @@ class LaCTSWIGLULayer(nn.Module):
                 self.h_inv_freq = _freq_param("h_inv_freq", h_inv)
             else:
                 self.register_buffer("h_inv_freq", h_inv, persistent=False)
+        #### VaPE (Q23): value-path rotary. The update trains f_W toward the
+        # ROTATED target R_t v_t (fixed ladder on the first 2*P_v value dims);
+        # on apply the (delta) readout is counter-rotated by the query
+        # position, so retrieval carries only relative phases
+        # sum_t lr_t <h_t, h_s> R_{t-s} v_t. Composes with the input rope
+        # (ttt_nope=False); mutually exclusive with the hidden-address
+        # rotaries for now.
+        self.ttt_value_rope = ttt_value_rope
+        self.ttt_vrope_delta_only = ttt_vrope_delta_only
+        if ttt_value_rope:
+            assert not ttt_hidden_rope and not ttt_liere, \
+                "ttt_value_rope is mutually exclusive with ttt_hidden_rope / ttt_liere (for now)"
+            P_v = max(1, int(self.d_out * ttt_vrope_frac / 2.0))
+            assert 2 * P_v <= self.d_out, f"ttt_vrope_frac too large: {ttt_vrope_frac}"
+            v_theta = ttt_vrope_theta if ttt_vrope_theta is not None else rope_theta
+            v_inv = ttt_vrope_gain / (
+                v_theta ** (torch.arange(P_v).float() / max(P_v, 1)))
+            self.register_buffer("v_inv_freq", v_inv, persistent=False)
+
+        #### GbR (Q25b): gate-branch-only input rope. The SwiGLU fast weight
+        # has two input branches — silu GATE (w0) and linear CONTENT (w2).
+        # "gate": only the q/k copy feeding w0 is rotated (w2 sees the plain,
+        # unrotated post-l2norm q/k); "content": the mirror. Purely a routing
+        # change: the standard input rotary path still produces the rotated
+        # copy, and the branch kernel receives both copies. No new parameters;
+        # zero-phase (or same tensors in both slots) reduces bit-exactly to
+        # the baseline kernel.
+        assert ttt_branch_rope in ("none", "gate", "content"), ttt_branch_rope
+        self.ttt_branch_rope = ttt_branch_rope
+        if ttt_branch_rope != "none":
+            assert not ttt_nope, \
+                "ttt_branch_rope needs the input rotary path (ttt_nope=False)"
+            assert not (ttt_hidden_rope or ttt_liere or ttt_value_rope), \
+                "ttt_branch_rope is mutually exclusive with the hidden/LieRE/value rotaries"
+            assert not ttt_learnable_freqs and ttt_input_chunkq == 0, \
+                "ttt_branch_rope only splits the standard fla fast_rotary path"
+
         if ttt_learnable_freqs and ttt_learnable_input_freqs:
             # additive learnable frequency deltas on the fast-weight q/k rotary
             # (composes with the base RoPE: total angle = base + t * dfreq).
@@ -348,6 +489,44 @@ class LaCTSWIGLULayer(nn.Module):
         assert self.ttt_loss_type in [
             "dot_product"
         ], f"Loss type {self.ttt_loss_type} not supported"
+
+        #### Q24 training-dynamics interventions: runtime angle scales.
+        # PLAIN python attributes (not buffers/Parameters) so setting them never
+        # changes state_dict — checkpoints stay interchangeable with standard hpra.
+        # _input_rope_scale: None (off) | python float (design b curriculum s(step))
+        #   | tensor [b] of 0/1 (design a per-sequence input-rope dropout). Scales
+        #   the INPUT-rope ANGLES in the manual (ttt_input_chunkq > 0) path only.
+        # _hrope_scale: None | python float; scales the HIDDEN rotary angles
+        #   (commitment probe: 0.0 = hidden rotation removed, cos(0)=1/sin(0)=0
+        #   is an exact identity).
+        self._input_rope_scale = None
+        self._hrope_scale = None
+
+    def liere_rotations(self, seq_len, seqlen_offset=0, device=None):
+        """LieRE per-token rotation blocks R_t = matrix_exp(A * t * pos_scale),
+        t = seqlen_offset .. seqlen_offset + seq_len - 1. Returns [s, nb, b, b] fp32.
+
+        Computed once per forward (the generators change every optimizer step).
+        Positions are integers, so exp(A*t) = exp(A)^t exactly: ONE tiny fp64
+        matrix_exp gives the unit-step rotation (small generator norm -> no
+        scaling-and-squaring error) and _liere_doubling_scan assembles all
+        integer powers. fp32 one-shot matrix_exp over all positions violates
+        orthogonality by ~3e-3 at t ~ 4e3 (squaring-error accumulation) and
+        fp64 one-shot costs ~20 ms per layer per forward; the scan is
+        machine-precision orthogonal (~1e-13) and sub-ms, with a cheap
+        product-rule backward."""
+        raw = (self.liere_base + self.liere_delta).double()
+        u = torch.triu(raw, diagonal=1)
+        skew = u - u.transpose(-1, -2)  # [nb, b, b], A = U - U^T
+        step = torch.matrix_exp(skew * self.liere_pos_scale)  # exp(A * pos_scale)
+        if not isinstance(seqlen_offset, int):
+            # padding path (per-row offsets): fall back to one-shot fp64 exp
+            t = (torch.arange(seq_len, device=device, dtype=torch.float64)
+                 + seqlen_offset.double()) * self.liere_pos_scale
+            return torch.matrix_exp(
+                skew[None] * t[:, None, None, None]).float()
+        r = _liere_doubling_scan(step, seq_len + seqlen_offset)
+        return r[seqlen_offset:seqlen_offset + seq_len].float()
 
     def _rescale_qk(self, q, k):
         """
@@ -506,6 +685,15 @@ class LaCTSWIGLULayer(nn.Module):
         fast_q = l2_norm(fast_q)
         fast_k = l2_norm(fast_k)
 
+        # GbR (Q25b): keep PRE-rotary copies of the post-l2norm fast q/k for
+        # the unrotated branch. Cloned because the rotary below may write
+        # in-place through views of this storage. Shape is already
+        # [(b n_h), s, d] — the rotary block's rearranges round-trip back to
+        # exactly this layout, so the copies align with the rotated outputs.
+        if getattr(self, "ttt_branch_rope", "none") != "none":
+            plain_q = fast_q.clone()
+            plain_k = fast_k.clone()
+
         if not self.ttt_nope:
             #### Apply rotary embedding.  Here we use the same rope as the attention layer.
             # I observed that using NoPE for ttt (No positional encoding) here also works.
@@ -519,13 +707,49 @@ class LaCTSWIGLULayer(nn.Module):
             fast_q = rearrange(fast_q, "b s (n_h d) -> b s n_h d", n_h=self.num_heads)
             fast_k = rearrange(fast_k, "b s (n_h d) -> b s n_h d", n_h=self.num_heads)
 
-            fast_q, fast_k = self.fast_rotary(
-                fast_q,
-                fast_k,
-                seqlen_offset=seqlen_offset,
-                max_seqlen=max_seqlen,
-                cu_seqlens=cu_seqlens,
-            )
+            if self.ttt_input_chunkq > 0:
+                # manual NeoX-style rotary at chunk-quantized positions
+                # (same inv_freq as fast_rotary; C=1 reproduces the per-token
+                # rotary through this code path for a clean surgery baseline)
+                Cq = float(self.ttt_input_chunkq)
+                pos_in = torch.arange(
+                    fast_q.shape[1], device=fast_q.device, dtype=torch.float32
+                ) + seqlen_offset
+                pos_in = torch.floor(pos_in / Cq) * Cq
+                ang_in = pos_in[:, None] * self.fast_rotary.inv_freq.float()[None]  # [s, P]
+                # Q24: optional runtime angle scale (see __init__). float scales
+                # globally (curriculum); tensor [b] scales per sequence (input-rope
+                # dropout: 0 -> unrotated q/k, exactly identity). fast_q here is
+                # [b, s, n_h, d] with b = TRUE batch size (rearranged back from
+                # (b n_h) above), so a [b] scale broadcasts per batch row.
+                _irs = getattr(self, "_input_rope_scale", None)
+                if _irs is not None and not isinstance(_irs, torch.Tensor):
+                    ang_in = ang_in * float(_irs)
+                    _irs = None
+                if _irs is not None:
+                    assert _irs.numel() == fast_q.shape[0], \
+                        f"_input_rope_scale has {_irs.numel()} entries, batch is {fast_q.shape[0]}"
+                    ang_in = ang_in[None] * _irs.float().view(-1, 1, 1).to(ang_in.device)  # [b, s, P]
+                    qcos = torch.cat([ang_in.cos(), ang_in.cos()], dim=-1)[:, :, None, :]  # [b, s, 1, d]
+                    qsin = torch.cat([ang_in.sin(), ang_in.sin()], dim=-1)[:, :, None, :]
+                else:
+                    qcos = torch.cat([ang_in.cos(), ang_in.cos()], dim=-1)[None, :, None, :]
+                    qsin = torch.cat([ang_in.sin(), ang_in.sin()], dim=-1)[None, :, None, :]
+
+                def _rot_half_q(x):
+                    x1, x2 = x.chunk(2, dim=-1)
+                    return torch.cat([-x2, x1], dim=-1)
+
+                fast_q = (fast_q * qcos + _rot_half_q(fast_q) * qsin).type_as(fast_q)
+                fast_k = (fast_k * qcos + _rot_half_q(fast_k) * qsin).type_as(fast_k)
+            else:
+                fast_q, fast_k = self.fast_rotary(
+                    fast_q,
+                    fast_k,
+                    seqlen_offset=seqlen_offset,
+                    max_seqlen=max_seqlen,
+                    cu_seqlens=cu_seqlens,
+                )
 
             if self.ttt_learnable_freqs and hasattr(self, "fwqk_dfreq"):
                 # omega_map (1D): extra rotary with learnable frequency deltas,
@@ -598,26 +822,68 @@ class LaCTSWIGLULayer(nn.Module):
             fw_w2 = fw_w2.to(torch.float32)
 
         # [b * nh, s, d_ttt_head]
-        if self.ttt_hidden_rope:
+        if getattr(self, "ttt_branch_rope", "none") != "none":
+            # GbR path (prenorm, PyTorch ops only): fast_q/fast_k are the
+            # ROTATED copies (standard input rotary above); plain_q/plain_k
+            # the unrotated post-l2norm copies. "gate" routes the rotated
+            # pair to the silu gate branch (w0), "content" to the linear
+            # content branch (w2); the other branch sees the plain pair.
+            assert self.ttt_prenorm and not self.use_fused_kernel, \
+                "ttt_branch_rope requires ttt_prenorm=True, use_fused_kernel=False"
+            if self.ttt_branch_rope == "gate":
+                qg, kg, qc, kc = fast_q, fast_k, plain_q, plain_k
+            else:  # "content"
+                qg, kg, qc, kc = plain_q, plain_k, fast_q, fast_k
+            fw_x = prenorm_block_causal_lact_swiglu_branch_rope(
+                fw_w0, fw_w1, fw_w2,
+                qg, kg, qc, kc, fast_v,
+                fw_lr1, fw_lr2, fw_lr3,
+                chunk_size=self.lact_chunk_size,
+                use_muon=self.use_muon,
+                momentum=momentum,
+            )
+        elif self.ttt_hidden_rope:
             # h-PRA path (prenorm, PyTorch ops only)
             assert self.ttt_prenorm and not self.use_fused_kernel, \
                 "ttt_hidden_rope requires ttt_prenorm=True, use_fused_kernel=False"
             pos = torch.arange(
                 fast_q.shape[1], device=fast_q.device, dtype=torch.float32
             ) + seqlen_offset
-            if getattr(self, "ttt_perhead_freqs", False):
+            if self.ttt_hrope_chunkq > 0:
+                Ch = float(self.ttt_hrope_chunkq)
+                pos = torch.floor(pos / Ch) * Ch
+            # Q24 commitment probe: scale the hidden rotary ANGLES (h_ang =
+            # h_inv_freq * pos, so scaling pos after the chunkq floor is
+            # equivalent). 0.0 -> cos=1/sin=0 -> exact identity rotation in
+            # the hidden kernel (forward AND inner-loop inverse rotation).
+            _hrs = getattr(self, "_hrope_scale", None)
+            if _hrs is not None:
+                assert getattr(self, "ttt_liere", 0) == 0, \
+                    "_hrope_scale not supported with ttt_liere (angles live in matrix_exp)"
+                pos = pos * float(_hrs)
+            r_blocks = None
+            if getattr(self, "ttt_liere", 0) > 0:
+                hcos_t = hsin_t = None
+                with torch.autocast(device_type="cuda", enabled=False):
+                    r_blocks = self.liere_rotations(
+                        fast_q.shape[1], seqlen_offset, device=fast_q.device)
+                    # kernel layout: [nb, b, b, s] so chunk slicing is [..., s:e]
+                    r_blocks = r_blocks.permute(1, 2, 3, 0).contiguous()
+            elif getattr(self, "ttt_perhead_freqs", False):
                 theta_ph = (self.h_inv_freq.float()[None]
                             * self.h_freq_delta_perhead.float().exp())  # [nh, P_h]
                 h_ang = theta_ph[:, :, None] * pos[None, None, :]  # [nh, P_h, s]
                 b_true = fast_q.shape[0] // self.num_fw_heads
                 h_ang = h_ang.repeat(b_true, 1, 1)  # [b*nh, P_h, s]
+                hcos_t, hsin_t = h_ang.cos(), h_ang.sin()
             else:
                 h_ang = self.h_inv_freq.float()[:, None] * pos[None, :]  # [P_h, s]
+                hcos_t, hsin_t = h_ang.cos(), h_ang.sin()
             fw_x = prenorm_block_causal_lact_swiglu_hidden_rope(
                 fw_w0, fw_w1, fw_w2,
                 fast_q, fast_k, fast_v,
                 fw_lr1, fw_lr2, fw_lr3,
-                h_ang.cos(), h_ang.sin(),
+                hcos_t, hsin_t,
                 chunk_size=self.lact_chunk_size,
                 use_muon=self.use_muon,
                 momentum=momentum,
@@ -630,6 +896,25 @@ class LaCTSWIGLULayer(nn.Module):
                     if getattr(self, "ttt_basis_orth", False)
                     else self.h_basis_eye + self.h_basis_delta)
                 if getattr(self, "ttt_hidden_basis", False) else None,
+                r_blocks=r_blocks,
+            )
+        elif self.ttt_value_rope:
+            # VaPE path (prenorm, PyTorch ops only)
+            assert self.ttt_prenorm and not self.use_fused_kernel, \
+                "ttt_value_rope requires ttt_prenorm=True, use_fused_kernel=False"
+            pos = torch.arange(
+                fast_q.shape[1], device=fast_q.device, dtype=torch.float32
+            ) + seqlen_offset
+            v_ang = self.v_inv_freq.float()[:, None] * pos[None, :]  # [P_v, s]
+            fw_x = prenorm_block_causal_lact_swiglu_value_rope(
+                fw_w0, fw_w1, fw_w2,
+                fast_q, fast_k, fast_v,
+                fw_lr1, fw_lr2, fw_lr3,
+                v_ang.cos(), v_ang.sin(),
+                chunk_size=self.lact_chunk_size,
+                use_muon=self.use_muon,
+                momentum=momentum,
+                delta_only=self.ttt_vrope_delta_only,
             )
         elif self.ttt_prenorm:
             # pre-norm version of ttt.   state = state + f(norm(state))
@@ -662,6 +947,8 @@ class LaCTSWIGLULayer(nn.Module):
                     chunk_size=self.lact_chunk_size,
                     use_muon=self.use_muon,
                     momentum=momentum,
+                    precess_cos=getattr(self, "precess_cos", None),
+                    precess_sin=getattr(self, "precess_sin", None),
                 )
         else:
             # post-norm version of ttt.   state = norm(state + f(state))

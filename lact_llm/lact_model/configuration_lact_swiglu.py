@@ -50,12 +50,56 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         ttt_input_theta: Optional[float] = None,  # base for the fast-q/k INPUT rope; None -> rope_theta. Small = local (high-freq) band, for band-split vs the hidden site.
         ttt_hrope_interleave: bool = False,  # offset the hidden ladder by half a log-step so its frequencies sit BETWEEN the input's (same band, complementary frequencies).
         ttt_perhead_freqs: bool = False,  # AdaRoPE-style AdaFreq: PER-FW-HEAD learnable log-frequencies xi [num_fw_heads, P_h], theta=exp(xi), fp32, init from the fixed ladder.
+        ttt_liere: int = 0,  # LieRE (learnable Lie-group rotary, ICML 2025) on the HIDDEN
+        # address: 0 = off; >0 = generator block size b. Per-layer, head-shared learnable
+        # skew generators A [nb, b, b] (nb = 2*P_h/b covers the rotated span); rotation
+        # per token = matrix_exp(A * t), orthogonal by construction. b=2 reduces to a
+        # learnable-frequency 2D rotation; larger b learns the rotation PLANES too.
+        # Requires ttt_hidden_rope; replaces the fixed cos/sin ladder.
+        ttt_liere_init: str = "rope",  # "rope": init so matrix_exp(A*t) EXACTLY equals the
+        # fixed h_inv_freq cos/sin ladder at step 0 (2x2 ladder rotations embedded
+        # block-diagonally, positions unscaled). "random": LieRE convention, skew entries
+        # ~U[0, 2pi] with positions normalized by max_position_embeddings.
         ttt_hrope_delta_only: bool = False,  # rotate only the fast-weight DELTA path on apply:
         # out = w_init @ h + (w - w_init) @ R(phi) h. Removes the absolute-phase tax on the
         # initial readout (F27b) while keeping relative update->apply recall.
+        ttt_hrope_chunkq: int = 0,  # Q22: quantize the HIDDEN rotary positions to multiples of
+        # this chunk size (floor(t/C)*C) so stored addresses within an update chunk share one
+        # rotation (block-relative h-PRA). 0 = off; use lact_chunk_size (1024) normally.
+        ttt_input_chunkq: int = 0,  # Q22: same quantization for the INPUT fast-q/k rope
+        # (manual rotary path; 1 = per-token via the manual path, for surgery baselines).
+        ttt_w1_precess: float = 0.0,  # Q25a chunk precession: gain of the fixed
+        # per-chunk-boundary rotation of the w1 delta's hidden-dim pairs (recency
+        # kernel in the STATE; init readout excluded; 0 = exact baseline).
+        ttt_hrope_conjpairs: bool = False,  # Q25c: conjugate-paired hidden ladder
+        # h_inv = cat([f, -f]) with f = P_h/2-point ladder — every frequency on one
+        # +plane and one -plane. Gives the model an even/odd-separable basis: tying
+        # content across partner planes keeps the cos(omega*dt) recency envelope and
+        # cancels the antisymmetric offset code (the component F27b says gets ignored).
         ttt_hrope_hnorm: str = "none",  # "rms" | "rms_rot": RMS-normalize the hidden before
         # the rotation (make the hidden code spherical like the L2-normalized input q/k;
         # tests the F27c geometry hypothesis). "rms_rot" normalizes only the rotated dims.
+        ttt_value_rope: bool = False,  # VaPE (Q23): value-path rotary. The update trains
+        # f_W toward the ROTATED target R_t v_t (fixed ladder on the first 2*P_v value
+        # dims); on apply the (delta) readout is counter-rotated by the query position so
+        # retrieval carries only relative phases sum_t lr_t <h_t,h_s> R_{t-s} v_t. No
+        # rotation inside f_W -> no inverse rotation in the inner-loop backward. Composes
+        # with the input rope; mutually exclusive with ttt_hidden_rope/ttt_liere for now.
+        ttt_vrope_frac: float = 0.5,  # fraction of value dims rotated (P_v = floor(frac*d_out/2))
+        ttt_vrope_gain: float = 1.0,  # global multiplier on the value frequency ladder
+        ttt_vrope_theta: Optional[float] = None,  # ladder base; None -> rope_theta
+        ttt_vrope_delta_only: bool = True,  # counter-rotate only the fast-weight DELTA
+        # readout on apply (init readout untouched -> no absolute-phase tax, F27b). The
+        # DEFAULT variant; False = counter-rotate the whole readout.
+        ttt_branch_rope: str = "none",  # GbR (Q25b): "none" | "gate" | "content".
+        # Gate-branch-only input rope: the SwiGLU fast weight f(x) =
+        # w1(silu(w0 x) * (w2 x)) has two input branches; the standard input rope
+        # rotates the q/k feeding BOTH. "gate" rotates only the copy feeding the silu
+        # gate branch (w0) and leaves the linear content branch (w2) unrotated;
+        # "content" is the mirror. Diagnostic 2-cell readout localizing where the
+        # input rope's +0.20 ppl lives. No new parameters; zero-phase reduces
+        # bit-exactly to baseline. Mutually exclusive with ttt_nope /
+        # ttt_hidden_rope / ttt_liere / ttt_value_rope / ttt_learnable_freqs.
         ttt_learnable_freqs: bool = False,  # omega_map(1D): learnable frequency deltas
         ttt_sharedf: bool = False,  # share the learnable frequency Parameters across ALL layers
         ttt_hrope_min_layer: int = 0,  # apply the hidden rotary only from this layer index on
@@ -112,8 +156,32 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.ttt_input_theta = ttt_input_theta
         self.ttt_hrope_interleave = ttt_hrope_interleave
         self.ttt_perhead_freqs = ttt_perhead_freqs
+        self.ttt_liere = ttt_liere
+        self.ttt_liere_init = ttt_liere_init
+        if ttt_liere:
+            assert ttt_hidden_rope, "ttt_liere requires ttt_hidden_rope=True"
+            assert ttt_liere_init in ("rope", "random"), ttt_liere_init
         self.ttt_hrope_delta_only = ttt_hrope_delta_only
+        self.ttt_hrope_chunkq = ttt_hrope_chunkq
+        self.ttt_w1_precess = ttt_w1_precess
+        self.ttt_hrope_conjpairs = ttt_hrope_conjpairs
+        self.ttt_input_chunkq = ttt_input_chunkq
         self.ttt_hrope_hnorm = ttt_hrope_hnorm
+        self.ttt_value_rope = ttt_value_rope
+        self.ttt_vrope_frac = ttt_vrope_frac
+        self.ttt_vrope_gain = ttt_vrope_gain
+        self.ttt_vrope_theta = ttt_vrope_theta
+        self.ttt_vrope_delta_only = ttt_vrope_delta_only
+        if ttt_value_rope:
+            assert not ttt_hidden_rope and not ttt_liere, \
+                "ttt_value_rope is mutually exclusive with ttt_hidden_rope / ttt_liere (for now)"
+        self.ttt_branch_rope = ttt_branch_rope
+        assert ttt_branch_rope in ("none", "gate", "content"), ttt_branch_rope
+        if ttt_branch_rope != "none":
+            assert not (ttt_nope or ttt_hidden_rope or ttt_liere or ttt_value_rope
+                        or ttt_learnable_freqs), \
+                "ttt_branch_rope is mutually exclusive with ttt_nope / ttt_hidden_rope / " \
+                "ttt_liere / ttt_value_rope / ttt_learnable_freqs"
         self.ttt_learnable_freqs = ttt_learnable_freqs
         self.ttt_sharedf = ttt_sharedf
         self.ttt_hrope_min_layer = ttt_hrope_min_layer
