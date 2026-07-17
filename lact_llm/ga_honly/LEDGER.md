@@ -414,3 +414,23 @@ content s137/s211 (gpu0/1) launched immediately. If 3 seeds hold: this is the 1D
 are (a) gate-rope + hidden rotary stacking (content channel now clean — the redundancy
 calculus may change), (b) NVS/CCV ports (same SwiGLU fast weight; cam rotary currently
 rotates both branches there too).
+
+## Q25a verdict: w1 chunk precession dead (2026-07-17)
+q25a_rope_precess_g10_w128: 18.614 (= rope 18.609); g01: 18.623. The state-side
+recency kernel adds nothing at either gain — as flagged at design time, it is
+informationally the nearest relative of the closed Delta-t-stacking family (3 chunk
+offsets at 4096/1024). Q25a closed. Design-round scorecard: 9 of 10 adopted ideas
+dead; the survivor is Q26 GbR (single-branch input rope), which came from the
+DIAGNOSTIC lens, not the additive designs.
+
+## Q26 copy dissociation: gate-only FAILS position-addressed retrieval (2026-07-17)
+q25b_copy_gate (F35 protocol, w1024, 800M tokens): final copy_acc 7.3%, flat plateau
+from ~step 3k — the offset-retrieval mechanism NEVER forms (standard rope: 100%,
+grokking at 8.5k; NoPE: 0.2%). Sharp double dissociation with the natural-language
+result (gate 18.471 < rope 18.609): the both-branch rotation is the machinery of EXACT
+position-addressed retrieval, and natural language pays it as a pure tax because its
+retrieval is content-addressed (finding D, fourth independent confirmation). The
+single-branch rope is therefore a TASK-DEPENDENT trade, not a free win — prediction
+for the ports: coordinate-addressed tasks (NVS/CCV) should PREFER both-branch rotation
+(or need the hidden site to carry what the content branch gives up). The w1024 cell
+(gpu3) and the gate+hidden stack (q26_gatehpra, gpu4) are now the decisive cells.

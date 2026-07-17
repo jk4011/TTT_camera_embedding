@@ -254,6 +254,20 @@ with Q22/Q23 winners.
 IMPL: ttt_input_scale buffer + schedule in train_small.py; probe script exists
 (surgery pattern). Cost: 2 x 5.5h (a,b at s42) + probes.
 
+## Q26. GbR single-branch input rope — BREAKTHROUGH CANDIDATE  [ACTIVE 2026-07-17]
+From the Q25b diagnostic: at w128/3B/s42, gate-only rope 18.471 and content-only 18.502
+BOTH beat standard both-branch rope 18.609 (nope 18.81). Finding: rotating both SwiGLU
+input branches is a ~0.11-0.14 tax (the multiplicative interaction compounds the
+rotation and scrambles the content channel); one rotated branch = full relative code +
+position-clean content channel. Gate-only earns +0.34 over NoPE net.
+IN FLIGHT: gate s137/s211 (gpu2/6), content s137/s211 (gpu0/1), copy-dissociation
+q25b_copy_gate (gpu4; if gate-only still solves copy@2560, the clean-content split
+costs nothing on position-addressed retrieval either).
+IF 3 SEEDS HOLD (the 1D goal cell "beats input rope" is then MET by an input-site
+redesign): (a) gate+hidden stacking (kernel work: branch_rope + hcos/hsin); (b) NVS
+port (cam_mode flag in lact_ttt_cam.py — the cam rotary also rotates both branches);
+(c) CCV port; (d) w1024 tax-invariance check.
+
 ## Q25. Lower-priority design-round items  [QUEUED 2026-07-17, run if Q22-Q24 die]
 (a) Chunk precession of the w1 delta: after each chunk update, right-rotate the
     accumulated delta (w1-w1_init) by a fixed per-chunk angle ladder — stored addresses
