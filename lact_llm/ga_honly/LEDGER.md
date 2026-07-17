@@ -510,3 +510,19 @@ position-clean content channel does NOT unlock hidden-site value in natural text
 Consistent with the Q24-probe conclusion: no second positional code earns anything
 here because the data does not demand it. Q26 LLM arm closed; NVS/CCV ports are the
 remaining open cells.
+
+## Q26 NVS ports: CONTENT-BRANCH ROPE WINS DECISIVELY on the coordinate task (2026-07-18)
+s95 paired vs standard both-branch qk_rope_cam (22.420/0.2769, n=256 scenes):
+| variant | PSNR/LPIPS | paired delta | t |
+|---|---|---|---|
+| gate_rope | 22.470/0.2694 | +0.050 | +3.52 |
+| content_rope | **22.563/0.2674** | **+0.143** | **+10.21** (190/256) |
+Ordering content > gate > both — matches the branch mechanism exactly: the linear
+(w2) path is the address space, so content-branch rotation keeps ALL positional
+machinery (copy 100%) and drops the gate-side compounding tax; gate_rope drops the
+tax too but loses the linear-path phase (still net positive in NVS because raymap
+input features carry camera info redundantly). CROSS-TASK RECIPE CANDIDATE:
+"rotate only the content branch" — NVS +0.14 dB (t=+10), copy preserved, LLM parity.
+Seed pairs launched (content_rope + qk_rope_cam at s137/s211, gpus 0/1/3/4) per the
+F18 seed rule. Follow-ups if seeds hold: content_rope + h_pra stacking (needs kernel
+combo — currently asserted exclusive), CCV port, dossier F38 + paper-freeze note.
