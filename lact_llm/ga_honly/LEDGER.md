@@ -620,3 +620,25 @@ THREE FIXES FOR ANY FUTURE ATTEMPT:
 3. _patched_cdit_block_forward passes the block's own x_cond_norm to the branch, so a separate
    history stream needs its own token path and adapter-owned LayerNorm. Never stage launchers in
    /tmp (noexec) — that is why the in/h cells never ran.
+
+## MUSIC REMI 4-cell COMPLETE (2026-08-04) — the cleanest NULL in the study
+Protocol identical to natural language and DNA (200M LaCT, seq 4096, w128, 3B tokens = 1.03 epochs
+of a 2.92B-token Lakh-MIDI/REMI corpus, s42). Final val ppl:
+| cell | ppl | vs nope |
+|---|---|---|
+| nope | 1.7085 | — |
+| rope (input) | 1.7082 | **-0.0003** |
+| honly (hidden) | 1.7151 | +0.0066 |
+| hpra (both) | 1.7104 | +0.0019 |
+Spread across all four cells = 0.0069 ppl (0.4% relative). Positional encoding earns NOTHING —
+not even the input rope, which is worth ~+0.10 in natural language. This is a stronger null than
+the LLM result.
+MECHANISM: REMI tokenization emits explicit `Bar` and `Position` tokens, so metric position is
+readable AS CONTENT. There is nothing left for positional addressing to contribute. Note this is
+the same failure shape as natural language (finding D) but with a *visible, removable cause*.
+DECISIVE FOLLOW-UP (queued): re-tokenize the identical corpus with miditok **TSD** (relative
+TimeShift tokens, no absolute Bar/Position) and rerun the 4 cells. TSD is a standard tokenizer, so
+this is not a contrived setting. If REMI is null and TSD is not, we demonstrate WITHIN ONE TASK,
+holding model/data/budget fixed, that positional addressing is unnecessary exactly when position
+is already available as content — the sharpest statement of finding D available anywhere in the
+study, and the only one where we control the cause rather than observe it.
