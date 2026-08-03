@@ -581,3 +581,20 @@ no absolute Bar/Position) and re-run the 4 cells. TSD is a standard tokenizer, n
 setting. If REMI is null and TSD is not, we demonstrate WITHIN ONE TASK that positional
 addressing is unnecessary exactly when position is available as content — the cleanest statement
 of finding D we have.
+
+## Q27 NWM CLOSED (2026-08-04, user decision)
+Reason: the camera-conditioned evidence is being consolidated on NVS + CCV + 3D reconstruction,
+making an ego-pose world model redundant; SANA-WM (NVIDIA, 2026-05-14) also partially occupies
+"camera rotation in a fast-weight state" for world models.
+KEPT (stage 0 succeeded): the frozen released NWM reproduces on RECON — cdit_xl @4s LPIPS 0.3106
+vs published 0.296, and essentially exactly the 0.312 of the paper's num_goals=1 row, which is what
+isolated_nwm_infer.py actually runs. cdit_s @4s = 0.3704. DreamSim was systematically ~20% high
+(package/weights version drift, not a modelling gap).
+DISCARDED: the 4-cell adapter grid. Design flaw — the TTT branch was fed context_size=4, i.e.
+exactly the frames the block's cross-attention already attends to, so it carried no information
+advantage and the rotary had nothing to address. Evidence: base vs both val loss differed by
+~5e-6 over 5500 steps (total drift 5e-5). base/both reached ~12k steps; in/h never ran.
+IF EVER RESUMED: (a) feed the TTT branch 32-64 frames spanning +/-16 s (NWM's own max time shift)
+while cross-attention keeps its stock 4 frames, so the fast weight is the ONLY long-horizon
+channel; (b) do NOT judge cells by diffusion-MSE val loss — it is non-discriminating here; use the
+isolated_nwm_infer -> isolated_nwm_eval harness.

@@ -254,7 +254,7 @@ with Q22/Q23 winners.
 IMPL: ttt_input_scale buffer + schedule in train_small.py; probe script exists
 (surgery pattern). Cost: 2 x 5.5h (a,b at s42) + probes.
 
-## Q27. NWM ego-pose world model (cross-task validation #1)  [STAGE 0 RUNNING 2026-08-03]
+## Q27. NWM ego-pose world model  [CLOSED 2026-08-04, user decision — redundant with NVS+CCV+3D-recon, and the 4-frame-history flaw made the adapter inert (base-vs-both val loss 5e-6 over 5500 steps). Stage-0 repro SUCCEEDED and is kept: cdit_xl @4s LPIPS 0.3106 vs published 0.296 (and 0.312 for the num_goals=1 row the eval script actually uses). Assets kept at nwm_ttt/, datasets/nwm_{data,ckpt}.]
 Baseline: NWM (Meta, CVPR 2025). Conditioning IS relative ego pose: ActionEmbedder(dx, dy, dyaw)
 + time-shift, injected by adaLN; CDiT block = [self-attn over target tokens] -> [CROSS-ATTN from
 target to the 4 context frames] -> [MLP]. The cross-attn is the retrieve-from-past channel.
