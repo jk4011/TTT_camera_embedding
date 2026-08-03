@@ -598,3 +598,25 @@ IF EVER RESUMED: (a) feed the TTT branch 32-64 frames spanning +/-16 s (NWM's ow
 while cross-attention keeps its stock 4 frames, so the fast weight is the ONLY long-horizon
 channel; (b) do NOT judge cells by diffusion-MSE val loss — it is non-discriminating here; use the
 isolated_nwm_infer -> isolated_nwm_eval harness.
+
+## Q27 NWM final handover numbers (kept for the record, 2026-08-04)
+Stage-0 RECON `time` reproduction, 500 held-out episodes, 250 DDPM steps, 224x224, num_goals=1,
+horizons 1/2/4/8/16 s:
+- cdit_s  LPIPS .311/.337/.370/.408/.462 · DreamSim .139/.148/.162/.179/.230 · FID 35.2/33.3/32.6/32.4/40.0
+- cdit_xl LPIPS .258/.281/.311/.340/.416 · DreamSim .094/.100/.111/.122/.172 · FID 25.4/25.1/26.6/25.6/31.1
+Published @4s (Table 1, CDiT-XL): LPIPS 0.296+-0.002. REPRODUCES: the released
+isolated_nwm_infer.py hardcodes num_goals=1 and the paper's own "1 goal" row is 0.312+-0.001 —
+our 0.311 lands on it. DreamSim runs +0.020 high at every horizon (dreamsim package/weights drift).
+Adapter machinery was CORRECT (sanity A-D all pass: zero-init identity 0.000e+00 for all 4 cells;
+rope_gain=0 reduces to base exactly while gain=1 changes output 0.11-0.22; SE(2) global-transform
+gauge invariance 0.000e+00; 12,457,812 trainable / 49,227,680 frozen, 0 pretrained tensors with
+requires_grad). Only the INFORMATION DESIGN was wrong. Final val_loss base 0.148315 vs both
+0.148329 (1.4e-5 apart, base nominally better) = no measurable rotary effect.
+THREE FIXES FOR ANY FUTURE ATTEMPT:
+1. Long history 32-64 frames — **PAST-ONLY (<= curr_time)**. My own spec said "+/-16 s", which
+   would LEAK THE TARGET, since NWM's goal offsets run +/-64 frames. Caught by the agent.
+2. Judge only via isolated_nwm_infer -> isolated_nwm_eval (anchor: cdit_s LPIPS 0.3704 @4s);
+   diffusion-MSE val loss is non-discriminating (5e-6 spread over 12k steps).
+3. _patched_cdit_block_forward passes the block's own x_cond_norm to the branch, so a separate
+   history stream needs its own token path and adapter-owned LayerNorm. Never stage launchers in
+   /tmp (noexec) — that is why the in/h cells never ran.
