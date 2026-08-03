@@ -563,3 +563,21 @@ Verified project state: LLM = all positional variants ~18.58 indistinguishable (
 NVS = rope < honly ~= hpra (hidden load-bearing, +0.12 stacking margin); CCV = both >
 in > h > base unanimous. Rotation earns its keep only where retrieval is
 position/coordinate-addressed.
+
+## MUSIC (symbolic, Lakh MIDI + REMI) 4-cell: COMPLETE NULL (2026-08-04)
+Protocol identical to the natural-language and DNA runs (200M LaCT, seq 4096, w128, 3B tokens =
+1.03 epochs of a 2.92B-token corpus, s42). Final val ppl:
+| cell | ppl | vs nope |
+|---|---|---|
+| nope | 1.7085 | — |
+| rope (input) | 1.7082 | -0.0003 |
+| honly (hidden) | 1.7151 | +0.0066 |
+| hpra | (running) | — |
+Positional encoding earns NOTHING here — even the input rope, which is worth ~+0.10 in natural
+language. DIAGNOSIS: REMI tokenization emits explicit `Bar` and `Position` tokens, so metric
+position is readable AS CONTENT; there is nothing for positional addressing to add.
+FOLLOW-UP (launched): re-tokenize the same corpus with miditok TSD (relative TimeShift tokens,
+no absolute Bar/Position) and re-run the 4 cells. TSD is a standard tokenizer, not a contrived
+setting. If REMI is null and TSD is not, we demonstrate WITHIN ONE TASK that positional
+addressing is unnecessary exactly when position is available as content — the cleanest statement
+of finding D we have.
