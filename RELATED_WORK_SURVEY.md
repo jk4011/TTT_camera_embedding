@@ -163,3 +163,19 @@ IS a rotary phase in (u,v,w); 10^8-10^10 visibilities; but no adaptable model ex
 FSM is a released LaCT spatial-memory model WITH checkpoints, pretrained on RE10K, conditioned by
 Plucker concat — i.e. **our own baseline at larger scale**, evaluated on 3D *and 4D* benchmarks.
 It is the lowest-friction way to show PRA scales beyond our 6L/d256 protocol.
+
+## Q28 host notes carried forward (FSM dropped 2026-08-04: LVSM path == our existing NVS task)
+Transferable facts from the FSM stage-0 work, useful for ANY host in this family:
+- **DATA LEAK TRAP (host-independent)**: 130 of the 140 DL3DV-140 *benchmark* scenes live inside the
+  DL3DV *train* directory. Any DL3DV training must exclude them explicitly (a filtered train index
+  with 9,995 scenes was built at datasets/stream3d/dl3dv140/dl3dv_train.json).
+- **Cost anchors on 1x B200** (LaCT-family, measured): 12L/128^2/bs16/32-in+32-tgt = 1.912 s/step,
+  50.1 GiB; 6L = 1.021; 16-view = 0.967; 256^2 @ bs4 = 2.208. => a 4-cell grid run one-cell-per-GPU
+  at 32K steps is ~17 h total, not per cell.
+- **Our cam layer ports into this family cleanly**: the FSM port reached 33/33 sanity checks with
+  zero-gain equivalence to the stock model at exactly 0.000e+00 before it was dropped.
+- FSM stage-0 reproduction (durable record, 69/140 scenes): PSNR 27.53 / LPIPS 0.0809 / SSIM 0.8708
+  vs HF card 27.01 / 0.084 / 0.859 => MATCH on LPIPS/SSIM; +0.5 dB PSNR from CPU-fp32 and the fact
+  that FSM ships NO fixed eval split (index_plan is unused, so view sampling is seed-dependent).
+- Licence pattern to expect in this family: permissive core + a noncommercial (Adobe Research /
+  Gaussian-Splatting) path. Check per-file provenance, not the HF card's blanket tag.
