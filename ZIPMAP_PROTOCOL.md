@@ -22,7 +22,7 @@ site).
 | `in`   | `qk_rope_cam` on fast-weight q/k | input-site addressing |
 | `h`    | `h_pra` on the SwiGLU hidden | **the site nothing in the literature occupies** |
 | `both` | both | additivity |
-| `content` (stretch) | re-enable ZipMap's dormant `posed_ray` path: pose injected as CONTENT, no rotation | **pose-as-content vs pose-as-addressing, inside one model** — the single most informative cell if it is cheap |
+| `content` | re-enable ZipMap's dormant `posed_ray` path: pose injected as CONTENT, no rotation, `input_ray_patch_embed.proj` zero-init so it starts exactly at the released checkpoint | **REQUIRED, not optional** (see sec. 6) — the information-matched control that separates "GT pose helps" from "addressing beats content" |
 
 All cells: same seed, same data order, same budget, same everything else. Fixed frequency
 ladders only (learnable is negative on every task we have run: F33/Q20/Q21/F37).
@@ -76,10 +76,50 @@ Our phases need camera poses at fast-weight UPDATE time, but ZipMap's default mo
 (poses predicted by `camera_head`). Options, in preference order:
 (a) **pose-conditional mode** if one exists (the `posed_ray` path exists in the model but the
     trainer raises for it) -> phases from ground-truth relative pose, exactly like NVS/CCV. Clean.
-(b) **query-side only rotation** — target views always have given poses, so rotating only the
-    query/apply side is a legitimate minimal intervention that needs no input poses at all.
-(c) two-pass (predict poses, then rotate) — defensible but mixes pose error into the ablation.
-Resolve before writing the training config.
+**RESOLVED 2026-08-04**: there is NO pose-conditional input mode in anything ZipMap released.
+Verified four ways: `input_ray_patch_embed` has 0 keys in all four checkpoints; no config sets
+`nvs_input_type`; `trainer.py:1440` raises "Only 'unposed_ray' is currently supported"; the paper
+computes the ray map from the TARGET camera only. `posed_ray` (aggregator_ttt.py:137-145, 259-264)
+is untrained dead code with a latent key-name bug (ZipMap.py:196 reads `input_ray_cond`, the
+trainer writes `nvs_input_ray_cond`).
+
+**This does not block us**, because our method injects pose as ADDRESSING (phases computed outside
+the network from poses and threaded through `info` into the rotary), not as content. The rotary
+cells need NO new modules and NO revival of `posed_ray`: zero new parameters, and the converted
+model still strict-loads the released checkpoint (only `freq_gain`/`gain_h` are extra).
+
+DECISION: **(a) give GT poses for the input views** in the main grid. Faithful test of the
+inner-product addressing lemma, matches our NVS/CCV setting. Freeze `camera_head` (it becomes
+near-redundant) and disclose this.
+CONSEQUENCE: because only the rotary cells would otherwise receive GT pose information, the
+**pose-as-CONTENT cell becomes mandatory** — without it a win confounds "GT pose helps" with
+"addressing beats content". Hence 5 cells, with content-vs-rotary as the load-bearing comparison.
+
+REJECTED — **(b) query-side-only rotation is UNSOUND** (this corrects an earlier draft of this
+document). If `k` (update tokens) is unrotated and only `q` is rotated, `q.k` carries the query's
+ABSOLUTE phase — the phases do not cancel, so it is pose-modulated gating, not relative positional
+encoding, and it cannot test the lemma. Keep only as a deliberately-broken ablation predicting null.
+REJECTED — (c) GT at train / predicted at test: train/test mismatch.
+DEFERRED — (a2) two-pass with predicted input poses (run trunk, read `camera_head`, re-rotate with
+detached predictions): preserves the unposed selling point at ~2x forward cost. Use as a robustness
+FOLLOW-UP on the winning cell ("does the effect survive predicted poses?"), not as the primary grid.
+
+## 6b. Measured scale (one B200, released state-query config, 1.401B params, 518^2, bf16 + act-ckpt)
+
+| views/GPU (input+query) | s/step | peak mem |
+|---|---|---|
+| 12 (8+4) | 0.71 | 30.6 GiB |
+| 24 (16+8) | 1.24 | 43.7 GiB |
+| 44 (32+12) = recipe max | 2.17 | 65.8 GiB |
+
+Per-GPU load sets the step time, so **1 GPU per cell with cells CONCURRENT is 4x better wall-clock
+than one cell on 4 GPUs**. At 24 views/43.7 GiB two cells fit per GPU, so **all 5 cells fit on
+4 GPUs in one wave**. Plan: 5 cells x 24 views x 10k iters, fine-tuned from
+`checkpoint_with_ref_view.pt` (stage 2 — exactly what upstream fine-tunes the query model from)
+=> ~4-8 h per seed round, ~9-17 h for two matched seeds. (Full published recipe is 100k steps x
+8 GPUs ~= 2.9 days PER CELL — infeasible.)
+Only `checkpoint_state_query.pt` has the query pathway (ray_patch_embed + 62 nvs_head keys); the
+other three have zero NVS keys. `checkpoint_online.pt` uses `camera_mlp_head`, not swap-compatible.
 
 ## 7. What survives at reduced scale
 
