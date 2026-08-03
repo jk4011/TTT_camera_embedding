@@ -132,3 +132,34 @@ collapse geography to token index); motion FORECASTING (QCNet radius graphs make
 sparse O(E)); medical 3D/4D (sliding windows keep token counts small); crystals (MP-20 is <=20 atoms).
 Bonus theory-fit but no baseline: radio interferometry (van Cittert-Zernike kernel exp(-2pi i(ul+vm+w(n-1)))
 IS a rotary phase in (u,v,w); 10^8-10^10 visibilities; but no adaptable model exists).
+
+## Human/robot MOTION verdict (user asked 2026-08-04): FAILS criterion (b), same way plain video did
+- Benchmarks cap at **196 frames (9.8 s)** (HumanML3D/KIT). Every metric is local (beat-hit BAS, jerk
+  windows) or distributional (FID); **no benchmark scores motif recurrence or long-range consistency**,
+  so even a real gain would not register.
+- Frame-index RoPE is already shipped (FlowMDM, MotionStreamer); **bar-phase rotary in attention is
+  already published** (MotionBeat 2510.13244).
+- The field's existing phase variables (PFNN weight blending, Local Motion Phases, DeepPhase periodic
+  autoencoders; all CC-BY-NC research-only) are learned TEMPORAL phases used to **modulate weights** —
+  that is our failed hyper_init / cam_lr axis (F6), not our addressing axis.
+- Robot manipulation shares the fate via criterion (c): Diffusion Policy T_o=2, ACT current-timestep
+  only, OpenVLA single image, Octo 2 frames, pi0 single timestep. The one revisit-scored benchmark,
+  MIKASA-Robo (2502.10550, ungated, `TakeItBack` = return a cube to a memorized position), runs
+  60-180 steps with a 3-DoF coordinate — an order of magnitude short of the NVS regime.
+
+## Two arguments worth keeping verbatim
+1. **Streaming 3D, criterion (b) is already a published operation**: CUT3R queries its state with a
+   **raymap alone** — "the state is not updated here, as the raymap serves solely as a query" — to read
+   out geometry at an UNOBSERVED view. A query with no image content cannot be resolved by content
+   matching. And TTT3R proves that state IS a fast weight (S_t = S_{t-1} - beta_t * grad) while changing
+   ONLY the learning rate, leaving "query/key projections and attention computation frozen".
+2. **Protein, the paper-grade line**: IPA's geometry enters as a squared-distance penalty between
+   globally transformed points ADDED TO THE LOGITS, plus value transport. A pairwise bias **cannot exist
+   in a fast weight at all** (there is no LxL matrix to add it to), and our F4 says value transport alone
+   is worth -0.12. So: *IPA's geometry is inherently quadratic; to make structure modelling linear-time
+   you need geometry that factorizes through an inner product — which is exactly rotation.*
+
+## Instrumental note (act on regardless of domain choice)
+FSM is a released LaCT spatial-memory model WITH checkpoints, pretrained on RE10K, conditioned by
+Plucker concat — i.e. **our own baseline at larger scale**, evaluated on 3D *and 4D* benchmarks.
+It is the lowest-friction way to show PRA scales beyond our 6L/d256 protocol.
