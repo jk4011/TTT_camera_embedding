@@ -656,3 +656,27 @@ GENERAL RULE for every host we port into: the eval entry point must be verified 
 CAM model, and the check must be positive (assert the rotary is active / gains are non-zero at
 eval time), because the negative signal — missing keys — is exactly what this design removes.
 The anchor run is unaffected (it evaluated a genuinely stock checkpoint).
+
+## Q28 tttLRM: the no-warmup grid was abandoned, and it left two mechanistic findings (2026-08-04)
+Injecting a fixed rotary at full strength into a checkpoint pretrained WITHOUT one is a large
+shock, and the recovery does not complete inside a short fine-tune. Same-step, data-matched
+training PSNR relative to `base` (all cells share seed and data order, verified by base and h
+moving in lockstep across scene-driven swings):
+| step | in-base | h-base | both-base |
+|---|---|---|---|
+| 10 | -4.48 | -0.65 | -4.57 |
+| 50 | -3.11 | -0.46 | -3.21 |
+| 100 | **-2.37** | **-0.46** | -2.62 (@70) |
+Steps 10->60 closed 1.86 dB; steps 60->100 closed only 0.25 dB and went BACKWARDS twice. Recovery
+plateaus near -2.3 dB; parity projects to step 300-450, i.e. ~1/3 of a 1000-step budget spent
+climbing back. Restarted with a gain warmup (0->1 over 200 steps, pure schedule, no parameters,
+verified 0.000e+00 vs stock at step 0 and vs the un-ramped model at step >= N), 2000 steps, with
+eval ladder at 500/1000/2000 so the budget question is measured rather than inferred.
+TWO FINDINGS WORTH KEEPING:
+1. **The hidden site is nearly free**: h-base = -0.46 dB and FLAT from step 40. Rotating the SwiGLU
+   hidden barely disturbs a model pretrained without it.
+2. **The input site dominates the shock entirely**: `both` tracks `in` almost exactly (-4.57 vs
+   -4.48 at step 10; -2.62 vs -2.46 at step 70), so stacking the hidden rotary adds essentially
+   nothing to the perturbation.
+Both match the budget arithmetic: qk_rope_cam rotates 192/768 of the fast-weight address space
+(25%), h_pra rotates 252/3072 of the hidden (8%).
