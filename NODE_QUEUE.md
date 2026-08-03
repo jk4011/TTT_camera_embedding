@@ -68,25 +68,25 @@ GPU 점유는 `lact_nvs/outputs/.gpu_locks/node2_gpu<i>`에 용도를 적어 표
   (기존 gold-test 방식대로 배치 텐서 해시 비교).
 결과 요약(구현 파일, sanity 수치 3개)을 NODE2_RESULTS.md에 append.
 
-## T1. dna_nope_w128  [RUNNING node2 gpu0 2026-08-03 16:56]
+## T1. dna_nope_w128  [DONE ppl 3.0951]
 ```bash
 cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
 ./run_llm.sh 0 dna_nope_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000 \
   --extra_json '{"ttt_nope": true}'
 ```
 
-## T2. dna_rope_w128  [RUNNING node2 gpu1 2026-08-03 16:56]
+## T2. dna_rope_w128  [DONE ppl 3.0988]
 ```bash
 ./run_llm.sh 1 dna_rope_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000
 ```
 
-## T3. dna_honly_g1_w128  [RUNNING node2 gpu2 2026-08-03 16:56]
+## T3. dna_honly_g1_w128  [DONE ppl 3.0845]
 ```bash
 ./run_llm.sh 2 dna_honly_g1_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000 \
   --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
 ```
 
-## T4. dna_hpra_g1_w128  [RUNNING node2 gpu3 2026-08-03 16:56]
+## T4. dna_hpra_g1_w128  [DONE ppl 3.1335]
 ```bash
 ./run_llm.sh 3 dna_hpra_g1_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000 \
   --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
@@ -112,3 +112,6 @@ hpra 18.578. DNA는 vocab이 8이라 ppl 절대값이 완전히 다르다(참고
 - 2026-08-03 16:45 node2 시작: setup_node OK, torch 2.9.1+cu130, 4 GPU 유휴, fla import OK, hg38 다운로드(983MB) 완료.
 - 2026-08-03 16:50 node2 P0 DONE: dna_data.py 구현 + sanity 3종 PASS(위 상태 참조). 전처리 695,152 train블록.
 - 2026-08-03 16:56 node2 T1-T4 RUNNING: dna_{nope,rope,honly_g1,hpra_g1}_w128 → gpu0-3, self_heal 래퍼, ~4.3h 예상(91,553 step, ~195k tok/s).
+- 2026-08-03 21:27 node2 T1-T4 DONE (4.5h, 무중단·재시도0·NaN없음, 전원 step 91552 / 2,999,975,936 tok):
+  nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335. 수치는 NODE2_RESULTS.md 표에 기록.
+  → **큐 전부 소진. node2 GPU 0-3 유휴, 락 해제. 다음 태스크 대기 중** (10분 간격 큐 감시 루프 가동).
