@@ -281,6 +281,34 @@ Scope note: SACSoN public release is 160x120 vs the paper's private 320x240, and
 were deliberately skipped (no revisit structure / 1.94 TB). We do NOT reproduce the paper's table;
 the claim is an internal site ablation on a frozen backbone.
 
+## Q28. Cross-task #3: 3D reconstruction — TTT-RoPE on tttLRM  [PORT IN PROGRESS 2026-08-04]
+Host: **tttLRM** (CVPR 2026, github.com/cwchenwang/tttLRM). Chosen after FSM (posed NVS = our own
+task) and ZipMap (no pose-conditional input mode -> feeding GT poses would change the model's
+identity and confuse reviewers) were both rejected.
+TASK: posed images (12ch = ray_o|ray_d|ray_o x ray_d|RGB) -> **pixel-aligned 3D GAUSSIANS**,
+rasterized by gsplat at target poses. The differentiator vs our NVS work is that the fast weight's
+apply output decodes to 3D GEOMETRY, not pixels — plus ~250x longer context (64+64 views x 8,040
+tokens = 514,560 tokens in one fast weight, vs ~2k in lact_nvs) and an autoregressive variant.
+Honest caveat: it is initialized from TTT-LVSM weights, i.e. the same LaCT-LVSM trunk our work
+builds on, so it is the same task FAMILY. User accepted this on the Gaussian-output grounds.
+MEMORY (verified in the loaded checkpoint): genuine SwiGLU fast weight, 24 blocks,
+w0(1,768,3072)/w1(1,3072,768)/w2(1,768,3072), num_heads=1, inter_multi 4. Sites: qk after
+lact_ttt.py:317; hidden at :163 forward / :165 inverse / :239 apply.
+NEW TRAP (worse than FSM/ZipMap): TTTOperator has FIVE fields (start,end,fast_weight,update,apply),
+so the single apply expression is reachable in THREE fast-weight states, and the shipped op
+builders exercise only two — a bug in the third would pass every stock run.
+DATA: local DL3DV (dl3dv_undistorted_960), train filtered to **9,995** scenes (130 of the 140 test
+scenes also live in train — verified twice with comm -12), test 140. The scene model is DL3DV-ONLY
+(Objaverse is the separate object model), so a DL3DV-only fine-tune costs nothing.
+ANCHOR: their Table 2 on DL3DV-140 — 32 views 25.07/0.822/0.215, 64 views 25.95/0.844/0.195.
+CELLS (4, not 5): camera is already injected as content, so base == the content arm.
+base / +in / +h / +both, same seed/data order/budget, from dl3dv_full.pt at lr 1e-5.
+Optional 5th: zero the 9 ray channels and keep ONLY the rotary — the analogue of our LLM nope arm,
+testing whether addressing can REPLACE content (large distribution shift; not a matched arm).
+COST (measured on 1x B200, linear at 0.147 s/view): 16+16 views, grad-accum 8, 1000 opt steps =>
+~13 h for all four cells together (one per GPU, concurrent). Licence: Adobe Research,
+noncommercial research only — fine for the paper, flag in acknowledgements.
+
 ## Q26. GbR single-branch input rope — BREAKTHROUGH CANDIDATE  [ACTIVE 2026-07-17]
 From the Q25b diagnostic: at w128/3B/s42, gate-only rope 18.471 and content-only 18.502
 BOTH beat standard both-branch rope 18.609 (nope 18.81). Finding: rotating both SwiGLU
