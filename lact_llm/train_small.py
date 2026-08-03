@@ -73,10 +73,12 @@ def parse_args():
     p.add_argument("--extra_json", type=str, default="{}",
                    help="JSON dict merged into the config dict LAST.")
     # data
-    p.add_argument("--data", type=str, default="fineweb", choices=["fineweb", "dna"],
+    p.add_argument("--data", type=str, default="fineweb", choices=["fineweb", "dna", "music"],
                    help="'fineweb': fineweb-edu char/BPE stream (default, unchanged). "
                         "'dna': hg38 char-level LM (vocab_size=8, chr20 held out for "
-                        "val); see dna_data.py.")
+                        "val); see dna_data.py. "
+                        "'music': Lakh MIDI (LMD-full) REMI symbolic music "
+                        "(vocab_size=451, held-out FILES for val); see music_data.py.")
     p.add_argument("--synthetic", type=str, default="none", choices=["none", "copy"],
                    help="'copy': exact-offset-copy diagnostic task (synthetic_copy.py) "
                         "instead of fineweb-edu; loss/val on the copy region only.")
@@ -388,6 +390,12 @@ def main():
         tokenizer = dna_data.DnaCharTokenizer()
         tok_name, vocab_size = "hg38", dna_data.VOCAB_SIZE
         print(f"[data] dna char tokenizer (vocab_size={vocab_size})", flush=True)
+    elif args.data == "music":
+        import music_data
+        tokenizer = music_data.MusicRemiTokenizer()
+        tok_name, vocab_size = "music", tokenizer.vocab_size
+        print(f"[data] music REMI tokenizer (vocab_size={vocab_size}, "
+              f"bos={tokenizer.bos_token_id} eos={tokenizer.eos_token_id})", flush=True)
     else:
         tokenizer, tok_name, vocab_size = data_utils.load_tokenizer(args.tokenizer)
     eos_id = tokenizer.eos_token_id
@@ -458,6 +466,20 @@ def main():
             block_gen.restore(resume_stream_state)
         print(f"[data] dna hg38: {block_gen.N:,} train blocks, val set "
               f"{tuple(val_set.shape)} (chr20)", flush=True)
+    elif args.data == "music":
+        # LMD-full REMI symbolic music: contiguous seq_len blocks (pieces joined
+        # by EOS) in a data_seed-shuffled order. val files are held out entirely,
+        # so the val set is built independently of the training stream position.
+        import music_data
+        block_gen = music_data.MusicBlockStream(
+            music_data.ensure_train_blocks(args.seq_len), args.data_seed, args.seq_len)
+        n_val_blocks = args.val_tokens // args.seq_len
+        val_set = music_data.get_or_build_music_val_set(
+            n_val_blocks, music_data.val_cache_path(args.seq_len), args.seq_len)
+        if resume_stream_state is not None:
+            block_gen.restore(resume_stream_state)
+        print(f"[data] music LMD-full REMI: {block_gen.N:,} train blocks, val set "
+              f"{tuple(val_set.shape)} (held-out files)", flush=True)
     else:
         # Identical shuffled stream for every run with the same data_seed.
         stream = data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000)
