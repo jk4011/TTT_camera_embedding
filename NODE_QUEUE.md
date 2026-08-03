@@ -124,7 +124,7 @@ seq_len **32,768** / **bs 1** (토큰/스텝 32,768 = 4096x8과 동일) / window
 lact_chunk_size 1024 (시퀀스당 32청크) / 3B 토큰 = 91,552 스텝 / data_seed 42 / model seed 42.
 나머지(200M LaCT, 12층, hidden 768, fw-head 4)는 그대로.
 
-## P0-W2. seq_len 파라미터화 + 실현가능성 실측  [PENDING]
+## P0-W2. seq_len 파라미터화 + 실현가능성 실측  [RUNNING node2 gpu0-3 2026-08-03 21:40]
 1. `dna_data.py`의 `SEQ_LEN = 4096` 하드코딩과 파일명(`hg38_train_blocks_4096.npy`,
    `val_cache_hg38_4096.pt`)을 seq_len 인자로 파라미터화해라. 기존 4096 산출물은 그대로
    두고(재사용), 32768용 블록/val 캐시를 새로 만든다. **val 토큰 수는 WAVE 1과 맞춘다:
@@ -171,6 +171,39 @@ T5-T8은 GPU 0-3 동시 투입, self-heal 래퍼 필수. P0-W2 sanity 통과 전
 ## 판정 (수치만 기록, 해석은 node1)
 WAVE 1 참조값(seq 4096): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
 **seq가 다르면 ppl 절대값이 달라지므로 WAVE 2는 WAVE 2 4셀끼리만 비교한다.**
+
+---
+
+---
+
+# === WAVE 3 (2026-08-03, node1 지시): 심볼릭 음악 — 교차-태스크 검증 #3 ===
+# 상태: 데이터 준비는 node1이 선행(GPU 불필요). 학습은 어느 노드든 GPU 4장이 비면 투입.
+
+**가설**: 음악의 핵심 연산이 위치-주소 회수다 — "8마디 전 주제를 조옮김해 반복"은 내용이
+아니라 정확한 음악적 거리로 과거를 지목한다(마디 4박, 프레이즈 4/8마디의 강한 주기 구조).
+자연어(내용-주소, 패리티)와 DNA(약한 신호) 사이에서, 음악은 좌표-주소 쪽에 가장 가까운
+1D 자연 데이터다. 여기서 hidden 사이트가 이기면 F35 copy-task 해리의 자연-데이터 확장이 된다.
+
+**프로토콜은 자연어/DNA와 동일하게 고정** (비교 가능성):
+200M LaCT / 12층 / hidden 768 / fw-head 4 / chunk 1024 / **window_size 128** / seq 4096 /
+bs 8 / 3B 토큰 / data_seed 42 / model seed 42.
+**좌표는 평범한 토큰 인덱스를 쓴다** — 마디/박자 좌표는 쓰지 않는다(사용자 정책: 표준 세팅
+이어야 하며 방법론에 맞춰 세팅을 쥐어짜지 않는다). 음악의 주기성은 토큰 거리에 이미
+반영되므로 별도 좌표가 필요 없다는 것이 이 실험의 논지다.
+
+## P0-W3. 데이터/토크나이저 준비  [node1 선행 중]
+Lakh MIDI(LMD-full, 176k 파일, 무인증) → miditok REMI 토크나이즈 → uint16 packed 블록 +
+val 캐시(자연어/DNA와 동일한 ≈2M 토큰). 산출물은 datasets/music/ 및
+lact_llm/val_cache_music_4096.pt, 데이터 경로는 `--data music`.
+
+## T9.  music_nope       [PENDING] ./run_llm.sh <g> music_nope --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true}'
+## T10. music_rope       [PENDING] ./run_llm.sh <g> music_rope --data music --window_size 128 --bs 8 --token_budget 3000000000
+## T11. music_honly_g1   [PENDING] ./run_llm.sh <g> music_honly_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+## T12. music_hpra_g1    [PENDING] ./run_llm.sh <g> music_hpra_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+
+판정: 4셀끼리만 비교(vocab이 달라 자연어/DNA와 ppl 절대값 비교 불가).
+참조 서열 — 자연어(3-시드): nope 18.685 / rope 18.582 / honly 18.593 / hpra 18.578.
+DNA 4k(1-시드): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
 
 ---
 
