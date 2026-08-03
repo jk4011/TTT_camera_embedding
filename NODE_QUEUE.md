@@ -27,8 +27,10 @@ cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope
 ls .venv_llm/bin/python && .venv_llm/bin/python -c "import fla, torch; print(torch.__version__, torch.cuda.device_count())"
 nvidia-smi --query-gpu=index,memory.used --format=csv,noheader   # GPU 4개 기대
 ```
-GPU 점유는 `lact_nvs/outputs/.gpu_locks/gpu<i>`에 용도를 적어 표시하고(`echo <exp> > ...`),
-끝나면 지운다. 노드1은 다른 노드의 GPU를 쓰지 않으니 lock 파일명 충돌은 없다.
+GPU 점유는 `lact_nvs/outputs/.gpu_locks/node2_gpu<i>`에 용도를 적어 표시하고
+(`echo <exp> > ...`), 끝나면 지운다. **락 디렉터리는 lustre라 두 노드가 공유하므로
+반드시 `node2_` 접두사를 쓴다** (node1은 `node1_gpu<i>`를 쓴다). 접두사 없는 예전
+`gpu<i>` 파일은 상대 노드 것일 수 있으니 지우지 마라.
 훈련은 반드시 `lact_llm/run_llm.sh`를 통해 실행한다(triton/inductor 캐시 env가 그 안에 있음;
 `/tmp`는 noexec라 직접 실행하면 중간에 죽는다).
 
