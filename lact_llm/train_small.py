@@ -449,10 +449,11 @@ def main():
         # training stream position (no first-n-blocks consumption like fineweb).
         import dna_data
         block_gen = dna_data.DnaBlockStream(
-            dna_data.ensure_train_blocks(), args.data_seed, args.seq_len)
+            dna_data.ensure_train_blocks(args.seq_len), args.data_seed, args.seq_len)
         n_val_blocks = args.val_tokens // args.seq_len
-        val_cache = os.path.join(SCRIPT_DIR, "val_cache_hg38_4096.pt")
-        val_set = dna_data.get_or_build_dna_val_set(n_val_blocks, val_cache)
+        val_cache = dna_data.val_cache_path(args.seq_len)
+        val_set = dna_data.get_or_build_dna_val_set(
+            n_val_blocks, val_cache, args.seq_len)
         if resume_stream_state is not None:
             block_gen.restore(resume_stream_state)
         print(f"[data] dna hg38: {block_gen.N:,} train blocks, val set "

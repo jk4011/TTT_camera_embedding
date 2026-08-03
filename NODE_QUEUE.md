@@ -124,7 +124,7 @@ seq_len **32,768** / **bs 1** (토큰/스텝 32,768 = 4096x8과 동일) / window
 lact_chunk_size 1024 (시퀀스당 32청크) / 3B 토큰 = 91,552 스텝 / data_seed 42 / model seed 42.
 나머지(200M LaCT, 12층, hidden 768, fw-head 4)는 그대로.
 
-## P0-W2. seq_len 파라미터화 + 실현가능성 실측  [RUNNING node2 gpu0-3 2026-08-03 21:40]
+## P0-W2. seq_len 파라미터화 + 실현가능성 실측  [DONE sanity PASS; 32k 30k tok/s·51.6GB, 64k 100GB, 128k 진행불가; 병목은 seq가 아니라 bs=1 → 1런 ≈31h]
 1. `dna_data.py`의 `SEQ_LEN = 4096` 하드코딩과 파일명(`hg38_train_blocks_4096.npy`,
    `val_cache_hg38_4096.pt`)을 seq_len 인자로 파라미터화해라. 기존 4096 산출물은 그대로
    두고(재사용), 32768용 블록/val 캐시를 새로 만든다. **val 토큰 수는 WAVE 1과 맞춘다:
@@ -138,27 +138,27 @@ lact_chunk_size 1024 (시퀀스당 32청크) / 3B 토큰 = 91,552 스텝 / data_
    재개 정확성(기존 방식대로 배치 해시 비교).
 결과를 NODE2_RESULTS.md에 append.
 
-## T5. dna32k_nope  [PENDING]
+## T5. dna32k_nope  [RUNNING node2 gpu0 2026-08-03 22:25]
 ```bash
 cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
 ./run_llm.sh 0 dna32k_nope --data dna --seq_len 32768 --bs 1 --window_size 128 \
   --token_budget 3000000000 --extra_json '{"ttt_nope": true}'
 ```
 
-## T6. dna32k_rope  [PENDING]
+## T6. dna32k_rope  [RUNNING node2 gpu1 2026-08-03 22:25]
 ```bash
 ./run_llm.sh 1 dna32k_rope --data dna --seq_len 32768 --bs 1 --window_size 128 \
   --token_budget 3000000000
 ```
 
-## T7. dna32k_honly_g1  [PENDING]
+## T7. dna32k_honly_g1  [RUNNING node2 gpu2 2026-08-03 22:25]
 ```bash
 ./run_llm.sh 2 dna32k_honly_g1 --data dna --seq_len 32768 --bs 1 --window_size 128 \
   --token_budget 3000000000 \
   --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
 ```
 
-## T8. dna32k_hpra_g1  [PENDING]
+## T8. dna32k_hpra_g1  [RUNNING node2 gpu3 2026-08-03 22:25]
 ```bash
 ./run_llm.sh 3 dna32k_hpra_g1 --data dna --seq_len 32768 --bs 1 --window_size 128 \
   --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
@@ -215,3 +215,10 @@ DNA 4k(1-시드): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
 - 2026-08-03 21:27 node2 T1-T4 DONE (4.5h, 무중단·재시도0·NaN없음, 전원 step 91552 / 2,999,975,936 tok):
   nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335. 수치는 NODE2_RESULTS.md 표에 기록.
   → **큐 전부 소진. node2 GPU 0-3 유휴, 락 해제. 다음 태스크 대기 중** (10분 간격 큐 감시 루프 가동).
+- 2026-08-03 21:50 node2 P0-W2 DONE: seq_len 파라미터화 + 32k 산출물(train 86,911블록, val 61x32768
+  =1,998,848 tok) + sanity PASS. 실측: tok/s가 seq와 무관하게 ~30k → **병목은 bs=1**(seq 4096 bs1도
+  30,384). 32k peak 51.6GB / 64k 100GB / 128k는 157GB에서 진행 불가. max_position_embeddings는
+  변경 불필요(하한 역할, 무영향) → T5-T8 큐 원문 그대로 실행.
+- 2026-08-03 22:25 node2 T5-T8 RUNNING: dna32k_{nope,rope,honly_g1,hpra_g1} → gpu0-3, self_heal,
+  91,552 step / 2,999,975,936 tok(WAVE 1과 동일). **예상 ≈31h/런**(WAVE 1의 4.5h 대비 ~7배).
+

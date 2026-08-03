@@ -21,21 +21,24 @@ def _hash_blocks(blocks):
 
 
 def main():
-    path = dna_data.ensure_train_blocks()
+    S = int(sys.argv[1]) if len(sys.argv) > 1 else dna_data.SEQ_LEN
+    n_val = 2_000_000 // S
+    print(f"=== sanity_dna seq_len={S} (val blocks={n_val}) ===")
+    path = dna_data.ensure_train_blocks(S)
     ok = True
 
     # --- val set format ---
-    val = dna_data.get_or_build_dna_val_set(488, dna_data.VAL_CACHE)
+    val = dna_data.get_or_build_dna_val_set(n_val, dna_data.val_cache_path(S), S)
     vmin, vmax = int(val.min()), int(val.max())
-    val_ok = tuple(val.shape) == (488, dna_data.SEQ_LEN) and vmin >= 3 and vmax <= 7
+    val_ok = tuple(val.shape) == (n_val, S) and vmin >= 3 and vmax <= 7
     print(f"[val] shape={tuple(val.shape)} min={vmin} max={vmax} -> "
           f"{'OK' if val_ok else 'FAIL'}")
     ok &= val_ok
 
     # --- shuffle determinism: same seed identical, different seed differs ---
-    s_a = dna_data.DnaBlockStream(path, 42, dna_data.SEQ_LEN)
-    s_b = dna_data.DnaBlockStream(path, 42, dna_data.SEQ_LEN)
-    s_c = dna_data.DnaBlockStream(path, 43, dna_data.SEQ_LEN)
+    s_a = dna_data.DnaBlockStream(path, 42, S)
+    s_b = dna_data.DnaBlockStream(path, 42, S)
+    s_c = dna_data.DnaBlockStream(path, 43, S)
     h_a = _hash_blocks([next(s_a) for _ in range(20)])
     h_b = _hash_blocks([next(s_b) for _ in range(20)])
     h_c = _hash_blocks([next(s_c) for _ in range(20)])
@@ -46,14 +49,14 @@ def main():
 
     # --- resume exactness: snapshot mid-stream, restore into a fresh stream,
     #     next M batches must be bit-identical (the gold-test hash compare) ---
-    s1 = dna_data.DnaBlockStream(path, 42, dna_data.SEQ_LEN)
+    s1 = dna_data.DnaBlockStream(path, 42, S)
     for _ in range(137):          # advance to an arbitrary mid-stream position
         next(s1)
     st = s1.state()
     cont = [next(s1) for _ in range(11)]
     h_cont = _hash_blocks(cont)
 
-    s2 = dna_data.DnaBlockStream(path, 42, dna_data.SEQ_LEN)
+    s2 = dna_data.DnaBlockStream(path, 42, S)
     s2.restore(st)
     cont2 = [next(s2) for _ in range(11)]
     h_cont2 = _hash_blocks(cont2)
@@ -64,11 +67,11 @@ def main():
 
     # --- epoch wrap resume: restore across an epoch boundary ---
     Ntot = s1.N
-    s3 = dna_data.DnaBlockStream(path, 42, dna_data.SEQ_LEN)
+    s3 = dna_data.DnaBlockStream(path, 42, S)
     s3.restore({"n_raw_consumed": Ntot - 3, "buf": torch.empty(0, dtype=torch.int64)})
     wrap = [next(s3) for _ in range(6)]        # crosses into epoch 1
     h_wrap = _hash_blocks(wrap)
-    s4 = dna_data.DnaBlockStream(path, 42, dna_data.SEQ_LEN)
+    s4 = dna_data.DnaBlockStream(path, 42, S)
     s4.restore({"n_raw_consumed": Ntot - 3, "buf": torch.empty(0, dtype=torch.int64)})
     h_wrap2 = _hash_blocks([next(s4) for _ in range(6)])
     wrap_ok = h_wrap == h_wrap2

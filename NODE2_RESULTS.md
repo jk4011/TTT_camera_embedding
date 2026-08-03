@@ -21,6 +21,44 @@ lact_llm/ga_honly/LEDGER.md에 반영한다.
   - (c) resume 정확: 스트림 해시 일치 + epoch-wrap 해시 일치 + 트레이너 crash-resume
     (`resumed from ckpt_step20 step=20`, tokens_seen 끊김없이 이어짐).
 
+## P0-W2. seq_len 파라미터화 + 32k 실현가능성 실측 (2026-08-03)
+
+**구현**: `dna_data.py` seq_len 파라미터화 (`train_blocks_path(S)`/`val_cache_path(S)`,
+`ensure_train_blocks(S)`, `get_or_build_dna_val_set(n, path, S)`; 4096 별칭 유지),
+`train_small.py` dna 분기가 `args.seq_len`으로 블록/val 캐시 선택, `sanity_dna.py` seq_len 인자화,
+`bench_seqlen.sh` 신규(실측 하네스). **WAVE 1 4096 산출물 그대로 보존·재사용**, 4096 경로 회귀 없음
+(sanity_dna.py 4096 ALL PASS).
+**32k 산출물**: train 86,911블록 × 32768 (2.8GB), val **61 × 32768 = 1,998,848 토큰** (WAVE 1과 동일).
+64k(21,763×2)·128k 블록도 실측용으로 생성.
+
+**실현가능성 실측** (`--data dna --bs 1 --window_size 128`, val은 기본 `--val_bs 8`, B200 1장):
+
+| seq_len | tok/s (정상상태) | peak GPU MiB | OOM | val 1회 소요 |
+|---|---|---|---|---|
+| 4,096 (대조) | 30,384 | 8,738 | no | 26.0 s |
+| **32,768** | **29,275–40,000** | **51,604** | no | 139.1 s |
+| 65,536 | 30,092 | 100,222 | no | 253.1 s |
+| 131,072 | — (12분간 1스텝도 미완료) | 157,466 | 클린 OOM 아님, **사실상 정지**(util 0%) | 도달 못함 |
+
+**핵심 실측 결론 (수치만, 판단은 node1)**:
+1. **tok/s는 seq_len과 무관하게 ~30k로 일정**. WAVE 1(seq 4096 **bs 8**)의 ~195,000 tok/s 대비
+   6.5배 저하는 **전적으로 `bs 1` 효과**이고 시퀀스 길이 탓이 아니다 — seq 4096을 bs 1로 돌린
+   대조군이 30,384 tok/s로 32k와 같기 때문. (어텐션은 flash_attn 2.8.3 sliding window라 O(s·w).)
+2. 따라서 **WAVE 2 1런 예상 ≈ 27.8h** (3B ÷ 30k tok/s), + val 91회 × 139s ≈ 3.5h → **총 ≈ 31h**.
+   WAVE 1은 4.5h였다. 4런 동시라 벽시계도 ≈31h.
+3. 메모리는 seq_len에 선형(8.7/51.6/100.2 GB). 128k는 157 GB에서 진행 불가 → bs 1로도 상한.
+4. `--actckpt` 류 CLI 옵션은 `train_small.py`에 **없음**. 모델은 `supports_gradient_checkpointing
+   = True`(modeling_lact.py:163)라 배선하면 쓸 수 있으나, 트레이너 변경이라 하지 않았다.
+5. **`max_position_embeddings` 변경 불필요**(큐가 확인 요청한 항목): 코드가
+   `max_seqlen = max(q_len, mpe)`로 하한만 잡아 32768 > 4096이라 무영향이고, hidden rope는
+   `h_inv_freq × pos`를 forward마다 즉석 계산(사전 테이블 없음). 기본값 4096 그대로 32k 정상 동작
+   확인 → **T5-T8은 큐 커맨드 원문 그대로 실행, 아무것도 바꾸지 않음**.
+6. 측정 편차 기록: 128k만 5스텝으로 계획(스텝당 시간 과다 예상) — 실제로는 1스텝도 완료 못함.
+
+**Sanity (통과)**: 32k 20스텝 loss 1.7048 → 1.3565 (ln(8)=2.08 근방 시작, 감소, NaN 없음).
+재개 정확성 — 스트림 해시 일치 + epoch-wrap 일치(4096·32768 양쪽 ALL PASS) + 트레이너
+crash-resume: ckpt_step308에서 재개 후 step 310/312 loss가 중단 전과 **완전 동일**(1.3031/1.3113).
+
 ## DNA 교차-태스크 검증 (프로토콜: 200M LaCT, seq 4096, w128, 3B 토큰, s42)
 | 날짜 | 태스크 | 설정 | val ppl | 비고 |
 |---|---|---|---|---|
