@@ -370,6 +370,29 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F38: depth-4 fast weights — the rotary-depth interaction SATURATES at depth 3 (2026-08-03)
+Motivated by the F24/F26 reading that "deep inner models don't help" is an ADDRESSING failure: if a
+rotary per address space is what makes depth pay, does depth 4 keep paying? New kernel
+`fast_weight_swiglu4l_weight_norm_apply` + cam_modes `fw4l` / `fw4l_rot4` (4 rotary sites: input q/k
++ 3 hidden interfaces). Standard protocol, seed 95; base-vs-rot4 is param-neutral (+5,292 rotary gains).
+| depth | no rotary | with rotary | rotary's value |
+|---|---|---|---|
+| 2L | 21.745 | 22.824 | +1.08 |
+| 3L | 21.868 | 23.439 (3-seed +-0.022) | **+1.57** |
+| 4L | **21.896** | **23.410** | **+1.51** |
+- fw4l_rot4 - fw4l_base = **+1.513 dB, t=+27.8, 251/256 scenes** (s95; s137 running).
+- THE NO-ROTARY AXIS IS FLAT ACROSS THREE DEPTHS (21.745 / 21.868 / 21.896): capacity alone buys
+  nothing, now confirmed at a third point. The "addressing, not depth" claim is stronger than before.
+- BUT the interaction SATURATES: 2->3 raised the rotary's value (+1.08 -> +1.57) while 3->4 did not
+  (+1.57 -> +1.51), and the absolute record does not move (23.439 -> 23.410, within the 3-seed band).
+  Honest statement for the paper: one rotary per address space pays until the addressing capacity
+  matches the task's geometry; at L6/d256 on RE10K that point is depth 3. Do NOT frame depth as a
+  scaling axis.
+- Sanity for the new kernel: zero-phase reduction to fw4l_base exact (fp32 max|diff| 0), manual
+  inner-loop backward vs autograd 1.7e-18, early training curve indistinguishable from fw3l_rot3,
+  ~10% slower per iteration. Depth costs +1.57M params (3L->4L), so the depth axis is NOT param-neutral
+  and must be reported as such; the base-vs-rot contrast within each depth IS param-neutral.
+
 ## F37: Q13 NVS — SHARING the learnable ladder across layers does not rescue it (2026-07-17)
 Hypothesis (user): per-layer learnable gains lose to fixed because 6 layers x 6xF gains
 is too much freedom; ONE shared gain tensor might fix it. Paired wave-1 (seed 95,

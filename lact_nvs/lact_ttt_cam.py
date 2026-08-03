@@ -23,10 +23,17 @@ Modes (see IDEAS.md):
   fw3l          depth-3 inner net W_c silu(W_b (silu(W1 x) * (W3 x))), no rotary.
   fw3l_rot2     fw3l + input rotary (stock qk_rope_cam) + s2-site rotary.
   fw3l_rot3     fw3l + rotaries at all three address spaces (input, h1, s2).
+  fw4l          depth-4 inner net W_d silu(W_c silu(W_b (silu(W1 x) * (W3 x)))),
+                no rotary (4L depth control).
+  fw4l_rot4     fw4l + rotaries at all four address spaces (input, h1, s2, s3).
   hnrot         (+ h_pra-family hidden rotary) RMS-normalize the hidden's
                 ROTATED dims per token immediately before the hidden rotation,
                 on both update and apply; the update backward passes through
                 the exact RMSNorm Jacobian (LLM 'ttt_hrope_hnorm=rms_rot').
+  gate_rope     (+ qk_rope_cam) GbR: only the silu GATE branch (w0) consumes
+                the rotated q/k; the CONTENT branch (w2) gets the plain
+                post-l2norm copy (LLM Q25b single-branch input rotary port).
+  content_rope  mirror of gate_rope: only the CONTENT branch (w2) rotated.
 """
 import math
 
@@ -140,6 +147,98 @@ def lift_K4_inv(K_norm):
 def sinc(x):
     safe = torch.where(x.abs() < 1e-4, torch.ones_like(x), x)
     return torch.where(x.abs() < 1e-4, torch.ones_like(x), torch.sin(safe) / safe)
+
+
+@torch.compile
+def fast_weight_swish_glu_branch_input_rotary_apply(
+    w0, w1, w2,
+    q_gate, k_gate, q_cont, k_cont,
+    v, lr0, lr1, lr2,
+    ttt_ua_order: list,
+    muon_update_steps: int = 0,
+):
+    """Baseline LaCT kernel with the two SwiGLU input branches fed by
+    INDEPENDENT q/k copies (GbR single-branch input rotary, LLM Q25b port).
+
+    The SwiGLU fast weight f(x) = (silu(x w0) * (x w2)) w1 has two input
+    branches -- the silu GATE branch (w0) and the linear CONTENT branch (w2).
+    The stock input rotary (qk_rope_cam) rotates the q/k feeding both; this
+    kernel takes two q/k pairs so the caller can route the ROTATED copy to one
+    branch and the PLAIN (post-l2norm) copy to the other, localizing where the
+    input rotary's effect lives.
+
+    Exact function: the update trains on
+        f(k) = (silu(k_gate w0) * (k_cont w2)) w1,
+    so every inner-loop gradient follows from that function -- dw0's input row
+    is k_gate, dw2's is k_cont, and the shared upstream terms
+    (dhidden_before_mul's silu gating, dgate's hidden_before_mul) each use
+    their own branch's pre-activation. The kernel never backprops to k inside
+    the inner loop (only dw0/dw1/dw2 are formed), so no dk split is needed;
+    outer-loop autograd differentiates through both copies automatically. The
+    apply path computes the same two matmuls from q_gate / q_cont. Muon /
+    weight-norm are identical to the baseline.
+
+    With q_gate is q_cont and k_gate is k_cont (same tensors in both slots),
+    every op matches fast_weight_swish_glu_weight_norm_mini_batch_apply.
+
+    Shapes match the baseline kernel: w0/w2 [b, d, dh], w1 [b, dh, d],
+    q_*/k_*/v [b, l, d], lr* [b, l, 1-or-d].
+    """
+    from lact_ttt import silu_backprop, zeropower_via_newtonschulz5
+
+    w0_norm = w0.detach().norm(dim=1, keepdim=True)
+    w1_norm = w1.detach().norm(dim=1, keepdim=True)
+    w2_norm = w2.detach().norm(dim=1, keepdim=True)
+
+    output = []
+    for start, end, update, apply in ttt_ua_order:
+        w0_now, w1_now, w2_now = w0, w1, w2
+
+        if update:
+            kgi, vi = k_gate[:, start:end, :], v[:, start:end, :]
+            kci = k_cont[:, start:end, :]
+            lr0i = lr0[:, start:end, :]
+            lr1i = lr1[:, start:end, :]
+            lr2i = lr2[:, start:end, :]
+
+            # gate branch consumes k_gate, content branch k_cont
+            gate_before_act = kgi @ w0_now       # [b, l, dh]
+            hidden_before_mul = kci @ w2_now     # [b, l, dh]
+            hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+
+            dhidden = vi @ w1_now.transpose(-1, -2)
+            dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+            dgate = dhidden * hidden_before_mul
+            dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+            w1_grad = zeropower_via_newtonschulz5(
+                (hidden * lr1i).transpose(-1, -2) @ vi, muon_update_steps
+            )
+            # dw0's input row is the GATE branch's k; dw2's is the CONTENT's
+            w0_grad = zeropower_via_newtonschulz5(
+                (kgi * lr0i).transpose(-1, -2) @ dgate_before_act, muon_update_steps
+            )
+            w2_grad = zeropower_via_newtonschulz5(
+                (kci * lr2i).transpose(-1, -2) @ dhidden_before_mul, muon_update_steps
+            )
+            w1_now = w1_now + w1_grad
+            w0_now = w0_now + w0_grad
+            w2_now = w2_now + w2_grad
+
+            w0_now = w0_now / (w0_now.norm(dim=1, keepdim=True) + 1e-5) * w0_norm
+            w1_now = w1_now / (w1_now.norm(dim=1, keepdim=True) + 1e-5) * w1_norm
+            w2_now = w2_now / (w2_now.norm(dim=1, keepdim=True) + 1e-5) * w2_norm
+
+            w0, w1, w2 = w0_now, w1_now, w2_now
+
+        if apply:
+            qgi = q_gate[:, start:end, :]
+            qci = q_cont[:, start:end, :]
+            oi = (F.silu(qgi @ w0_now, inplace=True) * (qci @ w2_now)) @ w1_now
+            output.append(oi)
+
+    output = torch.cat(output, dim=1)
+    return output, w0, w1, w2
 
 
 @torch.compile
@@ -607,6 +706,142 @@ def fast_weight_swiglu3l_weight_norm_apply(
 
 
 @torch.compile
+def fast_weight_swiglu4l_weight_norm_apply(
+    w0, w2, wb, wc, w1, q, k, v,
+    lr0, lr2, lrb, lrc, lr1,
+    h1cos, h1sin, s2cos, s2sin, s3cos, s3sin,
+    ttt_ua_order: list,
+    muon_update_steps: int = 0,
+):
+    """Depth-4 fast-weight net (Q2 depth-3 point extended by one layer).
+
+        h1(x) = silu(x @ w0) * (x @ w2)          [d    -> d_h ]  (stock SwiGLU layer)
+        s2(x) = silu(rot_h1(h1(x)) @ wb)         [d_h  -> d_h2]  (hidden 2)
+        s3(x) = silu(rot_s2(s2(x)) @ wc)         [d_h2 -> d_h3]  (hidden 3, NEW vs fw3l)
+        f(x)  = rot_s3(s3(x)) @ w1               [d_h3 -> d   ]  (w1 plays W_d)
+
+    Identical in every other respect to fast_weight_swiglu3l_weight_norm_apply:
+    one gradient step on -sum_i lr <v_i, f(k_i)> (ascent-direction sign
+    convention of the stock kernel), hand-derived backward, Muon
+    orthogonalization + per-column weight renorm on ALL FIVE matrices.
+    Addresses carry the lrs: k_i for w0/w2, rot(h1(k_i)) for wb,
+    rot(s2(k_i)) for wc, rot(s3(k_i)) for w1. Rotations backprop as their
+    inverses (negated sin), mirroring the depth-3 kernel.
+
+    h1cos/h1sin: [B, L, P1] with 2*P1 <= d_h, or None (site-h1 disabled).
+    s2cos/s2sin: [B, L, P2] with 2*P2 <= d_h2, or None (site-s2 disabled).
+    s3cos/s3sin: [B, L, P3] with 2*P3 <= d_h3, or None (site-s3 disabled).
+    The input (q/k) rotary site lives outside this kernel.
+    """
+    from lact_ttt import silu_backprop, zeropower_via_newtonschulz5
+
+    w0_norm = w0.detach().norm(dim=1, keepdim=True)
+    w2_norm = w2.detach().norm(dim=1, keepdim=True)
+    wb_norm = wb.detach().norm(dim=1, keepdim=True)
+    wc_norm = wc.detach().norm(dim=1, keepdim=True)
+    w1_norm = w1.detach().norm(dim=1, keepdim=True)
+
+    output = []
+    for start, end, update, apply in ttt_ua_order:
+        w0_now, w2_now, wb_now, wc_now, w1_now = w0, w2, wb, wc, w1
+
+        if update:
+            ki, vi = k[:, start:end, :], v[:, start:end, :]
+            lr0i = lr0[:, start:end, :]
+            lr2i = lr2[:, start:end, :]
+            lrbi = lrb[:, start:end, :]
+            lrci = lrc[:, start:end, :]
+            lr1i = lr1[:, start:end, :]
+
+            gate_before_act = ki @ w0_now
+            hidden_before_mul = ki @ w2_now
+            h1 = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            if h1cos is not None:
+                h1r = apply_rotary_pairs(h1, h1cos[:, start:end, :], h1sin[:, start:end, :])
+            else:
+                h1r = h1
+            z2 = h1r @ wb_now                   # second-hidden pre-activation
+            s2 = F.silu(z2, inplace=False)
+            if s2cos is not None:
+                s2r = apply_rotary_pairs(s2, s2cos[:, start:end, :], s2sin[:, start:end, :])
+            else:
+                s2r = s2
+            z3 = s2r @ wc_now                   # third-hidden pre-activation
+            s3 = F.silu(z3, inplace=False)
+            if s3cos is not None:
+                s3r = apply_rotary_pairs(s3, s3cos[:, start:end, :], s3sin[:, start:end, :])
+            else:
+                s3r = s3
+
+            # Backward of +<v, f(k)>; rotations invert with negated sin.
+            ds3r = vi @ w1_now.transpose(-1, -2)
+            if s3cos is not None:
+                ds3 = apply_rotary_pairs(ds3r, s3cos[:, start:end, :], -s3sin[:, start:end, :])
+            else:
+                ds3 = ds3r
+            dz3 = silu_backprop(ds3, z3)
+            ds2r = dz3 @ wc_now.transpose(-1, -2)
+            if s2cos is not None:
+                ds2 = apply_rotary_pairs(ds2r, s2cos[:, start:end, :], -s2sin[:, start:end, :])
+            else:
+                ds2 = ds2r
+            dz2 = silu_backprop(ds2, z2)
+            dh1r = dz2 @ wb_now.transpose(-1, -2)
+            if h1cos is not None:
+                dh1 = apply_rotary_pairs(dh1r, h1cos[:, start:end, :], -h1sin[:, start:end, :])
+            else:
+                dh1 = dh1r
+            dhidden_before_mul = dh1 * F.silu(gate_before_act, inplace=False)
+            dgate = dh1 * hidden_before_mul
+            dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+            w1_grad = zeropower_via_newtonschulz5(
+                (s3r * lr1i).transpose(-1, -2) @ vi, muon_update_steps
+            )
+            wc_grad = zeropower_via_newtonschulz5(
+                (s2r * lrci).transpose(-1, -2) @ dz3, muon_update_steps
+            )
+            wb_grad = zeropower_via_newtonschulz5(
+                (h1r * lrbi).transpose(-1, -2) @ dz2, muon_update_steps
+            )
+            w0_grad = zeropower_via_newtonschulz5(
+                (ki * lr0i).transpose(-1, -2) @ dgate_before_act, muon_update_steps
+            )
+            w2_grad = zeropower_via_newtonschulz5(
+                (ki * lr2i).transpose(-1, -2) @ dhidden_before_mul, muon_update_steps
+            )
+            w0_now = w0_now + w0_grad
+            w2_now = w2_now + w2_grad
+            wb_now = wb_now + wb_grad
+            wc_now = wc_now + wc_grad
+            w1_now = w1_now + w1_grad
+
+            w0_now = w0_now / (w0_now.norm(dim=1, keepdim=True) + 1e-5) * w0_norm
+            w2_now = w2_now / (w2_now.norm(dim=1, keepdim=True) + 1e-5) * w2_norm
+            wb_now = wb_now / (wb_now.norm(dim=1, keepdim=True) + 1e-5) * wb_norm
+            wc_now = wc_now / (wc_now.norm(dim=1, keepdim=True) + 1e-5) * wc_norm
+            w1_now = w1_now / (w1_now.norm(dim=1, keepdim=True) + 1e-5) * w1_norm
+
+            w0, w2, wb, wc, w1 = w0_now, w2_now, wb_now, wc_now, w1_now
+
+        if apply:
+            qi = q[:, start:end, :]
+            hq = F.silu(qi @ w0_now, inplace=True) * (qi @ w2_now)
+            if h1cos is not None:
+                hq = apply_rotary_pairs(hq, h1cos[:, start:end, :], h1sin[:, start:end, :])
+            sq = F.silu(hq @ wb_now, inplace=False)
+            if s2cos is not None:
+                sq = apply_rotary_pairs(sq, s2cos[:, start:end, :], s2sin[:, start:end, :])
+            tq = F.silu(sq @ wc_now, inplace=False)
+            if s3cos is not None:
+                tq = apply_rotary_pairs(tq, s3cos[:, start:end, :], s3sin[:, start:end, :])
+            output.append(tq @ w1_now)
+
+    output = torch.cat(output, dim=1)
+    return output, w0, w1, w2, wb, wc
+
+
+@torch.compile
 def fast_weight_mlp2_weight_norm_apply(
     w0, w1, q, k, v, lr0, lr1,
     hcos, hsin,
@@ -711,8 +946,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
-                 "fw3l", "fw3l_rot2", "fw3l_rot3", "mlp2", "mlp2_rot2",
-                 "hnrot", "sharedf"}
+                 "fw3l", "fw3l_rot2", "fw3l_rot3", "fw4l", "fw4l_rot4",
+                 "mlp2", "mlp2_rot2",
+                 "hnrot", "sharedf", "gate_rope", "content_rope"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -738,6 +974,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert len(self.cam_modes) == 1, "fw3l modes are standalone (no '+' combos)"
             if self.cam_modes & {"fw3l_rot2", "fw3l_rot3"}:
                 self.cam_modes.add("qk_rope_cam")
+        # Depth-4 fast weights (third point of the depth x rotary interaction):
+        # standalone modes; fw4l_rot4 reuses the stock qk_rope_cam machinery for
+        # the input site and adds ladders at h1 / s2 / s3.
+        self.fw4l = bool(self.cam_modes & {"fw4l", "fw4l_rot4"})
+        if self.fw4l:
+            assert len(self.cam_modes) == 1, "fw4l modes are standalone (no '+' combos)"
+            if "fw4l_rot4" in self.cam_modes:
+                self.cam_modes.add("qk_rope_cam")
         # Gateless 2-layer-MLP fast weights (inner-model generality control):
         # standalone modes; mlp2_rot2 = input rotary (stock qk_rope_cam
         # machinery) + hidden rotary on the single hidden activation.
@@ -761,6 +1005,19 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 "hnrot requires an h_pra-family hidden rotary (h_pra/h_strat)"
             assert not (self.cam_modes & {"ms2", "res2"}), \
                 "hnrot is only implemented in the plain hidden-rotary kernel (no ms2/res2)"
+        # GbR single-branch input rotary (LLM Q25b port): route the rotated
+        # q/k to only ONE SwiGLU input branch; the other gets the plain copy.
+        self.branch_rope = bool(self.cam_modes & {"gate_rope", "content_rope"})
+        if self.branch_rope:
+            assert "qk_rope_cam" in self.cam_modes, \
+                "gate_rope/content_rope are modifiers of the input rotary (require qk_rope_cam)"
+            assert not ({"gate_rope", "content_rope"} <= self.cam_modes), \
+                "gate_rope and content_rope are mutually exclusive"
+            assert not (self.fw3l or self.fw4l or self.mlp2), \
+                "gate_rope/content_rope not implemented for fw3l/fw4l/mlp2 kernels"
+            assert not (self.cam_modes & {"h_pra", "h_dpra", "h_strat", "ms2",
+                                          "res2", "cam_registers"}), \
+                "gate_rope/content_rope only implemented in the plain-kernel path"
         self.head_dim = head_dim
         self.num_freqs = num_freqs
         d_h = int(head_dim * inter_multi)
@@ -827,6 +1084,44 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 )
                 self.register_buffer("omega_s2", omega_s2, persistent=False)
                 self.gain_s2 = nn.Parameter(torch.ones(6, num_freqs_h))
+
+        if self.fw4l:
+            # Depth-4 inner net: f(x) = w1( rot_s3( silu( wc( rot_s2( silu( wb(
+            # rot_h1( silu(x w0) * (x w2) )))))))). One more hidden matrix (wc)
+            # than fw3l; w1 stays the [d_h, d] output matrix (W_d).
+            #
+            # WIDTH: every internal width is kept at d_h = head_dim*inter_multi
+            # (d_h2 = d_h3 = d_h), exactly the rule fw3l uses (d_h2 = d_h).
+            # Depth is therefore the ONLY thing that changes across the
+            # 2L/3L/4L ladder -- no width is re-tuned, and w1 keeps its stock
+            # [d_h -> d] shape at every depth.
+            d_h2 = d_h3 = d_h
+            self.d_h2, self.d_h3 = d_h2, d_h3
+            self.wb = nn.Parameter(
+                torch.randn(self.num_heads, d_h, d_h2) * math.sqrt(2) / math.sqrt(d_h)
+            )
+            self.wc = nn.Parameter(
+                torch.randn(self.num_heads, d_h2, d_h3) * math.sqrt(2) / math.sqrt(d_h2)
+            )
+            # 5 per-token lr channels (w0, w2, wb, wc, w1); same softplus/base_lr.
+            self.lr_fc = nn.Linear(dim, self.lr_dim * 5)
+            if "fw4l_rot4" in self.cam_modes:
+                # One Plucker ladder per internal address space (h1, s2, s3);
+                # the input site is the stock qk_rope_cam ladder.
+                assert 2 * 6 * num_freqs_h <= d_h
+                assert 2 * 6 * num_freqs_h <= d_h2
+                assert 2 * 6 * num_freqs_h <= d_h3
+                for name in ("omega_h1", "omega_s2", "omega_s3"):
+                    self.register_buffer(
+                        name,
+                        math.pi * torch.logspace(
+                            math.log2(0.5), math.log2(16.0), num_freqs_h, base=2.0
+                        ),
+                        persistent=False,
+                    )
+                self.gain_h1 = nn.Parameter(torch.ones(6, num_freqs_h))
+                self.gain_s2 = nn.Parameter(torch.ones(6, num_freqs_h))
+                self.gain_s3 = nn.Parameter(torch.ones(6, num_freqs_h))
 
         if self.mlp2:
             # Remove the gate branch: f(x) = silu(x w0) w1. Param parity with
@@ -1137,11 +1432,15 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 v = apply_tiled_mat4(v, P_inv_h, tpv, span)
                 prope_raw_P_h = P_h
 
+        q_plain = k_plain = None
         if "qk_rope_cam" in modes:
             ccos, csin = self._rope_coeffs(
                 info, dOmega=getattr(self, "dOmega", None),
                 bias=getattr(self, "phase_b", None),
             )
+            if self.branch_rope:
+                # GbR: keep the plain post-l2norm copies for the other branch.
+                q_plain, k_plain = q, k
             q = apply_rotary_pairs(q, ccos, csin)
             k = apply_rotary_pairs(k, ccos, csin)
         elif "cone_pra" in modes:
@@ -1200,6 +1499,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if self.fw3l:
             lr0, lr2, lrb, lr1 = rearrange(
                 lr, "b l (lrs h d) -> lrs (b h) l d", lrs=4, h=nh
+            )
+        elif self.fw4l:
+            lr0, lr2, lrb, lrc, lr1 = rearrange(
+                lr, "b l (lrs h d) -> lrs (b h) l d", lrs=5, h=nh
             )
         elif self.mlp2:
             lr0, lr1 = rearrange(
@@ -1281,6 +1584,21 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 muon_update_steps=self.muon_update_steps,
             )
             fw_state_extra["wb"] = wb
+        elif self.fw4l:
+            wb = info["wb"] if "wb" in info else self.wb.repeat(x.shape[0], 1, 1)
+            wc = info["wc"] if "wc" in info else self.wc.repeat(x.shape[0], 1, 1)
+            h1cos = h1sin = s2cos = s2sin = s3cos = s3sin = None
+            if "fw4l_rot4" in modes:
+                h1cos, h1sin = self._rope_coeffs(info, self.omega_h1, self.gain_h1)
+                s2cos, s2sin = self._rope_coeffs(info, self.omega_s2, self.gain_s2)
+                s3cos, s3sin = self._rope_coeffs(info, self.omega_s3, self.gain_s3)
+            output, w0, w1, w2, wb, wc = fast_weight_swiglu4l_weight_norm_apply(
+                w0, w2, wb, wc, w1, q, k, v, lr0, lr2, lrb, lrc, lr1,
+                h1cos, h1sin, s2cos, s2sin, s3cos, s3sin, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
+            fw_state_extra["wb"] = wb
+            fw_state_extra["wc"] = wc
         elif {"h_pra", "h_dpra", "h_strat"} & modes:
             if "h_strat" in modes:
                 xs = info["tok_o"][:, :, None, :] + \
@@ -1324,6 +1642,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                     muon_update_steps=self.muon_update_steps,
                     hnorm="hnrot" in modes,
                 )
+        elif self.branch_rope:
+            # gate_rope: gate branch (w0) reads the rotated q/k, content
+            # branch (w2) the plain copy; content_rope is the mirror.
+            if "gate_rope" in modes:
+                qg, kg, qc, kc = q, k, q_plain, k_plain
+            else:
+                qg, kg, qc, kc = q_plain, k_plain, q, k
+            output, w0, w1, w2 = fast_weight_swish_glu_branch_input_rotary_apply(
+                w0, w1, w2, qg, kg, qc, kc, v, lr0, lr1, lr2, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
         else:
             output, w0, w1, w2 = fast_weight_swish_glu_weight_norm_mini_batch_apply(
                 w0, w1, w2, q, k, v, lr0, lr1, lr2, ttt_op_order,
