@@ -34,7 +34,7 @@ GPU 점유는 `lact_nvs/outputs/.gpu_locks/gpu<i>`에 용도를 적어 표시하
 
 ---
 
-## P0. DNA 데이터 경로 구현 + sanity  [PENDING]
+## P0. DNA 데이터 경로 구현 + sanity  [DONE sanity3 PASS: fineweb≈8.44 / dna ln8→1.34 / resume 해시일치+crash-resume OK]
 
 `lact_llm`의 기존 fineweb 스트림과 **같은 인터페이스**로 hg38을 공급하는 경로를 추가한다.
 설계는 아래에 고정되어 있으니 그대로 구현만 하면 된다(설계 변경 금지, 막히면 FAILED로 보고).
@@ -66,25 +66,25 @@ GPU 점유는 `lact_nvs/outputs/.gpu_locks/gpu<i>`에 용도를 적어 표시하
   (기존 gold-test 방식대로 배치 텐서 해시 비교).
 결과 요약(구현 파일, sanity 수치 3개)을 NODE2_RESULTS.md에 append.
 
-## T1. dna_nope_w128  [PENDING]
+## T1. dna_nope_w128  [RUNNING node2 gpu0 2026-08-03 16:56]
 ```bash
 cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
 ./run_llm.sh 0 dna_nope_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000 \
   --extra_json '{"ttt_nope": true}'
 ```
 
-## T2. dna_rope_w128  [PENDING]
+## T2. dna_rope_w128  [RUNNING node2 gpu1 2026-08-03 16:56]
 ```bash
 ./run_llm.sh 1 dna_rope_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000
 ```
 
-## T3. dna_honly_g1_w128  [PENDING]
+## T3. dna_honly_g1_w128  [RUNNING node2 gpu2 2026-08-03 16:56]
 ```bash
 ./run_llm.sh 2 dna_honly_g1_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000 \
   --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
 ```
 
-## T4. dna_hpra_g1_w128  [PENDING]
+## T4. dna_hpra_g1_w128  [RUNNING node2 gpu3 2026-08-03 16:56]
 ```bash
 ./run_llm.sh 3 dna_hpra_g1_w128 --data dna --window_size 128 --bs 8 --token_budget 3000000000 \
   --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
@@ -107,3 +107,6 @@ hpra 18.578. DNA는 vocab이 8이라 ppl 절대값이 완전히 다르다(참고
 
 ## 완료 로그 (node2가 append)
 <!-- 형식: <시각> <노드/GPU> <태스크> <상태> <핵심수치> -->
+- 2026-08-03 16:45 node2 시작: setup_node OK, torch 2.9.1+cu130, 4 GPU 유휴, fla import OK, hg38 다운로드(983MB) 완료.
+- 2026-08-03 16:50 node2 P0 DONE: dna_data.py 구현 + sanity 3종 PASS(위 상태 참조). 전처리 695,152 train블록.
+- 2026-08-03 16:56 node2 T1-T4 RUNNING: dna_{nope,rope,honly_g1,hpra_g1}_w128 → gpu0-3, self_heal 래퍼, ~4.3h 예상(91,553 step, ~195k tok/s).

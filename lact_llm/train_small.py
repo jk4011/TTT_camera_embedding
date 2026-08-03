@@ -73,6 +73,10 @@ def parse_args():
     p.add_argument("--extra_json", type=str, default="{}",
                    help="JSON dict merged into the config dict LAST.")
     # data
+    p.add_argument("--data", type=str, default="fineweb", choices=["fineweb", "dna"],
+                   help="'fineweb': fineweb-edu char/BPE stream (default, unchanged). "
+                        "'dna': hg38 char-level LM (vocab_size=8, chr20 held out for "
+                        "val); see dna_data.py.")
     p.add_argument("--synthetic", type=str, default="none", choices=["none", "copy"],
                    help="'copy': exact-offset-copy diagnostic task (synthetic_copy.py) "
                         "instead of fineweb-edu; loss/val on the copy region only.")
@@ -289,13 +293,14 @@ def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path
 
 # Args that must match between the checkpoint and the resuming run for the
 # resumed run to reproduce an uninterrupted run (data stream + lr schedule).
-_RESUME_CRITICAL_ARGS = ("data_seed", "seq_len", "bs", "grad_accum", "val_tokens",
+_RESUME_CRITICAL_ARGS = ("data", "data_seed", "seq_len", "bs", "grad_accum", "val_tokens",
                          "lr", "warmup", "min_lr_ratio", "steps", "token_budget",
                          "synthetic", "input_rope_dropout_p0",
                          "input_rope_dropout_anneal", "input_rope_warmup")
 # Defaults for critical args missing from OLD checkpoints (saved before the
 # arg existed) so they stay resumable.
-_RESUME_ARG_DEFAULTS = {"synthetic": "none", "input_rope_dropout_p0": 0.0,
+_RESUME_ARG_DEFAULTS = {"data": "fineweb", "synthetic": "none",
+                        "input_rope_dropout_p0": 0.0,
                         "input_rope_dropout_anneal": 30000,
                         "input_rope_warmup": "none"}
 
@@ -378,7 +383,13 @@ def main():
     assert total_steps > 0, "token_budget too small for bs * seq_len * grad_accum"
 
     # ---- tokenizer -----------------------------------------------------
-    tokenizer, tok_name, vocab_size = data_utils.load_tokenizer(args.tokenizer)
+    if args.data == "dna":
+        import dna_data
+        tokenizer = dna_data.DnaCharTokenizer()
+        tok_name, vocab_size = "hg38", dna_data.VOCAB_SIZE
+        print(f"[data] dna char tokenizer (vocab_size={vocab_size})", flush=True)
+    else:
+        tokenizer, tok_name, vocab_size = data_utils.load_tokenizer(args.tokenizer)
     eos_id = tokenizer.eos_token_id
     assert eos_id is not None, "tokenizer has no eos token"
 
@@ -432,6 +443,20 @@ def main():
         print(f"[data] synthetic copy task: val set {tuple(val_set.shape)}, "
               f"copy region [{synthetic_copy.COPY_START}, {synthetic_copy.COPY_END}) "
               f"offset {synthetic_copy.COPY_OFFSET}", flush=True)
+    elif args.data == "dna":
+        # hg38 char-LM: contiguous seq_len blocks in a data_seed-shuffled order.
+        # val (chr20) is held out entirely, so it is built independently of the
+        # training stream position (no first-n-blocks consumption like fineweb).
+        import dna_data
+        block_gen = dna_data.DnaBlockStream(
+            dna_data.ensure_train_blocks(), args.data_seed, args.seq_len)
+        n_val_blocks = args.val_tokens // args.seq_len
+        val_cache = os.path.join(SCRIPT_DIR, "val_cache_hg38_4096.pt")
+        val_set = dna_data.get_or_build_dna_val_set(n_val_blocks, val_cache)
+        if resume_stream_state is not None:
+            block_gen.restore(resume_stream_state)
+        print(f"[data] dna hg38: {block_gen.N:,} train blocks, val set "
+              f"{tuple(val_set.shape)} (chr20)", flush=True)
     else:
         # Identical shuffled stream for every run with the same data_seed.
         stream = data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000)
