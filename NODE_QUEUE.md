@@ -107,6 +107,73 @@ hpra 18.578. DNA는 vocab이 8이라 ppl 절대값이 완전히 다르다(참고
 
 ---
 
+---
+
+# === WAVE 2 (2026-08-03, node1 지시): 장거리 DNA 재설계 ===
+
+**WAVE 1 결과와 왜 재설계하는가**: 4셀 결과 nope 3.0951 / rope 3.0988 / honly 3.0845 /
+hpra 3.1335. 서열은 가설 방향(honly 최선, input rope는 NoPE보다도 나쁨)이지만 효과가 0.3%로
+너무 작다. 원인은 설정에 있다: seq 4096 bp는 사람 유전자 하나(중앙값 24 kb)도 못 담고,
+attention 윈도우 128을 빼면 메모리 전담 구간이 128~4,096 bp뿐인데 이 대역은 국소 모티프
+통계로 대부분 설명된다. 검증하려던 장거리 위치-주소 회수(인핸서-프로모터 10 kb~1 Mb,
+뉴클레오솜 주기)를 사실상 훈련시키지 못했다. → **시퀀스를 32,768 bp로 늘려 메모리 전담
+구간을 8배로 키운다.**
+
+**새 프로토콜 (WAVE 1과 토큰/스텝·예산·스텝수가 정확히 동일 → 직접 비교 가능)**
+seq_len **32,768** / **bs 1** (토큰/스텝 32,768 = 4096x8과 동일) / window_size 128 /
+lact_chunk_size 1024 (시퀀스당 32청크) / 3B 토큰 = 91,552 스텝 / data_seed 42 / model seed 42.
+나머지(200M LaCT, 12층, hidden 768, fw-head 4)는 그대로.
+
+## P0-W2. seq_len 파라미터화 + 실현가능성 실측  [PENDING]
+1. `dna_data.py`의 `SEQ_LEN = 4096` 하드코딩과 파일명(`hg38_train_blocks_4096.npy`,
+   `val_cache_hg38_4096.pt`)을 seq_len 인자로 파라미터화해라. 기존 4096 산출물은 그대로
+   두고(재사용), 32768용 블록/val 캐시를 새로 만든다. **val 토큰 수는 WAVE 1과 맞춘다:
+   32k 블록 61개(= 1,998,848 토큰)**. train 블록은 같은 규칙(N 비율 50% 초과 블록 폐기,
+   chr20 = val, chr1-22+X만).
+2. `train_small.py`가 `--seq_len 32768 --data dna`로 동작하는지 확인(플래그가 이미 있으면 그대로).
+3. **실측 보고**(각각 20스텝만 돌려 측정, 학습은 하지 마라): seq_len ∈ {32768, 65536, 131072}
+   × bs 1에서 (a) 피크 GPU 메모리, (b) tok/s, (c) OOM 여부. `--actckpt` 류 옵션이 있으면
+   그것도 함께. 이 수치로 node1이 후속 확장을 결정한다.
+4. sanity: 32k에서 20스텝 loss가 ln(8)=2.08 근방에서 시작해 감소, NaN 없음 + 체크포인트
+   재개 정확성(기존 방식대로 배치 해시 비교).
+결과를 NODE2_RESULTS.md에 append.
+
+## T5. dna32k_nope  [PENDING]
+```bash
+cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
+./run_llm.sh 0 dna32k_nope --data dna --seq_len 32768 --bs 1 --window_size 128 \
+  --token_budget 3000000000 --extra_json '{"ttt_nope": true}'
+```
+
+## T6. dna32k_rope  [PENDING]
+```bash
+./run_llm.sh 1 dna32k_rope --data dna --seq_len 32768 --bs 1 --window_size 128 \
+  --token_budget 3000000000
+```
+
+## T7. dna32k_honly_g1  [PENDING]
+```bash
+./run_llm.sh 2 dna32k_honly_g1 --data dna --seq_len 32768 --bs 1 --window_size 128 \
+  --token_budget 3000000000 \
+  --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+```
+
+## T8. dna32k_hpra_g1  [PENDING]
+```bash
+./run_llm.sh 3 dna32k_hpra_g1 --data dna --seq_len 32768 --bs 1 --window_size 128 \
+  --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+```
+
+T5-T8은 GPU 0-3 동시 투입, self-heal 래퍼 필수. P0-W2 sanity 통과 전에는 시작하지 마라.
+**중요**: `max_position_embeddings`가 32768보다 작으면 config에서 올려야 한다(확인해서
+필요하면 extra_json에 추가하고 무엇을 바꿨는지 기록).
+
+## 판정 (수치만 기록, 해석은 node1)
+WAVE 1 참조값(seq 4096): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
+**seq가 다르면 ppl 절대값이 달라지므로 WAVE 2는 WAVE 2 4셀끼리만 비교한다.**
+
+---
+
 ## 완료 로그 (node2가 append)
 <!-- 형식: <시각> <노드/GPU> <태스크> <상태> <핵심수치> -->
 - 2026-08-03 16:45 node2 시작: setup_node OK, torch 2.9.1+cu130, 4 GPU 유휴, fla import OK, hg38 다운로드(983MB) 완료.
