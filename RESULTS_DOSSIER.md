@@ -393,6 +393,29 @@ rotary per address space is what makes depth pay, does depth 4 keep paying? New 
   ~10% slower per iteration. Depth costs +1.57M params (3L->4L), so the depth axis is NOT param-neutral
   and must be reported as such; the base-vs-rot contrast within each depth IS param-neutral.
 
+## F38: depth x rotary interaction SATURATES at depth 3 (2026-08-03)
+Added the depth-4 point (new `fw4l` / `fw4l_rot4` cam_modes: 4-layer inner net, one rotary per
+address space = input + 3 hidden interfaces; base-vs-rot4 is param-neutral, +5,292 rotary gains).
+| fast-weight depth | no rotary | with rotary | rotary's value |
+|---|---|---|---|
+| 2L | 21.745 | 22.824 (3-seed) | +1.08 |
+| 3L | 21.868 | 23.439 +- 0.022 (3-seed) | +1.57 |
+| 4L | 21.896 (s95) | 23.410 (s95) | **+1.51** |
+fw4l_rot4 vs fw4l_base paired: **+1.513 dB, t=+27.78, 251/256 scenes**.
+Readings:
+1. **Depth alone stays worthless all the way to 4L**: 21.745 -> 21.868 -> 21.896 (+0.15 total
+   while doubling depth). The capacity axis is inert in this architecture.
+2. **Rotary's value grows 2L->3L (+1.08 -> +1.57) but PLATEAUS at 4L (+1.51)**, and the absolute
+   best is a tie between 3L-rot3 (23.439, 3-seed) and 4L-rot4 (23.410, 1 seed) — while 4L costs
+   +1,574,406 params over 3L. Correct claim: the depth-rotary interaction saturates at depth 3;
+   TTT-RoPE does not unlock unbounded depth.
+3. The headline stands and is now bracketed on both sides: without rotary, added address spaces
+   are dead weight; with rotary, the same architecture earns +1.5..1.6 dB. The "deep inner models
+   don't help" folklore is an ADDRESSING failure, not a depth failure — but the fix has a ceiling.
+Caveat: the 4L cells are single-seed (s95); the 3L-vs-4L gap (-0.03) is inside seed noise, so
+"tie" is the claim, not "4L is worse". Impl: lact_ttt_cam.py fast_weight_swiglu4l_weight_norm_apply
+(hand-derived depth-4 backward, verified vs autograd to 1.7e-18; zero-phase reduction exact).
+
 ## F37: Q13 NVS — SHARING the learnable ladder across layers does not rescue it (2026-07-17)
 Hypothesis (user): per-layer learnable gains lose to fixed because 6 layers x 6xF gains
 is too much freedom; ONE shared gain tensor might fix it. Paired wave-1 (seed 95,
