@@ -254,6 +254,33 @@ with Q22/Q23 winners.
 IMPL: ttt_input_scale buffer + schedule in train_small.py; probe script exists
 (surgery pattern). Cost: 2 x 5.5h (a,b at s42) + probes.
 
+## Q27. NWM ego-pose world model (cross-task validation #1)  [STAGE 0 RUNNING 2026-08-03]
+Baseline: NWM (Meta, CVPR 2025). Conditioning IS relative ego pose: ActionEmbedder(dx, dy, dyaw)
++ time-shift, injected by adaLN; CDiT block = [self-attn over target tokens] -> [CROSS-ATTN from
+target to the 4 context frames] -> [MLP]. The cross-attn is the retrieve-from-past channel.
+Assets ready: ckpts cdit_s (49.2M) / cdit_xl (1012M, EMA) at datasets/nwm_ckpt; data at
+datasets/nwm_data/processed = recon 11,835 (100% split coverage) / sacson 2,955 / go_stanford 3,696.
+Input transform is center-crop to 224x224, so our 640x480 source is not a confound.
+STAGE 0 (running): env, config plumbing, forward smoke, reproduce RECON eval vs published
+(RECON @4s: LPIPS 0.296 / DreamSim 0.091 / PSNR 15.33).
+STAGE 1 design (fixed now, implement after Stage 0 lands) — mirrors the CCV recam_ttt recipe that
+beat the ReCamMaster anchor:
+  - FREEZE every pretrained weight. Add a zero-init-gated TTT fast-weight branch alongside the
+    cross-attention in each CDiT block, so training starts exactly at the frozen model.
+  - The TTT branch ingests a LONG history (>> NWM's 4-frame context): update fast weights on past
+    frame tokens, apply at the target tokens. It is then the ONLY long-horizon channel, which is
+    what makes the ablation interpretable.
+  - Rotary coordinates = relative SE(2) pose between the stored frame and the query frame
+    (dx, dy, dyaw; optionally + rel_t), the same quantity NWM already conditions on — analogous to
+    the 6-D Plucker coords in NVS.
+  - 4-cell ablation, seed-matched: base (adapter, no rotary) / in (input site on fast q/k) /
+    h (hidden site) / both. Fixed ladders only (learnable is negative everywhere: F33/Q20/Q21/F37).
+  - Eval: NWM's own scripts (LPIPS/DreamSim/FID at 1/2/4/8/16 s rollouts) on RECON + the
+    known-environment planning eval; report seed-matched paired deltas, not absolute vs the paper.
+Scope note: SACSoN public release is 160x120 vs the paper's private 320x240, and TartanDrive/SCAND
+were deliberately skipped (no revisit structure / 1.94 TB). We do NOT reproduce the paper's table;
+the claim is an internal site ablation on a frozen backbone.
+
 ## Q26. GbR single-branch input rope — BREAKTHROUGH CANDIDATE  [ACTIVE 2026-07-17]
 From the Q25b diagnostic: at w128/3B/s42, gate-only rope 18.471 and content-only 18.502
 BOTH beat standard both-branch rope 18.609 (nope 18.81). Finding: rotating both SwiGLU
