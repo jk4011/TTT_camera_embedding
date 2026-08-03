@@ -642,3 +642,17 @@ this is not a contrived setting. If REMI is null and TSD is not, we demonstrate 
 holding model/data/budget fixed, that positional addressing is unnecessary exactly when position
 is already available as content — the sharpest statement of finding D available anywhere in the
 study, and the only one where we control the cause rather than observe it.
+
+## TRAP: non-persistent rotary buffers make the EVAL silently drop the rotary (2026-08-04, Q28)
+Found while staging the tttLRM eval. We deliberately implement rotary ladders as **fixed
+non-persistent buffers** so that cam checkpoints stay key-identical to stock ones (this is a
+feature: strict-load works both ways). The consequence nobody expects:
+`inference.py` builds a STOCK model, and a cam checkpoint then loads into it with **zero missing
+keys and no error** — so every rotary cell would have been evaluated WITH NO ROTARY AT ALL and
+scored exactly like baseline. The grid would have reported "all cells identical", a perfectly
+plausible-looking NULL, with nothing in any log to indicate a problem.
+FIX: `convert_to_cam` must run BEFORE the checkpoint load in the eval path, not just in training.
+GENERAL RULE for every host we port into: the eval entry point must be verified to construct the
+CAM model, and the check must be positive (assert the rotary is active / gains are non-zero at
+eval time), because the negative signal — missing keys — is exactly what this design removes.
+The anchor run is unaffected (it evaluated a genuinely stock checkpoint).
