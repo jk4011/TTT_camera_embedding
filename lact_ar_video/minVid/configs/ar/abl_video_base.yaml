@@ -106,10 +106,18 @@ api_key_path: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embeddin
 wandb_entity: none
 wandb_project: lact_ar_ablation
 wandb_log_every: 10
-# only save near the end of the run (save fires at step % save_every == save_every - 1)
-save_every: 4100
+# Slurm can stop this node at any time and these runs are 40-110 h long, so
+# the checkpoint interval is the amount of work we are willing to lose.
+# 250 steps x ~10.3 s/step = ~43 min of exposure, matching the tttLRM grid.
+# (save fires at step % save_every == save_every - 1; resume is automatic via
+#  find_latest_checkpoint + resume_job_dcp, and clear_old_checkpoints caps disk.)
+save_every: 250
 
-keep_last_iter: 1000000
+# save_every is now 250, and one DCP checkpoint is ~7.3 GB. Keeping every
+# checkpoint (the old 1000000) would cost ~580 GB per run. 1000 keeps the 4
+# most recent, which is all crash recovery needs. If a specific step is wanted
+# for an eval ladder, COPY IT ASIDE: this prunes it once the run moves past it.
+keep_last_iter: 1000
 
 batch_size_per_gpu: 1
 deterministic_noise: true

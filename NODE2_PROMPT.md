@@ -88,3 +88,34 @@ hidden-alone there rather than inferring it. Same protocol as F30 (held-out val 
 - GPU locks live on lustre and are shared between nodes: keep the `node2_` prefix.
 - If a run finishes and the queue is empty, say so explicitly rather than leaving GPUs
   idle.
+
+## 4. Slurm can stop this node at any time, and P3/P5 are 40-110 h runs
+
+Checkpointing was NOT adequate for runs this long. Fixed on node1 before you start
+(`git pull` to get it):
+
+| config | save_every | exposure at ~10.3 s/step |
+|---|---|---|
+| `abl_video_*.yaml` | 4100 -> **250** | 11.7 h -> **43 min** |
+| `abl_ccv_*.yaml` | 2000 -> **250** | 5.7 h -> **43 min** |
+
+The video configs even carried the comment "only save near the end of the run", which
+is the opposite of what a 110 h job needs.
+
+`keep_last_iter` was also `1000000`, i.e. keep everything. One DCP checkpoint is about
+7.3 GB (ccv_base holds 51 GB from 7 saves), so at the new interval a 20k-step run
+would have written ~580 GB, and three runs 1.7 TB. Set to **1000**, which keeps the
+4 most recent. Lustre has 153 TB free, so this is comfort not necessity, but 1.7 TB of
+redundant checkpoints is still waste.
+
+**Consequence you must handle:** pruning removes a step once the run moves past it. If
+you want a specific step for an eval ladder (F30 used a common step 13999), **copy
+that checkpoint aside** when it appears. Do not rely on it surviving.
+
+Resume is automatic: `train.py` calls `find_latest_checkpoint` then `resume_job_dcp`
+on the optimizer, scheduler and EMA params. Verify on the first restart that the step
+number continues rather than restarting at 0, and say so in your report.
+
+**Before launching, confirm each cell prints its resume line, and after the first
+checkpoint interval confirm a checkpoint directory actually appeared.** A run that
+silently never checkpoints looks identical to a healthy one until Slurm kills it.
