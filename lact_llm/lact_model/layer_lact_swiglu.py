@@ -167,6 +167,7 @@ class LaCTSWIGLULayer(nn.Module):
         lr_parameterization: str = "mamba",
         learnable_ttt_scale: bool = False,
         ttt_prenorm: bool = False,
+        attn_nope: bool = False,
         ttt_nope: bool = False,
         ttt_hidden_rope: bool = False,
         ttt_hrope_frac: float = 0.5,
@@ -233,6 +234,8 @@ class LaCTSWIGLULayer(nn.Module):
             self.fast_rotary = self.rotary
         self.layer_idx = layer_idx
         self.max_position_embeddings = max_position_embeddings
+        # attn_nope: drop the sliding-window ATTENTION rotary (see forward)
+        self.attn_nope = attn_nope
 
         ### Fast Weight init
         self.use_muon = use_muon
@@ -654,13 +657,19 @@ class LaCTSWIGLULayer(nn.Module):
         if self.max_position_embeddings is not None:
             max_seqlen = max(max_seqlen, self.max_position_embeddings)
         # [b, s, n_h, d]
-        q, k = self.rotary(
-            q,
-            k,
-            seqlen_offset=seqlen_offset,
-            max_seqlen=max_seqlen,
-            cu_seqlens=cu_seqlens,
-        )
+        # attn_nope: skip the ATTENTION rotary entirely. With it on, the sliding
+        # window already supplies an explicit relative code for every local
+        # position, so the fast-weight rotary is largely redundant there -- which
+        # is a candidate explanation for the 1-D language null. Turning it off
+        # makes the TTT rotary the model's only explicit positional code.
+        if not getattr(self, "attn_nope", False):
+            q, k = self.rotary(
+                q,
+                k,
+                seqlen_offset=seqlen_offset,
+                max_seqlen=max_seqlen,
+                cu_seqlens=cu_seqlens,
+            )
 
         if past_key_values is not None:
             cache_has_content = past_key_values.get_seq_length(self.layer_idx) > 0

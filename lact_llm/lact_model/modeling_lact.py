@@ -58,6 +58,7 @@ class LaCTBlock(nn.Module):
             lr_dim=config.lr_dim,
             use_muon=config.use_muon,
             ttt_prenorm=config.ttt_prenorm,
+            attn_nope=getattr(config, 'attn_nope', False),
             ttt_nope=config.ttt_nope,
             ttt_hidden_rope=(getattr(config, "ttt_hidden_rope", False)
                              and layer_idx >= getattr(config, "ttt_hrope_min_layer", 0)),

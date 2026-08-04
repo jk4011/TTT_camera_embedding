@@ -124,6 +124,55 @@ mechanism. Where the peak sits also speaks directly to NVS, which splits the
 ladder **6 ways** for Plücker coordinates and has never been checked against a
 dimension sweep.
 
+## JOB 3 — Q31, remove the ATTENTION rotary (new, 4 cells) — **run this BEFORE Job 2**
+
+```bash
+cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
+./run_attnnope_grid.sh 0,1,2,3
+```
+
+**The hypothesis, and why it outranks the dimension sweep.** Our 1-D language null
+has always been explained as "language is content-addressed". There is a simpler
+candidate nobody tested: LaCT's LM keeps a rotary on its **sliding-window
+attention**, so every local position already carries an explicit relative code and
+the fast-weight rotary has little left to contribute. A reviewer will ask this about
+Table 5, so we should have the answer.
+
+It is a cleaner lever than F36's window shrink:
+
+| lever | what it changes | side effect |
+|---|---|---|
+| window 1024 → 128 | attention **capacity** | absolute ppl degrades (18.40 → 18.61) |
+| `attn_nope` | the positional **channel** only | capacity untouched |
+
+With `attn_nope` the TTT rotary is the model's only explicit positional code.
+**Prediction:** the four arms — which sit at 18.58 ± 0.06 and are mutually
+indistinguishable at w128 across 3 seeds — should SEPARATE. If they do not,
+"attention already supplies position" is refuted and the content-addressing
+explanation stands on its own. Either outcome is publishable.
+
+Only the attn-rope-OFF column runs: the ON column is F27 at the identical protocol
+(200M LaCT, 3B tokens, ds42, bs 8×4096, window 1024), so do not re-run it.
+
+Wiring is already verified on node1: `attn_nope` reaches every layer and changes the
+forward (|Δloss| = 2.7e-04 on a matched state_dict). It is a plain config flag —
+`getattr(config, 'attn_nope', False)` — so old checkpoints and configs are unaffected.
+
+**Honest scope for the write-up:** causal masking still leaks position, so this is
+"no explicit code", not "position-free" — that leak is exactly why NoPE transformers
+work at all (Kazemnejad et al.). And absolute ppl will probably get *worse*, because
+we removed a useful code. Report it as a channel-value decomposition, never as a
+SOTA claim.
+
+---
+
+## Order
+
+1. **Job 1** — finish Q29 (3 cells). Half-done already, cheapest to close.
+2. **Job 3** — Q31 attn_nope (4 cells). Directly answers a question the LLM table
+   invites; small.
+3. **Job 2** — Q30 dimension sweep (15 cells). Largest and most exploratory; run last.
+
 ---
 
 ## Rules that apply to both jobs

@@ -41,6 +41,13 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         ttt_prenorm: bool = True,  # pre-norm or post-norm for ttt.
         # prenorm ttt:  state = state + f(norm(state))
         # postnorm ttt:  state = norm(state + f(state)
+        attn_nope: bool = False,  # if True, the sliding-window ATTENTION carries no
+                                  # rotary. The TTT rotary then becomes the model's only
+                                  # explicit positional code, which is the point: with
+                                  # attention RoPE on, position is already available
+                                  # locally and the fast weights have little left to
+                                  # contribute. (Causal masking still leaks position, so
+                                  # this is "no explicit code", not "position-free".)
         ttt_nope: bool = False,  # if True, no positional encoding for query and key used in ttt.
         ttt_hidden_rope: bool = False,  # h-PRA: rotary on the SwiGLU hidden activation
         # --- Q9 GA genes for the hidden rotary (all no-ops unless ttt_hidden_rope) ---
@@ -99,7 +106,9 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         # "content" is the mirror. Diagnostic 2-cell readout localizing where the
         # input rope's +0.20 ppl lives. No new parameters; zero-phase reduces
         # bit-exactly to baseline. Mutually exclusive with ttt_nope /
-        # ttt_hidden_rope / ttt_liere / ttt_value_rope / ttt_learnable_freqs.
+        # ttt_liere / ttt_value_rope / ttt_learnable_freqs. COMPOSES with
+        # ttt_hidden_rope (Q26: branch-split input rope + hidden rotary via
+        # the combined branch_hidden kernel; plain hidden ladder only).
         ttt_learnable_freqs: bool = False,  # omega_map(1D): learnable frequency deltas
         ttt_sharedf: bool = False,  # share the learnable frequency Parameters across ALL layers
         ttt_hrope_min_layer: int = 0,  # apply the hidden rotary only from this layer index on
@@ -148,6 +157,7 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.lr_parameterization = lr_parameterization
         self.learnable_ttt_scale = learnable_ttt_scale
         self.ttt_prenorm = ttt_prenorm
+        self.attn_nope = attn_nope
         self.ttt_nope = ttt_nope
         self.ttt_hidden_rope = ttt_hidden_rope
         self.ttt_hrope_frac = ttt_hrope_frac
@@ -178,10 +188,18 @@ class LaCTSWIGLUConfig(PretrainedConfig):
         self.ttt_branch_rope = ttt_branch_rope
         assert ttt_branch_rope in ("none", "gate", "content"), ttt_branch_rope
         if ttt_branch_rope != "none":
-            assert not (ttt_nope or ttt_hidden_rope or ttt_liere or ttt_value_rope
+            assert not (ttt_nope or ttt_liere or ttt_value_rope
                         or ttt_learnable_freqs), \
-                "ttt_branch_rope is mutually exclusive with ttt_nope / ttt_hidden_rope / " \
+                "ttt_branch_rope is mutually exclusive with ttt_nope / " \
                 "ttt_liere / ttt_value_rope / ttt_learnable_freqs"
+            if ttt_hidden_rope:
+                # Q26 GbR + h-PRA combined kernel: plain hidden ladder only
+                # (delta_only / chunkq / conjpairs are fine — they only change
+                # pos / h_inv upstream).
+                assert not (ttt_perhead_freqs or ttt_hidden_basis
+                            or ttt_hrope_hnorm != "none"), \
+                    "ttt_branch_rope + ttt_hidden_rope supports only the " \
+                    "plain hidden ladder (no perhead/basis/hnorm)"
         self.ttt_learnable_freqs = ttt_learnable_freqs
         self.ttt_sharedf = ttt_sharedf
         self.ttt_hrope_min_layer = ttt_hrope_min_layer
