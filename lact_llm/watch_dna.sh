@@ -21,7 +21,7 @@ alive() {  # alive <exp> -> 0 if a python proc has this out_dir in its cmdline
     return 1
 }
 
-for i in $(seq 1 288); do          # 288 * 5 min = 24 h ceiling
+for i in $(seq 1 864); do          # 864 * 5 min = 72 h ceiling
     pending=""
     for r in $RUNS; do
         if [ -f "outputs/$r/final.pt" ]; then continue; fi   # finished

@@ -65,7 +65,7 @@ crash-resume: ckpt_step308에서 재개 후 step 310/312 loss가 중단 전과 *
 | 날짜 | 태스크 | 설정 | val ppl | 비고 |
 |---|---|---|---|---|
 | 2026-08-04 | T5 dna32k_nope | `ttt_nope=true` | **3.1680** | step 91552, 2,999,975,936 tok, 무중단·재시도0 |
-| | T6 dna32k_rope | (input q/k rope) | 진행중 | |
+| 2026-08-04 | T6 dna32k_rope | (input q/k rope) | **3.1612** | step 91552, 2,999,975,936 tok, 무중단·재시도0 |
 | | T7 dna32k_honly_g1 | `ttt_nope+hidden_rope g1` | 진행중 | |
 | | T8 dna32k_hpra_g1 | `hidden_rope g1` | 진행중 | |
 
