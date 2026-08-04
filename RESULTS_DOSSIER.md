@@ -370,6 +370,41 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F39: Q28 tttLRM warmup grid, step-1000 held-out — the fine-tune design is a
+## STRUCTURAL dead end, not a budget shortfall (2026-08-04)
+DL3DV-140, 140 scenes, 32 input views, K-means selection, 536x960 — the same
+protocol that reproduced their Table 2 (our anchor 25.062 vs published 25.07).
+Cells fine-tuned from the released checkpoint with a 200-step gain ramp.
+| cell | PSNR | SSIM | LPIPS | dPSNR vs base (paired) | t | improved |
+|---|---|---|---|---|---|---|
+| base | **25.050** | 0.8178 | 0.2176 | — | — | — |
+| in (qk_rope_cam) | 23.733 | 0.7759 | 0.2593 | -1.317 +- 0.039 | -33.9 | 0/140 |
+| h (h_pra) | 24.807 | 0.8101 | 0.2250 | **-0.243 +- 0.010** | -24.7 | 0/140 |
+| both | 23.625 | 0.7727 | 0.2633 | -1.425 +- 0.040 | -35.4 | 0/140 |
+Readings:
+1. **THE DECISIVE ONE — base 25.050 vs anchor 25.062: fine-tuning does not move
+   the baseline at all.** The released checkpoint is already converged on DL3DV,
+   so this design has ZERO headroom: the only outcome it can ever produce is
+   "the rotary costs something". That is a structural property of grafting onto
+   a converged representation, NOT a consequence of the 2000-step budget, and it
+   is why more compute would not have rescued it. Any claim about whether the
+   rotary HELPS requires training from scratch, where all cells start equal.
+2. F30's train/held-out divergence did NOT recur. It was the stated reason to
+   check held-out before abandoning (F30: training-neutral -> held-out -8.7%),
+   but here held-out agrees with training in both sign and ordering
+   (h training delta -0.19..-0.21 vs held-out -0.243).
+3. **The hidden site is ~5.4x cheaper to graft than the input site**
+   (-0.243 vs -1.317), now confirmed on 140 held-out scenes at t=-24.7, not just
+   on training loss. `both` (-1.425) ~= `in` (-1.317): the damage comes almost
+   entirely from the input site, and adding the hidden rotary on top costs a
+   further 0.11 dB. Fifth independent measurement of this ratio.
+   Publishable as its own finding: the hidden rotary transplants nearly free onto
+   a concat-trained pretrained spatial memory; the input rotary does not.
+4. The warmup ramp halved the shock vs the no-warmup grid (-2.3 -> -1.0 dB in
+   training) but did not change the sign or the plateau.
+NEXT: from-scratch at half scale (272x480, 8+8 views, d768/24L unchanged),
+2 GPUs x 12h per cell, wave 1 = base + in. See EXPERIMENT_QUEUE.md Q28.
+
 ## F38: depth-4 fast weights — the rotary-depth interaction SATURATES at depth 3 (2026-08-03)
 Motivated by the F24/F26 reading that "deep inner models don't help" is an ADDRESSING failure: if a
 rotary per address space is what makes depth pay, does depth 4 keep paying? New kernel
