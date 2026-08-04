@@ -347,6 +347,46 @@ def evaluate_clrs(model, val_set, val_bs, device, coord_mode, ttt_layers):
             exact_ok / max(1, exact_n))
 
 
+@torch.no_grad()
+def verify_clrs_coords_active(model, val_set, args, device, ttt_layers):
+    """Positive startup guard: prove the 2-D address actually reaches the rotary.
+
+    Q29's first grid silently produced bit-identical 2d and 1d results because
+    `ttt_layers` was empty, so set_ext_coords looped over nothing. Nothing errored
+    -- the arms just ran the stock rotary, which looks like a real (null) result.
+    A no-op is indistinguishable from a null unless something asserts otherwise,
+    so this runs one forward per coordinate mode on the same batch and REQUIRES
+    them to differ whenever a rotary site is enabled (and to match exactly when
+    none is, which is the other half of the control).
+    """
+    assert ttt_layers, "clrs: ttt_layers is empty -- the address can never be applied"
+    has_rotary = (not getattr(model.config, "ttt_nope", False)) or \
+        bool(getattr(model.config, "ttt_hidden_rope", False))
+    blk = val_set[:2].to(device)
+    losses = {}
+    for mode in ("2d", "1d"):
+        tok, coords, labels = clrs_split(blk, mode)
+        set_ext_coords(ttt_layers, coords)
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            losses[mode] = float(model(input_ids=tok, labels=labels).loss)
+    set_ext_coords(ttt_layers, None)
+    d = abs(losses["2d"] - losses["1d"])
+    tag = f"2d={losses['2d']:.6f} 1d={losses['1d']:.6f} |d|={d:.3e}"
+    if has_rotary:
+        assert d > 1e-5, (
+            f"clrs: COORD INERT ({tag}) on {len(ttt_layers)} layers with a rotary "
+            f"enabled -- the 2-D address is not reaching the rotary, so 2d and 1d "
+            f"would be the same experiment. Refusing to burn the budget.")
+        print(f"[clrs] COORD VERIFIED ACTIVE on {len(ttt_layers)} layers: {tag}",
+              flush=True)
+    else:
+        assert d == 0.0, (
+            f"clrs: no rotary is enabled but the address changed the loss ({tag}) "
+            f"-- it is leaking through some other path.")
+        print(f"[clrs] no rotary (ttt_nope): address correctly inert: {tag}",
+              flush=True)
+
+
 def set_input_rope_scale(ttt_layers, val):
     """val: None (standard hpra) | float (curriculum s) | tensor [b] (dropout
     mask). Plain attribute — never enters state_dict."""
@@ -509,7 +549,11 @@ def main():
     # Q24 interventions: resolve mode and grab the TTT layers once.
     use_iropedrop = args.input_rope_dropout_p0 > 0.0
     use_iropewarm = args.input_rope_warmup != "none"
-    ttt_layers = []
+    # Populate UNCONDITIONALLY. This used to be filled only inside the Q24 branch
+    # below, which silently reduced every consumer to a no-op loop over an empty
+    # list -- Q29's first grid ran that way and produced 2d/1d results that were
+    # bit-identical because the coordinate never reached a layer.
+    ttt_layers = [blk.attn for blk in model.model.layers]
     if use_iropedrop or use_iropewarm:
         assert not (use_iropedrop and use_iropewarm), \
             "pick ONE intervention: --input_rope_dropout_p0 OR --input_rope_warmup"
@@ -518,7 +562,6 @@ def main():
             "add \"ttt_input_chunkq\": 1 to --extra_json"
         assert not getattr(config, "ttt_nope", False), \
             "Q24 interventions modulate the INPUT rope; ttt_nope must be False"
-        ttt_layers = [blk.attn for blk in model.model.layers]
         print(f"[q24] intervention="
               f"{'input_rope_dropout' if use_iropedrop else args.input_rope_warmup} "
               f"p0={args.input_rope_dropout_p0} "
@@ -634,6 +677,9 @@ def main():
     # Debug: LLM_BATCH_FP=1 prints a data fingerprint (token-id sum) for the
     # batches of every 100th step — used by the crash-resume gold test.
     batch_fp = str2bool(os.environ.get("LLM_BATCH_FP", "0"))
+
+    if args.data == "clrs":
+        verify_clrs_coords_active(model, val_set, args, device, ttt_layers)
 
     # ---- training loop -------------------------------------------------
     step = start_step
