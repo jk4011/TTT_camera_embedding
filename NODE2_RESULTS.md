@@ -67,7 +67,7 @@ crash-resume: ckpt_step308에서 재개 후 step 310/312 loss가 중단 전과 *
 | 2026-08-04 | T5 dna32k_nope | `ttt_nope=true` | **3.1680** | step 91552, 2,999,975,936 tok, 무중단·재시도0 |
 | 2026-08-04 | T6 dna32k_rope | (input q/k rope) | **3.1612** | step 91552, 2,999,975,936 tok, 무중단·재시도0 |
 | | T7 dna32k_honly_g1 | `ttt_nope+hidden_rope g1` | 진행중 | |
-| | T8 dna32k_hpra_g1 | `hidden_rope g1` | 진행중 | |
+| 2026-08-05 | T8 dna32k_hpra_g1 | `ttt_hidden_rope=true, gain 1.0` | **3.1795** | step 91552, 2,999,975,936 tok, 무중단·재시도0 |
 
 **val 노이즈 관측 (node1 참고용, 판단 아님)**: 큐 지시대로 val 토큰 수를 WAVE 1과 맞추면
 (≈2M) 블록 길이가 8배가 된 만큼 **독립 시퀀스가 488개 → 61개로 8배 감소**한다. 그 결과

@@ -158,7 +158,7 @@ cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
   --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
 ```
 
-## T8. dna32k_hpra_g1  [RUNNING node2 gpu3 2026-08-03 22:25]
+## T8. dna32k_hpra_g1  [DONE ppl 3.1795]
 ```bash
 ./run_llm.sh 3 dna32k_hpra_g1 --data dna --seq_len 32768 --bs 1 --window_size 128 \
   --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
@@ -227,4 +227,6 @@ DNA 4k(1-시드): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
   T6-T8 완료 예상 각 ~1.6h / ~4.1h / ~3.4h → 4장 확보는 약 4시간 후.
 - 2026-08-04 22:40 node2 T6 DONE: dna32k_rope ppl 3.1612 (step 91552 / 2,999,975,936 tok, 무중단).
   gpu1 락 해제. 남은 T7 honly(82.9k)·T8 hpra(85.4k) 진행중, 각 잔여 ~2.4h/~1.5h.
+- 2026-08-05 01:05 node2 T8 DONE: dna32k_hpra_g1 ppl 3.1795 (step 91552 / 2,999,975,936 tok, 무중단).
+  gpu3 락 해제. 마지막 T7 honly 88.6k step, 잔여 ~1.1h. 완료 시 GPU 4장 확보 → T9-T12(음악) 착수.
 
