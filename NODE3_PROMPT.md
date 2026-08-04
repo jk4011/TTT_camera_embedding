@@ -64,56 +64,65 @@ least. Job 1 fills in the 2-D arm.
 does not in the 1d arms. If 2d looks just like 1d, the dimensionality hypothesis
 (F20) is refuted for this task and we report that.
 
-## JOB 2 — Q30, grid recall with an ADDRESS-DIMENSION sweep (new), 13 cells
+## JOB 2 — Q30, N-dimensional tensor recall (new)
 
 ```bash
 cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
 python synthetic_grid.py            # self-test, expect ALL PASS
-./run_grid_diag.sh 0,1,2,3
+python synthetic_grid.py strides    # prints the quantity the sweep is about
+DIMS="2 4 6" ./run_grid_diag.sh 0,1,2,3
 ```
 
 **Why this task exists.** F35 (`RESULTS_DOSSIER.md:469`) was our exact-offset
-copy diagnostic. It saturated: NoPE 0.2%, but rope / honly / hpra **all** hit
+copy diagnostic and it saturated: NoPE 0.2%, but rope / honly / hpra **all** hit
 100%, so it separated the arms only by convergence speed and could not support
 any claim that the hidden site beats the input rotary. The cause is structural —
 the copy offset is one hardcoded constant (2560), so the model must represent
 exactly ONE relative distance, and any positional code can do that.
 
-**The task.** 1024 random tokens are stored early in the sequence; the query
-asks for 32 of them, either every 32nd (`stride`, hard) or 32 consecutive
-(`contig`, easy control). All tokens come from one distribution, so nothing is
-findable by content — only by address. The block sits ~3,500 tokens before the
-answer, far outside the 128 window, so the fast-weight path must carry it.
+**The data is genuinely d-dimensional.** A tensor of shape `SHAPES[d]` holding
+1024 random tokens is serialised row-major into the sequence. The element count
+is 1024 at every d, so memory load is constant and only the lattice changes. The
+query names an AXIS, fixes the other d-1 indices, and the answer is that FIBER.
+Enough fibers are asked per sequence to keep supervision at exactly 32 tokens for
+every d, so answer length is never a confound. All tokens come from one
+distribution — nothing is findable by content, only by address — and the tensor
+sits >128 tokens before every answer, so the fast-weight path must carry it.
 
-**The sweep, which is the point.** The stored tokens are **identical at every
-setting, byte for byte** (asserted in the self-test). Only the factorisation of
-the flat index `p = i*32 + j` into axes changes:
+**What the sweep measures.** In the flat serialisation a fiber along axis a sits
+at stride `prod(shape[a+1:])`, so a FLAT address has to resolve one stride per
+axis:
 
-| coord_dims k | axes |
-|---|---|
-| 1 | `[p]` — the stock rotary |
-| 2 | `[i, j]` |
-| 3 | `[i, j/4, j%4]` |
-| 4 | `[i, j/8, (j/2)%4, j%2]` |
-| 5, 6 | `j` split further |
+| d | shape | strides a flat address must resolve |
+|---|---|---|
+| 2 | (32,32) | 32, 1 |
+| 3 | (16,8,8) | 64, 8, 1 |
+| 4 | (8,8,4,4) | 128, 16, 4, 1 |
+| 5 | (4,4,4,4,4) | 256, 64, 16, 4, 1 |
+| 6 | (4,4,4,4,2,2) | 256, 64, 16, 4, 2, 1 |
 
-So task, retrieval pattern, memory load and answer length (32 tokens) are all
-held fixed; only the address representation moves.
+A d-D address gets all of them for free: the d-1 fixed axes contribute phase
+difference **zero** between query and source, and only the free axis carries the
+offset.
 
-**Pre-registered prediction — NOT a monotone gain.** `_ext_angles` partitions the
-ladder into k contiguous bands, so each axis carries only ~P/k frequencies:
-extra axes buy structure and *spend* resolution. Expect a peak near the data's
-true structure (k=2) and decay after. The load-bearing question is whether the
-hidden site's curve peaks **higher or later** than the input site's — that is
-precisely the claim that the hidden site is the multi-dimensional-address
-mechanism. This matters for the paper directly: NVS splits the ladder **6 ways**
-for Plücker coordinates, and this sweep is the first evidence about whether that
-is near-optimal or already past the peak.
+**Cells.** Per d: `base` (no rotary — the floor, i.e. how much harder the task
+itself gets as the lattice deepens) plus `{in, h}` x `{nd, flat}`, where `nd`
+supplies the true d-D index and `flat` supplies the token position, which
+recombines the ladder bands into `inv_freq*t` and is therefore **bit-identically
+the stock rotary**. So `nd` vs `flat` isolates address dimensionality and nothing
+else. 5 cells per d, 800M tokens each. Start with `DIMS="2 4 6"` (15 cells,
+~9 h on 4 GPUs); fill in d=3,5 afterwards if the trend is worth refining.
 
-Grid: `base` (once — no rotary, coordinate provably inert) + `{in, h} x k in
-{1..6}` = 13 cells, 800M tokens each. Knobs: `DIMS=`, `ARMS=`, `QUERY=contig`.
-Run `stride` first; `contig` is the "should show nothing" control and is only
-worth GPU time if `stride` separates the arms.
+**Pre-registered prediction — two forces, so expect a peak not a ramp.** Rising d
+gives the flat address more stride scales to resolve, so the `nd - flat` gap
+should GROW. But `_ext_angles` partitions the ladder into d contiguous bands, so
+each axis keeps only ~P/d frequencies and eventually becomes too coarse for its
+own (already short) side. The load-bearing question is whether the **hidden**
+site's `nd - flat` gap grows faster, or peaks later, than the **input** site's —
+that is exactly the claim that the hidden site is the multi-dimensional-address
+mechanism. Where the peak sits also speaks directly to NVS, which splits the
+ladder **6 ways** for Plücker coordinates and has never been checked against a
+dimension sweep.
 
 ---
 

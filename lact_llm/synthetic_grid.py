@@ -1,56 +1,49 @@
 # -*- coding: utf-8 -*-
-"""Grid-recall diagnostic with an ADDRESS-DIMENSION sweep (Q30).
+"""N-dimensional tensor recall: does a d-D address beat a flat one, and how does
+that change as d grows? (Q30)
 
-WHY a new task. F35's exact-offset copy saturated: nope 0.2%, but rope / honly /
-hpra ALL reached 100%, so it separated the arms only by convergence speed and
+WHY a new task. F35's exact-offset copy saturated -- nope 0.2%, but rope / honly
+/ hpra ALL reached 100% -- so it separated the arms only by convergence speed and
 could not support any claim that the hidden site BEATS the input rotary. The
-cause is structural -- the copy offset is a single hardcoded constant (2560), so
-the model has to represent exactly ONE relative distance, and any positional
-code can do that.
+cause is structural: the copy offset is one hardcoded constant (2560), so the
+model must represent exactly ONE relative distance, and any positional code can.
 
-THE TASK. A flat block of 1024 random tokens is stored early in the sequence.
-The query asks for 32 of them, either
+THE DATA IS GENUINELY d-DIMENSIONAL. A tensor of shape SHAPES[d] holding 1024
+random tokens is serialised row-major into the sequence. Total element count is
+1024 at EVERY d, so the memory load is constant and only the lattice changes:
 
-  * `stride` : every 32nd token starting at offset j  (the hard case), or
-  * `contig` : 32 consecutive tokens starting at 32*i (the easy control).
+    d=2  [32, 32]          d=5  [4, 4, 4, 4, 4]
+    d=3  [16, 8, 8]        d=6  [4, 4, 4, 4, 2, 2]
+    d=4  [8, 8, 4, 4]
 
-Every token is drawn from one distribution, so no element is findable by
-content -- only by address. The block sits ~3,500 tokens before the answer, far
-outside the 128 window, so the fast-weight update->apply path must carry it.
+THE QUERY needs the lattice. It names an AXIS a and fixes the other d-1 indices,
+and the answer is the resulting FIBER: the tensor entries that vary only along
+axis a. In the flat serialisation those entries sit at stride
+prod(shape[a+1:]), so:
 
-THE SWEEP, which is the point of this module. The stored tokens are IDENTICAL
-for every setting -- byte for byte. What varies is only how the flat index is
-FACTORISED into coordinate axes handed to the rotary:
+  * a d-D address makes this trivial -- the d-1 fixed axes contribute phase
+    difference ZERO between query and source, and the free axis carries the
+    offset. Nothing to resolve.
+  * a flat address must resolve ONE stride per axis, and the strides span
+    1 .. 1024/shape[0]. That is what grows with d.
 
-    flat index p = i * 32 + j,  i in [0,32)  (position within the fiber)
-                                j in [0,32)  (which fiber)
+Enough fibers are queried per sequence to keep the supervised token count at 32
+for every d (K = 32 / shape[a] of them), so answer length is never a confound.
 
-    coord_dims k     axes
-    -------------    ---------------------------------
-    1                [p]                    <- the stock rotary
-    2                [i, j]
-    3                [i, j/4, j%4]
-    4                [i, j/8, (j/2)%4, j%2]
-    5                [i, ...4 binary-ish digits of j...]
-    6                [i, ...5 binary digits of j...]
-
-So this is a pure address-REPRESENTATION experiment: same data, same retrieval
-pattern, same memory load, same answer length (32 tokens) at every k. Only the
-coordinate changes.
-
-WHAT THE SWEEP IS EXPECTED TO SHOW, and why it is not a monotone story.
-`_ext_angles` partitions the frequency ladder into k contiguous bands, one per
-axis, so each axis carries only ~P/k frequencies. Adding axes buys structure but
-SPENDS resolution. The prediction is therefore an optimum, not a ramp: k=1
-cannot express the stride at all, k=2 matches the data's true structure, and
-large k should decay as each axis becomes too coarse. Where that optimum sits
-matters directly for the paper, because NVS splits the ladder 6 ways for Plucker
+WHY THE CURVE IS NOT OBVIOUS. Two forces oppose each other. Rising d gives the
+flat address more distinct stride scales to resolve, so the d-D advantage should
+GROW. But `_ext_angles` partitions the ladder into d contiguous bands, so each
+axis keeps only ~P/d frequencies -- past some point every axis is too coarse to
+resolve its own (already short) side. The prediction is a peak, and finding
+where it sits speaks directly to NVS, which splits the ladder 6 ways for Plucker
 coordinates.
 
-Blocks are emitted as (token, c_0 .. c_{k-1}, loss_mask) -- token first, mask
-last -- which is the same convention clrs_data uses at k=2, so the trainer's
-clrs_split / evaluate_clrs / _ext_coords plumbing and the COORD VERIFIED ACTIVE
-startup guard all apply unchanged.
+Blocks are (token, c_0 .. c_{d-1}, loss_mask) -- token first, mask last -- the
+same convention clrs_data uses at d=2, so the trainer's clrs_split /
+evaluate_clrs / _ext_coords plumbing and the COORD VERIFIED ACTIVE startup guard
+apply unchanged. Feeding --clrs_coord_mode 1d drives every axis with the token
+index, which recombines the bands into inv_freq*t, i.e. bit-identically the
+stock rotary: that is the flat-address control arm.
 
 Determinism matches synthetic_copy: every sequence is a pure function of
 (data_seed, sample_index), so all arms see an identical stream and resume is
@@ -65,131 +58,107 @@ SEQ_LEN = 4096
 PAD, BOS, EOS = 0, 1, 2
 GRID_MARKER_ID = 4
 QUERY_MARKER_ID = 5
-STRIDE_MODE_ID = 6
-CONTIG_MODE_ID = 7
-NOISE_LO, NOISE_HI = 10, 1010
+AXIS_ID_BASE = 6                  # axis a is token AXIS_ID_BASE + a  (6..11)
+NOISE_LO, NOISE_HI = 16, 1016     # content vocab: 1000 ids
 VOCAB_SIZE = 1024
 IGNORE_INDEX = -100
 
 VAL_INDEX_BASE = 10 ** 9
 
-FIBER = 32          # answer length, constant at every coord_dims
-NFIBER = 32         # number of fibers; total stored tokens = FIBER * NFIBER
-GRID_N = FIBER * NFIBER
+# Genuine d-dimensional lattices, all holding exactly 1024 elements so the
+# memory load is identical across the sweep.
+SHAPES = {
+    2: (32, 32),
+    3: (16, 8, 8),
+    4: (8, 8, 4, 4),
+    5: (4, 4, 4, 4, 4),
+    6: (4, 4, 4, 4, 2, 2),
+}
+GRID_N = 1024
+SUPERVISED = 32                   # supervised tokens per sequence, every d
 GRID_START = 512
 
-# How the fiber index j in [0, 32) is factorised for each coord_dims k.
-# Axis 0 is always i (position within the fiber); these are the REMAINING axes,
-# most-significant first, and their product is always NFIBER = 32.
-_FACTORS = {
-    1: None,            # special-cased: a single flat axis p
-    2: (32,),
-    3: (8, 4),
-    4: (4, 4, 2),
-    5: (4, 2, 2, 2),
-    6: (2, 2, 2, 2, 2),
-}
-MAX_COORD_DIMS = max(_FACTORS)
+
+def _strides(shape):
+    """Row-major strides of `shape` in the flat serialisation."""
+    st, acc = [0] * len(shape), 1
+    for a in range(len(shape) - 1, -1, -1):
+        st[a] = acc
+        acc *= shape[a]
+    return st
 
 
-class GridCharTokenizer:
-    """Minimal stub with the attributes train_small.build_config reads.
-
-    Blocks are emitted as integer ids already (make_block), so there is no text
-    to encode; encode/decode exist only for parity with ClrsCharTokenizer.
-    """
-    bos_token_id = BOS
-    eos_token_id = EOS
-    vocab_size = VOCAB_SIZE
-
-    @staticmethod
-    def encode(ids):
-        return list(ids)
-
-    @staticmethod
-    def decode(ids):
-        return " ".join(str(int(i)) for i in ids)
+def _unravel(p, shape):
+    st = _strides(shape)
+    return [(int(p) // st[a]) % shape[a] for a in range(len(shape))]
 
 
-def _digits(j, factors):
-    """Mixed-radix digits of j, most-significant first."""
-    # Index by POSITION, not by value: factors repeat (4,2,2,2), and
-    # factors.index(f) would resolve every 2 to the first one, collapsing the
-    # digits so distinct j map to the same coordinate. The self-test's
-    # injectivity check exists to catch exactly that.
-    out, rem = [], int(j)
-    for idx, _ in enumerate(factors):
-        step = 1
-        for g in factors[idx + 1:]:
-            step *= g
-        out.append(rem // step)
-        rem = rem % step
-    return out
+def _layout(d, axis, shape):
+    """Tail layout: K query blocks, each followed by its answer fiber."""
+    fiber = shape[axis]
+    K = SUPERVISED // fiber
+    q_len = 2 + (d - 1)                 # marker, axis id, d-1 fixed indices
+    tail = K * (q_len + fiber)
+    return fiber, K, q_len, SEQ_LEN - tail
 
 
-def _coords_for(i, j, k):
-    """Coordinate vector of the element at fiber position i, fiber index j."""
-    if k == 1:
-        return [i * NFIBER + j]
-    return [i] + _digits(j, _FACTORS[k])
-
-
-def _layout():
-    grid_end = GRID_START + GRID_N
-    q_marker = SEQ_LEN - (FIBER + 8)
-    ans_start = q_marker + 3
-    return grid_end, q_marker, ans_start
-
-
-def make_block(data_seed, index, coord_dims=2, query_mode="stride",
-               seq_len=SEQ_LEN):
-    """Deterministic block for (data_seed, index) -> int64 [seq_len, coord_dims+2].
-
-    The TOKENS do not depend on coord_dims -- only the coordinate channels do.
-    """
-    assert seq_len == SEQ_LEN, f"grid layout is defined for seq_len={SEQ_LEN}"
-    assert coord_dims in _FACTORS, f"coord_dims must be one of {sorted(_FACTORS)}"
-    grid_end, q_marker, ans_start = _layout()
+def make_block(data_seed, index, coord_dims=2, seq_len=SEQ_LEN):
+    """Deterministic block for (data_seed, index) -> int64 [seq_len, d+2]."""
+    assert seq_len == SEQ_LEN, f"layout is defined for seq_len={SEQ_LEN}"
+    assert coord_dims in SHAPES, f"coord_dims must be one of {sorted(SHAPES)}"
+    d = coord_dims
+    shape = SHAPES[d]
+    st = _strides(shape)
 
     g = np.random.RandomState((int(data_seed) * 1_000_003 + int(index)) & 0x7FFFFFFF)
     tok = g.randint(NOISE_LO, NOISE_HI, size=seq_len).astype(np.int64)
     grid = g.randint(NOISE_LO, NOISE_HI, size=GRID_N).astype(np.int64)
+    grid_end = GRID_START + GRID_N
     tok[GRID_START:grid_end] = grid
     tok[GRID_START - 1] = GRID_MARKER_ID
 
-    mode = query_mode
-    if mode == "mix":
-        mode = "stride" if g.randint(2) == 0 else "contig"
-    q_idx = int(g.randint(NFIBER))
-    tok[q_marker] = QUERY_MARKER_ID
-    tok[q_marker + 1] = STRIDE_MODE_ID if mode == "stride" else CONTIG_MODE_ID
-    tok[q_marker + 2] = NOISE_LO + q_idx
+    axis = int(g.randint(d))
+    fiber, K, q_len, tail_start = _layout(d, axis, shape)
+    assert grid_end + 128 < tail_start, "tail would sit inside the attention window"
 
-    if mode == "stride":
-        # every NFIBER-th element: flat p = i*NFIBER + q_idx, i = 0..FIBER-1
-        src_flat = np.arange(FIBER) * NFIBER + q_idx
-        src_ij = [(i, q_idx) for i in range(FIBER)]
-    else:
-        # FIBER consecutive elements starting at q_idx*FIBER
-        src_flat = q_idx * FIBER + np.arange(FIBER)
-        src_ij = [(int(p // NFIBER), int(p % NFIBER)) for p in src_flat]
-    tok[ans_start:ans_start + FIBER] = grid[src_flat]
-
-    # --- coordinates -------------------------------------------------------
-    k = coord_dims
-    C = np.zeros((seq_len, k), dtype=np.int64)
-    # non-grid tokens: a plain running position on axis 0, zeros elsewhere, so
-    # ordinary text still has a usable (if degenerate) address
+    C = np.zeros((seq_len, d), dtype=np.int64)
+    # non-grid tokens get a plain running position on axis 0 so ordinary
+    # positions still have a (degenerate) address
     C[:, 0] = np.arange(seq_len) % 256
     for p in range(GRID_N):
-        C[GRID_START + p] = _coords_for(p // NFIBER, p % NFIBER, k)
-    # the answer carries its SOURCE cell's coordinate, so the update and apply
-    # phases can cancel -- without this the rotary has nothing to align
-    for a, (i, j) in enumerate(src_ij):
-        C[ans_start + a] = _coords_for(i, j, k)
+        C[GRID_START + p] = _unravel(p, shape)
 
     mask = np.zeros(seq_len, dtype=np.int64)
-    mask[ans_start:ans_start + FIBER] = 1
+
+    # K distinct index-tuples for the fixed axes -> K distinct fibers
+    other = [a for a in range(d) if a != axis]
+    n_other = GRID_N // fiber
+    picks = g.choice(n_other, size=K, replace=False)
+    cur = tail_start
+    for pick in picks:
+        # decode `pick` into indices of the non-free axes
+        fixed, rem = {}, int(pick)
+        for a in reversed(other):
+            fixed[a] = rem % shape[a]
+            rem //= shape[a]
+        tok[cur] = QUERY_MARKER_ID
+        tok[cur + 1] = AXIS_ID_BASE + axis
+        for n, a in enumerate(other):
+            tok[cur + 2 + n] = NOISE_LO + fixed[a]
+        cur += q_len
+        # the fiber itself
+        base = sum(fixed[a] * st[a] for a in other)
+        for f in range(fiber):
+            p = base + f * st[axis]
+            tok[cur + f] = grid[p]
+            # the answer carries its SOURCE cell's coordinate, so the update and
+            # apply phases can cancel -- without this the rotary has nothing to
+            # align on
+            C[cur + f] = _unravel(p, shape)
+            mask[cur + f] = 1
+        cur += fiber
+    assert cur == seq_len, f"tail ended at {cur}, expected {seq_len}"
+    assert int(mask.sum()) == SUPERVISED, f"{int(mask.sum())} supervised, want {SUPERVISED}"
 
     return np.concatenate([tok[:, None], C, mask[:, None]], axis=1)
 
@@ -197,12 +166,10 @@ def make_block(data_seed, index, coord_dims=2, query_mode="stride",
 class GridStream:
     """Resumable deterministic stream, same contract as ClrsBlockStream."""
 
-    def __init__(self, data_seed, seq_len=SEQ_LEN, coord_dims=2,
-                 query_mode="stride"):
+    def __init__(self, data_seed, seq_len=SEQ_LEN, coord_dims=2):
         self.data_seed = int(data_seed)
         self.seq_len = seq_len
         self.coord_dims = coord_dims
-        self.query_mode = query_mode
         self.n_emitted = 0
         self.N = 10 ** 9  # effectively unbounded; kept for log parity
 
@@ -210,8 +177,7 @@ class GridStream:
         return self
 
     def __next__(self):
-        b = make_block(self.data_seed, self.n_emitted, self.coord_dims,
-                       self.query_mode, self.seq_len)
+        b = make_block(self.data_seed, self.n_emitted, self.coord_dims, self.seq_len)
         self.n_emitted += 1
         return b.tolist()
 
@@ -223,12 +189,28 @@ class GridStream:
         self.n_emitted = int(state["n_raw_consumed"])
 
 
-def build_val_set(data_seed, n_seqs=64, seq_len=SEQ_LEN, coord_dims=2,
-                  query_mode="stride"):
+def build_val_set(data_seed, n_seqs=256, seq_len=SEQ_LEN, coord_dims=2):
     """Fixed val set from indices >= VAL_INDEX_BASE (disjoint from training)."""
-    out = [make_block(data_seed, VAL_INDEX_BASE + j, coord_dims, query_mode,
-                      seq_len) for j in range(n_seqs)]
+    out = [make_block(data_seed, VAL_INDEX_BASE + j, coord_dims, seq_len)
+           for j in range(n_seqs)]
     return torch.from_numpy(np.stack(out))
+
+
+class GridCharTokenizer:
+    """Minimal stub with the attributes train_small.build_config reads."""
+    bos_token_id = BOS
+    eos_token_id = EOS
+    vocab_size = VOCAB_SIZE
+
+
+def stride_report():
+    """The strides a FLAT address would have to resolve, per d. This is the
+    quantity the sweep is about."""
+    print(f"{'d':>2s} {'shape':<22s} {'strides':<26s} fiber lengths")
+    for d, sh in SHAPES.items():
+        st = _strides(sh)
+        fl = [f"{sh[a]}@{st[a]}" for a in range(d)]
+        print(f"{d:2d} {str(sh):<22s} {str(st):<26s} {' '.join(fl)}")
 
 
 def selftest():
@@ -240,67 +222,75 @@ def selftest():
         print(f"  [{'PASS' if cond else 'FAIL'}] {name}{'  ' + detail if detail else ''}")
 
     print("[grid] self-test")
-    grid_end, q_marker, ans_start = _layout()
-
-    # 1. the mixed-radix factorisations are exact and injective
-    for k, f in _FACTORS.items():
-        if f is None:
-            continue
+    for d, sh in SHAPES.items():
         prod = 1
-        for x in f:
+        for x in sh:
             prod *= x
-        seen = {tuple(_digits(j, f)) for j in range(NFIBER)}
-        check(f"k={k}: factors {f} multiply to {NFIBER} and are injective",
-              prod == NFIBER and len(seen) == NFIBER, f"prod={prod} unique={len(seen)}")
+        check(f"d={d}: shape {sh} holds exactly {GRID_N}", prod == GRID_N, f"{prod}")
 
-    # 2. tokens are IDENTICAL across coord_dims -- the sweep changes only address
-    ref = make_block(42, 3, 2, "stride")[:, 0]
-    for k in _FACTORS:
-        b = make_block(42, 3, k, "stride")
-        check(f"k={k}: tokens byte-identical to k=2", np.array_equal(b[:, 0], ref))
-        check(f"k={k}: block has {k}+2 channels", b.shape[1] == k + 2,
-              str(b.shape))
+    for d in SHAPES:
+        shape = SHAPES[d]
+        st = _strides(shape)
+        # unravel is a bijection
+        seen = {tuple(_unravel(p, shape)) for p in range(GRID_N)}
+        check(f"d={d}: unravel is injective over all {GRID_N} cells",
+              len(seen) == GRID_N, f"{len(seen)} distinct")
 
-    # 3. the answer really is the requested fiber, and its coords match the source
-    for mode in ("stride", "contig"):
-        for k in (2, 5):
-            b = make_block(42, 11, k, mode)
+        for idx in (0, 5, 17):
+            b = make_block(42, idx, d)
             tok, C, mk = b[:, 0], b[:, 1:-1], b[:, -1]
-            grid = tok[GRID_START:grid_end]
-            q_idx = int(tok[q_marker + 2] - NOISE_LO)
-            src = (np.arange(FIBER) * NFIBER + q_idx) if mode == "stride" \
-                else (q_idx * FIBER + np.arange(FIBER))
+            check(f"d={d} idx={idx}: {SUPERVISED} supervised tokens",
+                  int(mk.sum()) == SUPERVISED, str(int(mk.sum())))
+            check(f"d={d} idx={idx}: block has {d}+2 channels",
+                  b.shape[1] == d + 2, str(b.shape))
+            grid = tok[GRID_START:GRID_START + GRID_N]
             sup = np.flatnonzero(mk)
-            check(f"{mode} k={k}: answer equals the requested fiber",
-                  np.array_equal(tok[sup], grid[src]))
-            check(f"{mode} k={k}: answer coords == source coords",
-                  np.array_equal(C[sup], C[GRID_START + src]))
-            check(f"{mode} k={k}: source is far outside the 128 window",
-                  int(sup[0]) - int((GRID_START + src).max()) > 128)
+            # every answer token must equal the grid cell its coordinate names,
+            # and that cell must be far outside the attention window
+            good_val, good_far, good_free = True, True, True
+            axis = int(tok[np.flatnonzero(tok == QUERY_MARKER_ID)[0] + 1] - AXIS_ID_BASE)
+            for s in sup:
+                coord = C[s]
+                p = sum(int(coord[a]) * st[a] for a in range(d))
+                good_val &= (tok[s] == grid[p])
+                good_far &= (s - (GRID_START + p)) > 128
+            check(f"d={d} idx={idx}: answers equal the cells their coords name",
+                  good_val)
+            check(f"d={d} idx={idx}: every source is >128 before its answer",
+                  good_far)
+            # within one fiber only the free axis may vary
+            fiber = shape[axis]
+            for start in range(0, SUPERVISED, fiber):
+                blk = C[sup[start:start + fiber]]
+                for a in range(d):
+                    if a == axis:
+                        good_free &= len(set(blk[:, a].tolist())) == fiber
+                    else:
+                        good_free &= len(set(blk[:, a].tolist())) == 1
+            check(f"d={d} idx={idx}: within a fiber only axis {axis} varies",
+                  good_free)
 
-    # 4. a stride query really is stride-NFIBER in the flat layout
-    b = make_block(42, 5, 2, "stride")
-    q_idx = int(b[q_marker + 2, 0] - NOISE_LO)
-    src = np.arange(FIBER) * NFIBER + q_idx
-    check("stride query gathers at stride 32", np.all(np.diff(src) == NFIBER))
-
-    # 5. content cannot identify an element
-    grid = make_block(42, 1, 2, "stride")[GRID_START:grid_end, 0]
+    # content cannot identify a cell
+    grid = make_block(42, 1, 3)[GRID_START:GRID_START + GRID_N, 0]
     check("stored tokens are not content-separable",
           len(np.unique(grid)) < len(grid),
           f"{len(np.unique(grid))} unique of {len(grid)}")
 
-    # 6. determinism / val disjointness
     check("deterministic in (seed, index)",
-          np.array_equal(make_block(42, 7), make_block(42, 7)))
+          np.array_equal(make_block(42, 7, 3), make_block(42, 7, 3)))
     check("different index -> different block",
-          not np.array_equal(make_block(42, 7), make_block(42, 8)))
+          not np.array_equal(make_block(42, 7, 3), make_block(42, 8, 3)))
     check("val indices disjoint from train",
-          not np.array_equal(make_block(42, 0), make_block(42, VAL_INDEX_BASE)))
+          not np.array_equal(make_block(42, 0, 3),
+                             make_block(42, VAL_INDEX_BASE, 3)))
 
     print(f"[grid] self-test {'PASSED' if ok else 'FAILED'}")
     return 0 if ok else 1
 
 
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "strides":
+        stride_report()
+        raise SystemExit(0)
     raise SystemExit(selftest())

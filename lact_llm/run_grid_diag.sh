@@ -35,9 +35,8 @@ IFS=',' read -r -a GPUS <<< "$1"
 # Sequences are generated on the fly and never repeat, so there is no epoch.
 # 800M matches the F35 copy diagnostic this task supersedes.
 BUDGET="${2:-800000000}"
-DIMS=${DIMS:-"1 2 3 4 5 6"}
+DIMS=${DIMS:-"2 3 4 5 6"}
 ARMS=${ARMS:-"in h"}
-QUERY=${QUERY:-stride}
 
 # Locks live on lustre and are therefore SHARED BETWEEN NODES; scope them by
 # hostname or node3's gpu0 collides with node1's gpu0.
@@ -52,17 +51,21 @@ declare -A ARM_JSON=(
   [both]='{"ttt_nope": false, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
 )
 
-# base has no rotary at all, so its coordinate is provably inert
-# (verify_clrs_coords_active asserts exactly 0.0 for it) -- ONE run, not one per k.
-CELLS=("q30_base base 1")
-for arm in $ARMS; do
-  for k in $DIMS; do
-    CELLS+=("q30_${arm}_d${k} $arm $k")
+# base has no rotary, so its coordinate is provably inert
+# (verify_clrs_coords_active asserts exactly 0.0 for it) -- one base per d, not
+# per coord_mode. It is the FLOOR: it says how much harder the task itself gets
+# as the lattice deepens, which the rotary arms must be read against.
+CELLS=()
+for k in $DIMS; do
+  CELLS+=("q30_base_d${k} base $k 1d")     # no rotary: the floor at each d
+  for arm in $ARMS; do
+    CELLS+=("q30_${arm}_d${k}_nd $arm $k 2d")   # true d-D address
+    CELLS+=("q30_${arm}_d${k}_flat $arm $k 1d") # flat address == stock rotary
   done
 done
 
 COMMON=(
-  --data grid --grid_query "$QUERY"
+  --data grid
   --seq_len 4096 --window_size 128 --lact_chunk_size 1024
   --hidden_size 768 --num_hidden_layers 12 --num_attn_heads 12 --num_lact_heads 4
   --bs 8 --grad_accum 1 --lr 3e-4
@@ -71,7 +74,7 @@ COMMON=(
   --val_every 1000 --log_every 100 --val_bs 8
 )
 
-echo "[q30] host=$HOST gpus=${GPUS[*]} budget=$BUDGET query=$QUERY"
+echo "[q30] host=$HOST gpus=${GPUS[*]} budget=$BUDGET"
 echo "[q30] ${#CELLS[@]} cells: dims='$DIMS' arms='$ARMS'"
 
 for i in "${!GPUS[@]}"; do
@@ -81,18 +84,18 @@ for i in "${!GPUS[@]}"; do
     echo "q30-grid" > "$lock"
     trap 'rm -f "$lock"' EXIT
     for ((j = i; j < ${#CELLS[@]}; j += ${#GPUS[@]})); do
-      read -r name arm k <<< "${CELLS[$j]}"
+      read -r name arm k mode <<< "${CELLS[$j]}"
       out="outputs/$name"
       if [ -f "$out/final.pt" ]; then
         echo "[q30] gpu$g: $name already complete -> skip"
         continue
       fi
-      echo "[q30] gpu$g: launching $name (arm=$arm coord_dims=$k)"
+      echo "[q30] gpu$g: launching $name (arm=$arm d=$k coord=$mode)"
       mkdir -p "$out"
       # resubmission = resume: train_small.py auto-resumes from its own ckpt
       ./run_llm.sh "$g" "$name" \
           "${COMMON[@]}" \
-          --grid_coord_dims "$k" \
+          --grid_coord_dims "$k" --clrs_coord_mode "$mode" \
           --extra_json "${ARM_JSON[$arm]}" \
         || echo "[q30] gpu$g: $name FAILED (see $out/train.log)"
       # the startup guard must have fired, or the address never reached a layer

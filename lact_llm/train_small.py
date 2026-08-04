@@ -83,20 +83,15 @@ def parse_args():
                         "'clrs': CLRS-Text algorithmic traces, char-level, with a "
                         "per-token 2-D address parsed from the serialization "
                         "(Q29 dimensionality ablation); see clrs_data.py.")
-    p.add_argument("--grid_coord_dims", type=int, default=2, choices=[1, 2, 3, 4, 5, 6],
-                   help="--data grid: how many axes the flat index is factorised "
-                        "into for the rotary. The STORED TOKENS are identical at "
-                        "every setting, so this sweeps address representation "
-                        "alone. 1 = the stock rotary; 2 = (fiber position, fiber "
-                        "index); higher k splits the fiber index further. Note "
-                        "_ext_angles gives each axis only ~P/k frequencies, so "
-                        "more axes spend resolution -- expect an optimum, not a ramp.")
-    p.add_argument("--grid_query", type=str, default="stride",
-                   choices=["stride", "contig", "mix"],
-                   help="--data grid: 'stride' = every 32nd token (the hard case a "
-                        "1-D address must hold 32 distinct offsets for, and a 2-D "
-                        "address holds as one constant axis); 'contig' = 32 "
-                        "consecutive tokens (easy control); 'mix' = both.")
+    p.add_argument("--grid_coord_dims", type=int, default=2, choices=[2, 3, 4, 5, 6],
+                   help="--data grid: the DATA's dimensionality. The stored tensor "
+                        "holds 1024 tokens at every setting (see "
+                        "synthetic_grid.SHAPES), so the memory load is constant and "
+                        "only the lattice changes; the query names an axis, fixes "
+                        "the other d-1 indices, and the answer is that fiber. Pair "
+                        "with --clrs_coord_mode: '2d' supplies the true d-D index, "
+                        "'1d' supplies the flat position (bit-identically the stock "
+                        "rotary), which is the control arm.")
     p.add_argument("--clrs_quadrant", type=str, default="2d_long",
                    choices=["2d_long", "1d_long", "2d_short", "1d_short"],
                    help="--data clrs: which (dimensionality x memory-load) cell to "
@@ -650,14 +645,15 @@ def main():
         # and the val indices are disjoint from training by construction.
         import synthetic_grid
         block_gen = synthetic_grid.GridStream(
-            args.data_seed, args.seq_len, args.grid_coord_dims, args.grid_query)
+            args.data_seed, args.seq_len, args.grid_coord_dims)
         if resume_stream_state is not None:
             block_gen.restore(resume_stream_state)
         val_set = synthetic_grid.build_val_set(
-            args.data_seed, 256, args.seq_len, args.grid_coord_dims,
-            args.grid_query)
-        print(f"[data] grid recall coord_dims={args.grid_coord_dims} "
-              f"query={args.grid_query}: val set {tuple(val_set.shape)}", flush=True)
+            args.data_seed, 256, args.seq_len, args.grid_coord_dims)
+        print(f"[data] {args.grid_coord_dims}-D tensor recall "
+              f"shape={synthetic_grid.SHAPES[args.grid_coord_dims]} "
+              f"coord_mode={args.clrs_coord_mode}: val set {tuple(val_set.shape)}",
+              flush=True)
     elif args.data == "clrs":
         # CLRS-Text algorithmic traces: one problem per block, carrying a
         # per-token 2-D address. val comes from the HELD-OUT test repo, so it is
