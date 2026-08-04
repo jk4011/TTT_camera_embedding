@@ -23,6 +23,7 @@ from .ttt_operation import (
     prenorm_block_causal_lact_swiglu_hidden_rope,
     prenorm_block_causal_lact_swiglu_value_rope,
     prenorm_block_causal_lact_swiglu_branch_rope,
+    prenorm_block_causal_lact_swiglu_branch_hidden_rope,
     l2_norm,
 )
 
@@ -472,10 +473,19 @@ class LaCTSWIGLULayer(nn.Module):
         if ttt_branch_rope != "none":
             assert not ttt_nope, \
                 "ttt_branch_rope needs the input rotary path (ttt_nope=False)"
-            assert not (ttt_hidden_rope or ttt_liere or ttt_value_rope), \
-                "ttt_branch_rope is mutually exclusive with the hidden/LieRE/value rotaries"
+            assert not (ttt_liere or ttt_value_rope), \
+                "ttt_branch_rope is mutually exclusive with the LieRE/value rotaries"
             assert not ttt_learnable_freqs and ttt_input_chunkq == 0, \
                 "ttt_branch_rope only splits the standard fla fast_rotary path"
+            if ttt_hidden_rope:
+                # Q26 GbR + h-PRA: the combined kernel supports only the plain
+                # hidden ladder (delta_only / chunkq / conjpairs ride on pos &
+                # h_inv upstream and are fine; perhead/basis/hnorm/LieRE are
+                # hidden-kernel-only mutations).
+                assert not (ttt_perhead_freqs or ttt_hidden_basis
+                            or ttt_hrope_hnorm != "none"), \
+                    "ttt_branch_rope + ttt_hidden_rope: plain hidden ladder " \
+                    "only (no perhead/basis/hnorm)"
 
         if ttt_learnable_freqs and ttt_learnable_input_freqs:
             # additive learnable frequency deltas on the fast-weight q/k rotary
@@ -501,6 +511,37 @@ class LaCTSWIGLULayer(nn.Module):
         #   is an exact identity).
         self._input_rope_scale = None
         self._hrope_scale = None
+        # _ext_coords: None (off) | fp32 tensor [b, s, 2] supplying an EXTERNAL
+        #   2-D address per token instead of the scalar token position (Q29
+        #   CLRS-Text: (row, col) recovered from the serialization). Both rotary
+        #   sites then split their frequency ladder in half, the low half driven
+        #   by axis 0 and the high half by axis 1 -- the 1-D analogue of the
+        #   3-way (t, y, x) split used by the video grid carrier and the 6-way
+        #   Plucker split in NVS. Feeding (0, token_index) reproduces a purely
+        #   1-D address through the SAME code path, which is what makes the
+        #   dimensionality ablation exact.
+        self._ext_coords = None
+
+    def _ext_angles(self, inv_freq, axis_first=False):
+        """Split `inv_freq` in half and drive each half by one coordinate axis.
+
+        inv_freq: [P] fp32 ladder. Returns [b, s, P] (axis_first=False, input
+        site) or [b, P, s] (axis_first=True, hidden site). Requires
+        self._ext_coords set to [b, s, 2].
+        """
+        c = self._ext_coords
+        assert c is not None and c.dim() == 3 and c.shape[-1] == 2, \
+            f"_ext_coords must be [b, s, 2], got {None if c is None else tuple(c.shape)}"
+        inv = inv_freq.float()
+        P = inv.shape[0]
+        Pa = P // 2                      # axis 0 (outer, e.g. matrix row)
+        c0 = c[..., 0].float()           # [b, s]
+        c1 = c[..., 1].float()
+        if axis_first:
+            return torch.cat([inv[None, :Pa, None] * c0[:, None, :],
+                              inv[None, Pa:, None] * c1[:, None, :]], dim=1)
+        return torch.cat([c0[:, :, None] * inv[None, None, :Pa],
+                          c1[:, :, None] * inv[None, None, Pa:]], dim=-1)
 
     def liere_rotations(self, seq_len, seqlen_offset=0, device=None):
         """LieRE per-token rotation blocks R_t = matrix_exp(A * t * pos_scale),
@@ -707,16 +748,24 @@ class LaCTSWIGLULayer(nn.Module):
             fast_q = rearrange(fast_q, "b s (n_h d) -> b s n_h d", n_h=self.num_heads)
             fast_k = rearrange(fast_k, "b s (n_h d) -> b s n_h d", n_h=self.num_heads)
 
-            if self.ttt_input_chunkq > 0:
+            _ext = getattr(self, "_ext_coords", None)
+            if self.ttt_input_chunkq > 0 or _ext is not None:
                 # manual NeoX-style rotary at chunk-quantized positions
                 # (same inv_freq as fast_rotary; C=1 reproduces the per-token
                 # rotary through this code path for a clean surgery baseline)
-                Cq = float(self.ttt_input_chunkq)
-                pos_in = torch.arange(
-                    fast_q.shape[1], device=fast_q.device, dtype=torch.float32
-                ) + seqlen_offset
-                pos_in = torch.floor(pos_in / Cq) * Cq
-                ang_in = pos_in[:, None] * self.fast_rotary.inv_freq.float()[None]  # [s, P]
+                if _ext is not None:
+                    assert self.ttt_input_chunkq == 0, \
+                        "_ext_coords and ttt_input_chunkq are both address " \
+                        "rewrites; enable only one"
+                    ang_in = self._ext_angles(
+                        self.fast_rotary.inv_freq)                       # [b, s, P]
+                else:
+                    Cq = float(self.ttt_input_chunkq)
+                    pos_in = torch.arange(
+                        fast_q.shape[1], device=fast_q.device, dtype=torch.float32
+                    ) + seqlen_offset
+                    pos_in = torch.floor(pos_in / Cq) * Cq
+                    ang_in = pos_in[:, None] * self.fast_rotary.inv_freq.float()[None]  # [s, P]
                 # Q24: optional runtime angle scale (see __init__). float scales
                 # globally (curriculum); tensor [b] scales per sequence (input-rope
                 # dropout: 0 -> unrotated q/k, exactly identity). fast_q here is
@@ -729,8 +778,12 @@ class LaCTSWIGLULayer(nn.Module):
                 if _irs is not None:
                     assert _irs.numel() == fast_q.shape[0], \
                         f"_input_rope_scale has {_irs.numel()} entries, batch is {fast_q.shape[0]}"
-                    ang_in = ang_in[None] * _irs.float().view(-1, 1, 1).to(ang_in.device)  # [b, s, P]
-                    qcos = torch.cat([ang_in.cos(), ang_in.cos()], dim=-1)[:, :, None, :]  # [b, s, 1, d]
+                    if ang_in.dim() == 2:
+                        ang_in = ang_in[None]                    # [1, s, P]
+                    ang_in = ang_in * _irs.float().view(-1, 1, 1).to(ang_in.device)  # [b, s, P]
+                if ang_in.dim() == 3:
+                    # [b, s, P] -> [b, s, 1, d]
+                    qcos = torch.cat([ang_in.cos(), ang_in.cos()], dim=-1)[:, :, None, :]
                     qsin = torch.cat([ang_in.sin(), ang_in.sin()], dim=-1)[:, :, None, :]
                 else:
                     qcos = torch.cat([ang_in.cos(), ang_in.cos()], dim=-1)[None, :, None, :]
@@ -834,18 +887,53 @@ class LaCTSWIGLULayer(nn.Module):
                 qg, kg, qc, kc = fast_q, fast_k, plain_q, plain_k
             else:  # "content"
                 qg, kg, qc, kc = plain_q, plain_k, fast_q, fast_k
-            fw_x = prenorm_block_causal_lact_swiglu_branch_rope(
-                fw_w0, fw_w1, fw_w2,
-                qg, kg, qc, kc, fast_v,
-                fw_lr1, fw_lr2, fw_lr3,
-                chunk_size=self.lact_chunk_size,
-                use_muon=self.use_muon,
-                momentum=momentum,
-            )
+            assert getattr(self, "_ext_coords", None) is None, \
+                "_ext_coords is not wired through the GbR branch-rope kernels"
+            if self.ttt_hidden_rope:
+                # Q26 GbR + h-PRA combined kernel. Hidden-phase build mirrors
+                # the plain-ladder subset of the hidden-rope arm below
+                # (perhead/LieRE/basis/hnorm are asserted off in __init__;
+                # chunkq and _hrope_scale act on pos, conjpairs on h_inv_freq).
+                pos = torch.arange(
+                    fast_q.shape[1], device=fast_q.device, dtype=torch.float32
+                ) + seqlen_offset
+                if self.ttt_hrope_chunkq > 0:
+                    Ch = float(self.ttt_hrope_chunkq)
+                    pos = torch.floor(pos / Ch) * Ch
+                _hrs = getattr(self, "_hrope_scale", None)
+                if _hrs is not None:
+                    pos = pos * float(_hrs)
+                h_ang = self.h_inv_freq.float()[:, None] * pos[None, :]  # [P_h, s]
+                fw_x = prenorm_block_causal_lact_swiglu_branch_hidden_rope(
+                    fw_w0, fw_w1, fw_w2,
+                    qg, kg, qc, kc, fast_v,
+                    fw_lr1, fw_lr2, fw_lr3,
+                    h_ang.cos(), h_ang.sin(),
+                    chunk_size=self.lact_chunk_size,
+                    use_muon=self.use_muon,
+                    momentum=momentum,
+                    delta_only=self.ttt_hrope_delta_only,
+                )
+            else:
+                fw_x = prenorm_block_causal_lact_swiglu_branch_rope(
+                    fw_w0, fw_w1, fw_w2,
+                    qg, kg, qc, kc, fast_v,
+                    fw_lr1, fw_lr2, fw_lr3,
+                    chunk_size=self.lact_chunk_size,
+                    use_muon=self.use_muon,
+                    momentum=momentum,
+                )
         elif self.ttt_hidden_rope:
             # h-PRA path (prenorm, PyTorch ops only)
             assert self.ttt_prenorm and not self.use_fused_kernel, \
                 "ttt_hidden_rope requires ttt_prenorm=True, use_fused_kernel=False"
+            # Positive guard: liere/perhead build their angles from `pos` and
+            # would silently IGNORE an external address, producing a plausible
+            # null instead of an error (the non-persistent-buffer trap again).
+            if getattr(self, "_ext_coords", None) is not None:
+                assert getattr(self, "ttt_liere", 0) == 0 \
+                    and not getattr(self, "ttt_perhead_freqs", False), \
+                    "_ext_coords is not supported by the liere / perhead hidden paths"
             pos = torch.arange(
                 fast_q.shape[1], device=fast_q.device, dtype=torch.float32
             ) + seqlen_offset
@@ -875,6 +963,16 @@ class LaCTSWIGLULayer(nn.Module):
                 h_ang = theta_ph[:, :, None] * pos[None, None, :]  # [nh, P_h, s]
                 b_true = fast_q.shape[0] // self.num_fw_heads
                 h_ang = h_ang.repeat(b_true, 1, 1)  # [b*nh, P_h, s]
+                hcos_t, hsin_t = h_ang.cos(), h_ang.sin()
+            elif getattr(self, "_ext_coords", None) is not None:
+                assert self.ttt_hrope_chunkq == 0, \
+                    "_ext_coords and ttt_hrope_chunkq are both address rewrites"
+                h_ang = self._ext_angles(self.h_inv_freq, axis_first=True)  # [b, P_h, s]
+                # kernel layout mirrors the perhead path: fast_q is [(b n_h), s, d]
+                # with n_h fastest, so interleave each sequence's angles n_h times.
+                h_ang = h_ang.repeat_interleave(self.num_fw_heads, dim=0)
+                if _hrs is not None:
+                    h_ang = h_ang * float(_hrs)
                 hcos_t, hsin_t = h_ang.cos(), h_ang.sin()
             else:
                 h_ang = self.h_inv_freq.float()[:, None] * pos[None, :]  # [P_h, s]

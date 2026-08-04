@@ -281,6 +281,47 @@ Scope note: SACSoN public release is 160x120 vs the paper's private 320x240, and
 were deliberately skipped (no revisit structure / 1.94 TB). We do NOT reproduce the paper's table;
 the claim is an internal site ablation on a frozen backbone.
 
+## Q29. CLRS-Text address-dimensionality grid  [READY TO LAUNCH 2026-08-04, node3]
+
+The first CONTROLLED test of F20's dimensionality boundary inside one task. Every
+existing datum for "the hidden site needs a multi-D address" is a comparison
+ACROSS unlike tasks (1D language/DNA/music null vs 6D NVS/ccv win); Q29 makes it
+a within-task measurement.
+
+Host: CLRS-Text (DeepMind, smcleish/CLRS-Text-*, Apache-2.0). An n x n adjacency
+matrix is serialized with NO row/col indices and every entry the character 0/1,
+so thousands of identical tokens can only be addressed by (row, col). At n=41 the
+question is ~3,644 chars vs window 128 -> memory-exclusive.
+
+THE ABLATION IS ON THE COORDINATE, NOT THE DATA. Same problems, tokens, length and
+memory load in every arm; only the address changes:
+  --clrs_coord_mode 2d -> parsed (row, col)
+  --clrs_coord_mode 1d -> (t, t), which recombines the split ladder into
+     inv_freq*t = EXACTLY the stock rotary (verified 0.000e+00, sanity mode a)
+This is why the earlier data-side plan was abandoned: CLRS array algorithms are
+1-D only in the QUESTION (a_outer_max: bfs n=41 -> 4, insertion_sort n=25 -> 25),
+so a data-side 1-D control inverts the contrast in the loss region and confounds
+dimensionality with locality.
+
+Grid: 7 cells = base + {in, h, both} x {2d, 1d}. base has no rotary so its
+coordinate is provably inert (0.000e+00) -- one run, not two.
+Launch: lact_llm/run_clrs_grid.sh 0,1,2,3   (~1.2B tokens/cell, 2 waves on 4 GPUs)
+Prompt for the node3 session: NODE3_Q29.md
+
+PRE-REGISTERED: the h-over-in increment appears in the 2d arms and vanishes in the
+1d arms. Equal gains in both refute the dimensionality hypothesis, and we say so.
+
+Built + verified on node1 (2026-08-04):
+- clrs_data.py selftest 13/13 (incl. real samples: bfs n=41 sweeps outer to 40,
+  insertion_sort stays at 1)
+- sanity_clrs_coords.py 11/11: 1d == stock rotary 0.000e+00 at BOTH sites; 2d
+  changes the loss; rotary-off makes the address inert 0.000e+00; per-sequence
+  addressing; finite backward
+- infer_n() (train repo has no length column) vs test repo's length: 37,144/40,000,
+  and 100% on all five algorithms used
+- corpus: 90,000 blocks x 4096 (1.47 GB), 0 oversize dropped; val 512 blocks from
+  the held-out test seeds; supervised span verified to be exactly the answer + EOS
+
 ## Q28. Cross-task #3: 3D reconstruction — TTT-RoPE on tttLRM  [PORT IN PROGRESS 2026-08-04]
 Host: **tttLRM** (CVPR 2026, github.com/cwchenwang/tttLRM). Chosen after FSM (posed NVS = our own
 task) and ZipMap (no pose-conditional input mode -> feeding GT poses would change the model's

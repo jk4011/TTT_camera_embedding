@@ -73,12 +73,28 @@ def parse_args():
     p.add_argument("--extra_json", type=str, default="{}",
                    help="JSON dict merged into the config dict LAST.")
     # data
-    p.add_argument("--data", type=str, default="fineweb", choices=["fineweb", "dna", "music"],
+    p.add_argument("--data", type=str, default="fineweb",
+                   choices=["fineweb", "dna", "music", "clrs"],
                    help="'fineweb': fineweb-edu char/BPE stream (default, unchanged). "
                         "'dna': hg38 char-level LM (vocab_size=8, chr20 held out for "
                         "val); see dna_data.py. "
                         "'music': Lakh MIDI (LMD-full) REMI symbolic music "
-                        "(vocab_size=451, held-out FILES for val); see music_data.py.")
+                        "(vocab_size=451, held-out FILES for val); see music_data.py. "
+                        "'clrs': CLRS-Text algorithmic traces, char-level, with a "
+                        "per-token 2-D address parsed from the serialization "
+                        "(Q29 dimensionality ablation); see clrs_data.py.")
+    p.add_argument("--clrs_quadrant", type=str, default="2d_long",
+                   choices=["2d_long", "1d_long", "2d_short", "1d_short"],
+                   help="--data clrs: which (dimensionality x memory-load) cell to "
+                        "train on; see clrs_data.QUADRANTS.")
+    p.add_argument("--clrs_coord_mode", type=str, default="2d", choices=["2d", "1d"],
+                   help="--data clrs: address fed to BOTH rotary sites. '2d' = the "
+                        "parsed (outer, inner) coordinate, e.g. (row, col) of the "
+                        "adjacency matrix. '1d' = (t, t), which recombines the split "
+                        "ladder into inv_freq*t and is therefore BIT-IDENTICAL to the "
+                        "stock rotary (verified 0.000e+00 by sanity_clrs_coords.py "
+                        "mode a) -- so 2d-vs-1d isolates address DIMENSIONALITY and "
+                        "nothing else.")
     p.add_argument("--synthetic", type=str, default="none", choices=["none", "copy"],
                    help="'copy': exact-offset-copy diagnostic task (synthetic_copy.py) "
                         "instead of fineweb-edu; loss/val on the copy region only.")
@@ -265,6 +281,72 @@ def input_rope_warmup_scale(kind, step):
     raise ValueError(f"unknown input_rope_warmup: {kind}")
 
 
+def clrs_split(batch, coord_mode):
+    """Split a CLRS block batch [b, s, 4] into (tokens, coords, labels).
+
+    Channels are (token, c_outer, c_inner, loss_mask); see clrs_data.make_block.
+    Labels are -100 outside the answer region, so the loss scores only what the
+    model must GENERATE -- the same discipline as evaluate_copy's copy region.
+    coord_mode '1d' feeds (t, t), which is bit-identical to the stock rotary.
+    """
+    assert batch.dim() == 3 and batch.shape[-1] == 4, \
+        f"--data clrs expects blocks [b, s, 4], got {tuple(batch.shape)}"
+    tokens = batch[..., 0].contiguous()
+    labels = tokens.masked_fill(batch[..., 3] == 0, -100)
+    if coord_mode == "1d":
+        t = torch.arange(batch.shape[1], device=batch.device, dtype=torch.float32)
+        coords = t[None, :, None].expand(batch.shape[0], batch.shape[1], 2)
+    else:
+        coords = batch[..., 1:3].float()
+    return tokens, coords.contiguous(), labels
+
+
+def set_ext_coords(ttt_layers, coords):
+    """Install the per-token external address on every TTT layer (None = off)."""
+    for lyr in ttt_layers:
+        lyr._ext_coords = coords
+
+
+@torch.no_grad()
+def evaluate_clrs(model, val_set, val_bs, device, coord_mode, ttt_layers):
+    """Answer-region mean loss + teacher-forced argmax accuracy, plus exact-match
+    (a whole answer counts only if EVERY supervised token is right).
+
+    Accuracy is the primary metric: a from-scratch 200M char model may sit at 0%
+    exact match, which would make an exact-match-only readout indistinguishable
+    from 'the wiring is broken'."""
+    was_training = model.training
+    model.eval()
+    tot_loss, tot_correct, tot, exact_ok, exact_n = 0.0, 0, 0, 0, 0
+    for i in range(0, val_set.shape[0], val_bs):
+        blk = val_set[i:i + val_bs].to(device, non_blocking=True)
+        tokens, coords, labels = clrs_split(blk, coord_mode)
+        set_ext_coords(ttt_layers, coords)
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            logits = model(input_ids=tokens).logits
+        # the model shifts internally: logits at t score the token at t+1
+        pred = logits[:, :-1, :].float()
+        tgt = labels[:, 1:]
+        sel = tgt != -100
+        if not bool(sel.any()):
+            continue
+        flat_p = pred[sel]
+        flat_t = tgt[sel]
+        tot_loss += torch.nn.functional.cross_entropy(
+            flat_p, flat_t, reduction="sum").item()
+        hit = (flat_p.argmax(-1) == flat_t)
+        tot_correct += int(hit.sum())
+        tot += int(flat_t.numel())
+        row_ok = ((pred.argmax(-1) == tgt) | ~sel).all(dim=1)
+        exact_ok += int(row_ok.sum())
+        exact_n += int(row_ok.numel())
+    set_ext_coords(ttt_layers, None)
+    if was_training:
+        model.train()
+    return (tot_loss / max(1, tot), tot_correct / max(1, tot),
+            exact_ok / max(1, exact_n))
+
+
 def set_input_rope_scale(ttt_layers, val):
     """val: None (standard hpra) | float (curriculum s) | tensor [b] (dropout
     mask). Plain attribute — never enters state_dict."""
@@ -272,10 +354,20 @@ def set_input_rope_scale(ttt_layers, val):
         lyr._input_rope_scale = val
 
 
-def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path):
+def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path,
+                   ttt_layers=()):
     t0 = time.time()
     entry = {"step": step}
-    if args.synthetic == "copy":
+    if args.data == "clrs":
+        val_loss, acc, exact = evaluate_clrs(
+            model, val_set, args.val_bs, device, args.clrs_coord_mode, ttt_layers)
+        ppl = math.exp(min(20.0, val_loss))
+        entry.update({"val_loss": val_loss, "ppl": ppl,
+                      "answer_acc": acc, "exact_match": exact})
+        print(f"VAL step={step} answer_loss={val_loss:.4f} ppl={ppl:.2f} "
+              f"answer_acc={acc:.4f} exact={exact:.4f} "
+              f"(eval took {time.time() - t0:.1f}s)", flush=True)
+    elif args.synthetic == "copy":
         val_loss, acc = evaluate_copy(model, val_set, args.val_bs, device)
         ppl = math.exp(min(20.0, val_loss))
         entry.update({"val_loss": val_loss, "ppl": ppl, "copy_acc": acc})
@@ -396,6 +488,11 @@ def main():
         tok_name, vocab_size = "music", tokenizer.vocab_size
         print(f"[data] music REMI tokenizer (vocab_size={vocab_size}, "
               f"bos={tokenizer.bos_token_id} eos={tokenizer.eos_token_id})", flush=True)
+    elif args.data == "clrs":
+        import clrs_data
+        tokenizer = clrs_data.ClrsCharTokenizer()
+        tok_name, vocab_size = "clrs", clrs_data.VOCAB_SIZE
+        print(f"[data] clrs char tokenizer (vocab_size={vocab_size})", flush=True)
     else:
         tokenizer, tok_name, vocab_size = data_utils.load_tokenizer(args.tokenizer)
     eos_id = tokenizer.eos_token_id
@@ -480,6 +577,23 @@ def main():
             block_gen.restore(resume_stream_state)
         print(f"[data] music LMD-full REMI: {block_gen.N:,} train blocks, val set "
               f"{tuple(val_set.shape)} (held-out files)", flush=True)
+    elif args.data == "clrs":
+        # CLRS-Text algorithmic traces: one problem per block, carrying a
+        # per-token 2-D address. val comes from the HELD-OUT test repo, so it is
+        # independent of the training stream position.
+        import clrs_data
+        block_gen = clrs_data.ClrsBlockStream(
+            clrs_data.ensure_train_blocks(args.clrs_quadrant, args.seq_len),
+            args.data_seed, args.seq_len)
+        n_val_blocks = max(1, args.val_tokens // args.seq_len)
+        val_set = clrs_data.get_or_build_clrs_val_set(
+            n_val_blocks, clrs_data.val_cache_path(args.clrs_quadrant, args.seq_len),
+            args.clrs_quadrant, args.seq_len)
+        if resume_stream_state is not None:
+            block_gen.restore(resume_stream_state)
+        print(f"[data] clrs {args.clrs_quadrant} coord_mode={args.clrs_coord_mode}: "
+              f"{block_gen.N:,} train blocks, val set {tuple(val_set.shape)} "
+              f"(held-out test seeds)", flush=True)
     else:
         # Identical shuffled stream for every run with the same data_seed.
         stream = data_utils.build_shuffled_stream(args.data_seed, buffer_size=10000)
@@ -564,8 +678,15 @@ def main():
                       flush=True)
             x = x.to(device, non_blocking=True)
             # copy task: supervise ONLY the copy region (-100 elsewhere);
+            # clrs: supervise the answer region and install the 2-D address;
             # otherwise plain LM (labels = inputs, shifted inside the model).
-            labels = synthetic_copy.make_labels(x) if args.synthetic == "copy" else x
+            if args.data == "clrs":
+                x, _coords, labels = clrs_split(x, args.clrs_coord_mode)
+                set_ext_coords(ttt_layers, _coords)
+            elif args.synthetic == "copy":
+                labels = synthetic_copy.make_labels(x)
+            else:
+                labels = x
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 loss = model(input_ids=x, labels=labels).loss
             (loss / args.grad_accum).backward()
@@ -605,7 +726,8 @@ def main():
             # model (and s anneals to 1 anyway); the next step re-sets it.
             if use_iropedrop:
                 set_input_rope_scale(ttt_layers, None)
-            run_validation(model, val_set, args, step, tokens_seen, device, val_log_path)
+            run_validation(model, val_set, args, step, tokens_seen, device, val_log_path,
+                           ttt_layers)
             t_last = time.time()  # don't count eval time in tokens/sec
             tokens_last = tokens_seen
 
@@ -622,7 +744,8 @@ def main():
     if use_iropedrop:
         set_input_rope_scale(ttt_layers, None)  # eval/final = standard hpra
     if step % args.val_every != 0 or step == 0:
-        run_validation(model, val_set, args, step, tokens_seen, device, val_log_path)
+        run_validation(model, val_set, args, step, tokens_seen, device, val_log_path,
+                           ttt_layers)
     ckpt_path = os.path.join(args.out_dir, "final.pt")
     torch.save(model.state_dict(), ckpt_path)
     print(f"[train] done at step {step} ({tokens_seen:,} tokens); "
