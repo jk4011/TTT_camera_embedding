@@ -92,6 +92,25 @@ _FACTORS = {
 MAX_COORD_DIMS = max(_FACTORS)
 
 
+class GridCharTokenizer:
+    """Minimal stub with the attributes train_small.build_config reads.
+
+    Blocks are emitted as integer ids already (make_block), so there is no text
+    to encode; encode/decode exist only for parity with ClrsCharTokenizer.
+    """
+    bos_token_id = BOS
+    eos_token_id = EOS
+    vocab_size = VOCAB_SIZE
+
+    @staticmethod
+    def encode(ids):
+        return list(ids)
+
+    @staticmethod
+    def decode(ids):
+        return " ".join(str(int(i)) for i in ids)
+
+
 def _digits(j, factors):
     """Mixed-radix digits of j, most-significant first."""
     # Index by POSITION, not by value: factors repeat (4,2,2,2), and
