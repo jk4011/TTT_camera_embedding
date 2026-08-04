@@ -21,7 +21,7 @@ node (`outputs/` has `mlp2_base` and `fw4l_base`, both different architectures).
 
 ## QUEUE
 
-### P1. NVS NoPE baseline, seed 95 [1 run, ~1.6 h]
+### P1. NVS NoPE baseline, seed 95 [1 run, ~1.6 h] -> ASSIGNED node2 (2026-08-05)
 The missing fourth curve of Figure 1, and the row every Table-1 delta is measured
 against. Highest value per GPU-hour of anything here.
 Config: the stock `lact_l6_d256_p16` recipe, no `cam.mode`. Standard protocol
@@ -33,7 +33,7 @@ remaining alternative explanation for the LLM null: that attention's own rotary
 already supplies local position, leaving the fast-weight rotary nothing to add.
 Only the attn-rope-OFF column runs; the ON column is F27.
 
-### P3. Video, input-only and Both [2 runs]
+### P3. Video, input-only and Both [2 runs] -> ASSIGNED node2 (2026-08-05)
 Table 6 currently has neither. **Naming trap:** in the plain-video runs `full` means
 *hidden + learnable frequencies*, not input+hidden, so the existing `full` cell is
 NOT the Both arm. Two runs, not one.
@@ -48,7 +48,7 @@ it is implemented as more chunks it will reproduce F8 and tell us nothing new.
 Cost can be halved to 4 runs if only the Both arm is swept (NoPE at each update count
 is the more expensive half and arguably not needed).
 
-### P5. CCV hidden-only [1 run]
+### P5. CCV hidden-only [1 run] -> ASSIGNED node2 (2026-08-05)
 Deferred earlier, now queued. F30 ran base / pra(learnable) / pra_fixed / both, so the
 hidden-only cell is the one hole in an otherwise complete table. CCV is the only
 video-domain setting where the hidden site earns (+3.9-4.6% over input), so the paper
@@ -65,6 +65,19 @@ Deferred earlier, now queued at the bottom. Not implemented at all; PRoPE and GT
 Only worth it if we expect a reviewer to demand the third comparator.
 
 ---
+
+## Node assignment (2026-08-05)
+
+| node | now |
+|---|---|
+| node1 | tttLRM from-scratch 4 arms (8 GPUs) + Figure 1 NVS sweep (gpu0, eval-only) |
+| node2 | **music WAVE 3 CANCELLED**; P1 -> P3 -> P5. See `NODE2_PROMPT.md` |
+| node3 | Q29 (3 cells) -> Q31 attn_nope (4 cells) -> Q30 (15 cells). See `NODE3_PROMPT.md` |
+
+Music was cancelled because the REMI 4-cell grid is already complete and is a total
+null (spread 0.0069 ppl), its cause is identified (REMI emits Bar/Position tokens, so
+position is readable as content), and the user declined the TSD follow-up twice. WAVE 3
+fired on its "4 GPUs free" gate before that decision reached the node2 queue.
 
 ## Also outstanding, tracked elsewhere
 
