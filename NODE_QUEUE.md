@@ -138,7 +138,7 @@ lact_chunk_size 1024 (시퀀스당 32청크) / 3B 토큰 = 91,552 스텝 / data_
    재개 정확성(기존 방식대로 배치 해시 비교).
 결과를 NODE2_RESULTS.md에 append.
 
-## T5. dna32k_nope  [RUNNING node2 gpu0 2026-08-03 22:25]
+## T5. dna32k_nope  [DONE ppl 3.1680]
 ```bash
 cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
 ./run_llm.sh 0 dna32k_nope --data dna --seq_len 32768 --bs 1 --window_size 128 \
@@ -221,4 +221,8 @@ DNA 4k(1-시드): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
   변경 불필요(하한 역할, 무영향) → T5-T8 큐 원문 그대로 실행.
 - 2026-08-03 22:25 node2 T5-T8 RUNNING: dna32k_{nope,rope,honly_g1,hpra_g1} → gpu0-3, self_heal,
   91,552 step / 2,999,975,936 tok(WAVE 1과 동일). **예상 ≈31h/런**(WAVE 1의 4.5h 대비 ~7배).
+- 2026-08-04 16:10 node2 T5 DONE: dna32k_nope ppl 3.1680 (step 91552 / 2,999,975,936 tok, 무중단).
+  gpu0 유휴·락 해제. T6/T7/T8 진행중(각 86.2k/77.8k/80.3k step). WAVE 3(T9-T12)은 음악 데이터가
+  준비 완료(datasets/music/, val_cache_music_4096.pt)지만 큐 조건이 "GPU 4장이 비면 투입"이라 대기.
+  T6-T8 완료 예상 각 ~1.6h / ~4.1h / ~3.4h → 4장 확보는 약 4시간 후.
 

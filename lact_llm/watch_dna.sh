@@ -5,7 +5,12 @@
 set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-RUNS="dna_nope_w128 dna_rope_w128 dna_honly_g1_w128 dna_hpra_g1_w128"
+# Runs to watch: pass as args, else default to the WAVE 1 grid.
+if [ "$#" -gt 0 ]; then
+    RUNS="$*"
+else
+    RUNS="dna_nope_w128 dna_rope_w128 dna_honly_g1_w128 dna_hpra_g1_w128"
+fi
 
 alive() {  # alive <exp> -> 0 if a python proc has this out_dir in its cmdline
     local exp="$1" p c
