@@ -176,7 +176,9 @@ WAVE 1 참조값(seq 4096): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.13
 
 ---
 
-# === WAVE 3 (2026-08-03, node1 지시): 심볼릭 음악 — 교차-태스크 검증 #3 ===
+# === WAVE 3 (2026-08-03) — **취소됨 2026-08-05 (NODE2_PROMPT.md)**: 심볼릭 음악 ===
+# 재큐잉 금지. 사유: REMI 4셀 그리드가 이미 완료된 완전 null이고(Bar/Position 토큰이
+# 박자 위치를 내용으로 노출), 사용자가 TSD 후속을 두 번 거절했다.
 # 상태: 데이터 준비는 node1이 선행(GPU 불필요). 학습은 어느 노드든 GPU 4장이 비면 투입.
 
 **가설**: 음악의 핵심 연산이 위치-주소 회수다 — "8마디 전 주제를 조옮김해 반복"은 내용이
@@ -196,10 +198,10 @@ Lakh MIDI(LMD-full, 176k 파일, 무인증) → miditok REMI 토크나이즈 →
 val 캐시(자연어/DNA와 동일한 ≈2M 토큰). 산출물은 datasets/music/ 및
 lact_llm/val_cache_music_4096.pt, 데이터 경로는 `--data music`.
 
-## T9.  music_nope       [RUNNING node2 gpu0 2026-08-05 02:35] ./run_llm.sh <g> music_nope --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true}'
-## T10. music_rope       [RUNNING node2 gpu1 2026-08-05 02:35] ./run_llm.sh <g> music_rope --data music --window_size 128 --bs 8 --token_budget 3000000000
-## T11. music_honly_g1   [RUNNING node2 gpu2 2026-08-05 02:35] ./run_llm.sh <g> music_honly_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
-## T12. music_hpra_g1    [RUNNING node2 gpu3 2026-08-05 02:35] ./run_llm.sh <g> music_hpra_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+## T9.  music_nope       [CANCELLED node1 지시 2026-08-05: REMI 4셀은 이미 완료·완전 null(spread 0.0069), 사용자가 음악 2회 거절] ./run_llm.sh <g> music_nope --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true}'
+## T10. music_rope       [CANCELLED node1 지시 2026-08-05: REMI 4셀은 이미 완료·완전 null(spread 0.0069), 사용자가 음악 2회 거절] ./run_llm.sh <g> music_rope --data music --window_size 128 --bs 8 --token_budget 3000000000
+## T11. music_honly_g1   [CANCELLED node1 지시 2026-08-05: 위와 동일] ./run_llm.sh <g> music_honly_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+## T12. music_hpra_g1    [CANCELLED node1 지시 2026-08-05: 위와 동일] ./run_llm.sh <g> music_hpra_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
 
 판정: 4셀끼리만 비교(vocab이 달라 자연어/DNA와 ppl 절대값 비교 불가).
 참조 서열 — 자연어(3-시드): nope 18.685 / rope 18.582 / honly 18.593 / hpra 18.578.
@@ -237,4 +239,8 @@ DNA 4k(1-시드): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
   선행 sanity_music.py ALL PASS (val 488x4096 vocab451, shuffle/resume/epoch-wrap 해시일치,
   20스텝 loss ln(451)=6.111→5.207 감소, ckpt 왕복 배치해시·가중치 일치, 코퍼스 2.92B tok=1.03에폭).
   91,552 step / 2,999,975,936 tok, 실측 ~155k tok/s → 약 5.4h 예상.
+- 2026-08-05 04:30 node2 T9-T12 CANCELLED (NODE2_PROMPT.md, node1 지시): 지정 순서대로 중단 —
+  self-heal 부모 8개 + watcher 2개 → run_llm.sh 4개 → trainer(python) 4개, 전부 PID 지정(pkill -f 미사용).
+  잔여 프로세스 0, GPU 0-3 해제(0 MiB), node2_gpu* 락 제거. outputs/music_* 부분 체크포인트는 보존.
+  → 다음: NODE2_PROMPT.md의 P1(NVS NoPE seed95) → P3(video input-only+Both) → P5(CCV hidden-only).
 
