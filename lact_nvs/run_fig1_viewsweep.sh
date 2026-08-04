@@ -26,12 +26,13 @@ GPU=${1:-0}
 
 # arm -> "run_dir config"
 declare -A ARM_RUN=(
+  [base]="base_s95 config/lact_l6_d256_p16.yaml"
   [pra_hi]="pra_hi_s95 config/cam_pra_hi.yaml"
   [h_pra_hi]="h_pra_hi_s95 config/cam_h_pra_hi.yaml"
   [pra_h_hi]="pra_h_hi_s95 config/cam_pra_h_hi.yaml"
 )
-# NoPE has no surviving checkpoint on this node; it is queued as a training run.
-ARMS=${ARMS:-"pra_hi h_pra_hi pra_h_hi"}
+# base = NoPE (stock lact_ttt, no cam.mode), trained on node2 as P1 (seed 95).
+ARMS=${ARMS:-"base pra_hi h_pra_hi pra_h_hi"}
 VIEWS=${VIEWS:-"2 4 8 16 24 32"}
 SCENES=${SCENES:-256}
 OUT=fig1_viewsweep

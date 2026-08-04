@@ -59,6 +59,30 @@ lact_llm/ga_honly/LEDGER.md에 반영한다.
 재개 정확성 — 스트림 해시 일치 + epoch-wrap 일치(4096·32768 양쪽 ALL PASS) + 트레이너
 crash-resume: ckpt_step308에서 재개 후 step 310/312 loss가 중단 전과 **완전 동일**(1.3031/1.3113).
 
+
+## 논문 표 채우기 (NODE2_PROMPT.md, 2026-08-05) — P1/P3/P5
+
+### P1. NVS NoPE baseline `base_s95`  [DONE]
+스톡 `lact_l6_d256_p16` (cam.mode 없음 = `lact_ttt.FastWeightGluMLPMultihead`), seed 95,
+30k iters, bs16, lr 1e-4, LPIPS 5k부터, 8 input + 8 target, RE10K 256x256. 프로토콜 무편차.
+훈련 EXIT 0, `model_0030000.pth` 생성. Eval: 256 held-out scenes, 8 uniform in / 4 midpoint target.
+
+**base_s95: PSNR 21.8252 (SE 0.1423) / LPIPS 0.2874** (n=256)
+
+seed 95로 전 arm이 일치하므로 **per-scene paired** (arm − base):
+
+| arm | PSNR | ΔPSNR | t | win% | LPIPS | ΔLPIPS | t | win% |
+|---|---|---|---|---|---|---|---|---|
+| pra_hi_s95 | 22.3332 | +0.5080 | +20.65 | 89.8 | 0.2751 | −0.0123 | −20.92 | 93.4 |
+| h_pra_hi_s95 | 22.7239 | +0.8987 | +41.14 | 99.6 | 0.2661 | −0.0213 | −41.53 | 99.6 |
+| pra_h_hi_s95 | 22.7966 | +0.9715 | +31.70 | 98.0 | 0.2685 | −0.0189 | −27.09 | 97.3 |
+
+(LPIPS는 낮을수록 좋음: win%는 base 대비 낮아진 scene 비율.) 단일 시드 결과이므로
+F18 기준(~0.1-0.3 dB는 init 노이즈)에 비추어 arm 간 서열이 아니라 base 대비 크기만 읽을 것.
+
+Figure 1 view sweep: `run_fig1_viewsweep.sh`의 `ARM_RUN`에 `base` 항목 추가
+(`base_s95 config/lact_l6_d256_p16.yaml`), 기본 ARMS에 포함. VIEWS="2 4 8 16 24 32" 실행 중.
+
 ## WAVE 2 — DNA 장거리 (seq 32768, bs 1, w128, 3B 토큰, s42)
 **WAVE 2는 WAVE 2 4셀끼리만 비교** (seq가 달라 ppl 절대값이 WAVE 1과 다름).
 
