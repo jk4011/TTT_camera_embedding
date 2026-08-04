@@ -76,8 +76,21 @@ Only worth it if we expect a reviewer to demand the third comparator.
 * **NoPE w128 seeds 137/211** : completes the 6-cell x 3-seed LLM matrix, whose only
   robust effect is currently the NoPE gap at a single seed.
 
-## Figure 1, still undecided
+## Figure 1, CCV panel: x-axis = number of frames (decided 2026-08-05)
 
-The CCV panel's x-axis is not defined. NVS and 3D reconstruction both sweep the number
-of input views; CCV has no obvious counterpart (source frames? trajectory length?).
-Decide before building that panel, or drop CCV to two panels.
+Three panels: NVS and 3D reconstruction sweep input views, CCV sweeps frame count.
+
+Two constraints to respect when building it.
+
+1. **Only 4k+1 frame counts are valid.** Wan's VAE compresses time 4x with a +1
+   offset, which is why the recipe uses 81 (= 4*20 + 1). Use {21, 41, 61, 81}; other
+   values will not tile into latent frames cleanly, and the AR window structure
+   (7 windows x 3 latent frames) is derived from the same arithmetic.
+2. **`num_frames` is a dataset parameter, not an eval flag yet.**
+   `multicam_pair_dataset.py` takes `num_frames=81`, but `eval_ccv_common.py` does not
+   expose it. Small change: thread it through as a CLI argument, the same shape as
+   `eval.py --num_input_views` on the NVS side.
+
+Caption caveat that applies to every panel: the models were TRAINED at one setting
+(8 input views for NVS, 81 frames for CCV), so points away from it measure
+extrapolation, not in-distribution quality.
