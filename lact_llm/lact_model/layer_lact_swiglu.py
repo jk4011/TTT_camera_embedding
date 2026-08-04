@@ -523,25 +523,45 @@ class LaCTSWIGLULayer(nn.Module):
         self._ext_coords = None
 
     def _ext_angles(self, inv_freq, axis_first=False):
-        """Split `inv_freq` in half and drive each half by one coordinate axis.
+        """Partition `inv_freq` into D contiguous bands, one per coordinate axis.
 
-        inv_freq: [P] fp32 ladder. Returns [b, s, P] (axis_first=False, input
-        site) or [b, P, s] (axis_first=True, hidden site). Requires
-        self._ext_coords set to [b, s, 2].
+        inv_freq: [P] fp32 ladder; self._ext_coords: [b, s, D] for any D >= 1.
+        Returns [b, s, P] (axis_first=False, input site) or [b, P, s]
+        (axis_first=True, hidden site).
+
+        Bands are contiguous and as equal as possible, so axis 0 gets the LOW
+        frequencies (coarse, long-range) and the last axis the high ones -- the
+        same convention as the video (t, y, x) grid carrier and the 6-way
+        Plucker split in NVS.
+
+        Note the cost this makes explicit: with P pairs shared over D axes, each
+        axis carries only ~P/D frequencies, so per-axis resolution FALLS as D
+        rises. More address dimensions is therefore not free, and a sweep over D
+        should show an optimum rather than a monotone gain.
+
+        D == 1 reproduces the stock rotary exactly (one band = the whole ladder),
+        and feeding the same coordinate on every axis does too, since the bands
+        then recombine into inv_freq * t.
         """
         c = self._ext_coords
-        assert c is not None and c.dim() == 3 and c.shape[-1] == 2, \
-            f"_ext_coords must be [b, s, 2], got {None if c is None else tuple(c.shape)}"
+        assert c is not None and c.dim() == 3 and c.shape[-1] >= 1, \
+            f"_ext_coords must be [b, s, D>=1], got {None if c is None else tuple(c.shape)}"
         inv = inv_freq.float()
         P = inv.shape[0]
-        Pa = P // 2                      # axis 0 (outer, e.g. matrix row)
-        c0 = c[..., 0].float()           # [b, s]
-        c1 = c[..., 1].float()
-        if axis_first:
-            return torch.cat([inv[None, :Pa, None] * c0[:, None, :],
-                              inv[None, Pa:, None] * c1[:, None, :]], dim=1)
-        return torch.cat([c0[:, :, None] * inv[None, None, :Pa],
-                          c1[:, :, None] * inv[None, None, Pa:]], dim=-1)
+        D = c.shape[-1]
+        assert D <= P, f"{D} coordinate axes but only {P} frequency pairs"
+        # contiguous, as-equal-as-possible bands: the first P % D bands get one extra
+        base, extra = divmod(P, D)
+        parts, lo = [], 0
+        for a in range(D):
+            hi = lo + base + (1 if a < extra else 0)
+            ca = c[..., a].float()                       # [b, s]
+            if axis_first:
+                parts.append(inv[None, lo:hi, None] * ca[:, None, :])
+            else:
+                parts.append(ca[:, :, None] * inv[None, None, lo:hi])
+            lo = hi
+        return torch.cat(parts, dim=1 if axis_first else -1)
 
     def liere_rotations(self, seq_len, seqlen_offset=0, device=None):
         """LieRE per-token rotation blocks R_t = matrix_exp(A * t * pos_scale),

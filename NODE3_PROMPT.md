@@ -64,11 +64,11 @@ least. Job 1 fills in the 2-D arm.
 does not in the 1d arms. If 2d looks just like 1d, the dimensionality hypothesis
 (F20) is refuted for this task and we report that.
 
-## JOB 2 — Q30, the grid-recall diagnostic (new), 7 cells
+## JOB 2 — Q30, grid recall with an ADDRESS-DIMENSION sweep (new), 13 cells
 
 ```bash
 cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_llm
-python synthetic_grid.py            # self-test, expect 12/12 PASS
+python synthetic_grid.py            # self-test, expect ALL PASS
 ./run_grid_diag.sh 0,1,2,3
 ```
 
@@ -79,25 +79,41 @@ any claim that the hidden site beats the input rotary. The cause is structural �
 the copy offset is one hardcoded constant (2560), so the model must represent
 exactly ONE relative distance, and any positional code can do that.
 
-`synthetic_grid.py` stores an R x C grid of random tokens and asks for one ROW
-or one COLUMN:
+**The task.** 1024 random tokens are stored early in the sequence; the query
+asks for 32 of them, either every 32nd (`stride`, hard) or 32 consecutive
+(`contig`, easy control). All tokens come from one distribution, so nothing is
+findable by content — only by address. The block sits ~3,500 tokens before the
+answer, far outside the 128 window, so the fast-weight path must carry it.
 
-* a **row** query is C contiguous tokens — the easy control, roughly what the
-  copy task already measured;
-* a **column** query is R tokens at **stride C**. Under a 1-D address that is R
-  distinct offsets held at once; under a `(row, col)` address it is one constant
-  axis. This is the sharpest 1-D-vs-2-D discriminator we can build, and it is
-  the synthetic counterpart of the CLRS matrix.
+**The sweep, which is the point.** The stored tokens are **identical at every
+setting, byte for byte** (asserted in the self-test). Only the factorisation of
+the flat index `p = i*32 + j` into axes changes:
 
-Every cell is drawn from one distribution, so no cell is findable by content —
-only by address. The grid sits ~3,500 tokens before the answer, far outside the
-128 window, so the fast-weight update->apply path must carry it.
+| coord_dims k | axes |
+|---|---|
+| 1 | `[p]` — the stock rotary |
+| 2 | `[i, j]` |
+| 3 | `[i, j/4, j%4]` |
+| 4 | `[i, j/8, (j/2)%4, j%2]` |
+| 5, 6 | `j` split further |
 
-Defaults: 32x32, `QUERY=col`, 800M tokens/cell (matching F35's budget).
-Knobs if you need a difficulty ladder: `ROWS=`, `COLS=`, `QUERY=row|mix`.
+So task, retrieval pattern, memory load and answer length (32 tokens) are all
+held fixed; only the address representation moves.
 
-**Run `col` first.** Only if `col` separates the arms is the `row` control worth
-GPU time — it is the "should show nothing" arm.
+**Pre-registered prediction — NOT a monotone gain.** `_ext_angles` partitions the
+ladder into k contiguous bands, so each axis carries only ~P/k frequencies:
+extra axes buy structure and *spend* resolution. Expect a peak near the data's
+true structure (k=2) and decay after. The load-bearing question is whether the
+hidden site's curve peaks **higher or later** than the input site's — that is
+precisely the claim that the hidden site is the multi-dimensional-address
+mechanism. This matters for the paper directly: NVS splits the ladder **6 ways**
+for Plücker coordinates, and this sweep is the first evidence about whether that
+is near-optimal or already past the peak.
+
+Grid: `base` (once — no rotary, coordinate provably inert) + `{in, h} x k in
+{1..6}` = 13 cells, 800M tokens each. Knobs: `DIMS=`, `ARMS=`, `QUERY=contig`.
+Run `stride` first; `contig` is the "should show nothing" control and is only
+worth GPU time if `stride` separates the arms.
 
 ---
 

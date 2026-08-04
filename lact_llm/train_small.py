@@ -83,16 +83,20 @@ def parse_args():
                         "'clrs': CLRS-Text algorithmic traces, char-level, with a "
                         "per-token 2-D address parsed from the serialization "
                         "(Q29 dimensionality ablation); see clrs_data.py.")
-    p.add_argument("--grid_rows", type=int, default=32,
-                   help="--data grid: grid height R (a column query is R tokens).")
-    p.add_argument("--grid_cols", type=int, default=32,
-                   help="--data grid: grid width C (a column query gathers at stride C).")
-    p.add_argument("--grid_query", type=str, default="col",
-                   choices=["col", "row", "mix"],
-                   help="--data grid: 'col' = stride-C gather (the hard case that a "
-                        "1-D address must hold R distinct offsets for, and a (row,col) "
-                        "address holds as one constant axis); 'row' = contiguous "
-                        "control; 'mix' = both, chosen per sample.")
+    p.add_argument("--grid_coord_dims", type=int, default=2, choices=[1, 2, 3, 4, 5, 6],
+                   help="--data grid: how many axes the flat index is factorised "
+                        "into for the rotary. The STORED TOKENS are identical at "
+                        "every setting, so this sweeps address representation "
+                        "alone. 1 = the stock rotary; 2 = (fiber position, fiber "
+                        "index); higher k splits the fiber index further. Note "
+                        "_ext_angles gives each axis only ~P/k frequencies, so "
+                        "more axes spend resolution -- expect an optimum, not a ramp.")
+    p.add_argument("--grid_query", type=str, default="stride",
+                   choices=["stride", "contig", "mix"],
+                   help="--data grid: 'stride' = every 32nd token (the hard case a "
+                        "1-D address must hold 32 distinct offsets for, and a 2-D "
+                        "address holds as one constant axis); 'contig' = 32 "
+                        "consecutive tokens (easy control); 'mix' = both.")
     p.add_argument("--clrs_quadrant", type=str, default="2d_long",
                    choices=["2d_long", "1d_long", "2d_short", "1d_short"],
                    help="--data clrs: which (dimensionality x memory-load) cell to "
@@ -299,15 +303,21 @@ def clrs_split(batch, coord_mode):
     model must GENERATE -- the same discipline as evaluate_copy's copy region.
     coord_mode '1d' feeds (t, t), which is bit-identical to the stock rotary.
     """
-    assert batch.dim() == 3 and batch.shape[-1] == 4, \
-        f"--data clrs expects blocks [b, s, 4], got {tuple(batch.shape)}"
+    # Channel layout is (token, c_0 .. c_{D-1}, loss_mask): token FIRST, mask
+    # LAST, every channel between them a coordinate axis. CLRS uses D=2; the
+    # grid diagnostic uses any D, and the same code reads both.
+    assert batch.dim() == 3 and batch.shape[-1] >= 3, \
+        f"expected blocks [b, s, 2+D], got {tuple(batch.shape)}"
     tokens = batch[..., 0].contiguous()
-    labels = tokens.masked_fill(batch[..., 3] == 0, -100)
+    labels = tokens.masked_fill(batch[..., -1] == 0, -100)
+    D = batch.shape[-1] - 2
     if coord_mode == "1d":
+        # every axis driven by the token index -> the bands recombine into
+        # inv_freq * t, i.e. bit-identically the stock rotary
         t = torch.arange(batch.shape[1], device=batch.device, dtype=torch.float32)
-        coords = t[None, :, None].expand(batch.shape[0], batch.shape[1], 2)
+        coords = t[None, :, None].expand(batch.shape[0], batch.shape[1], D)
     else:
-        coords = batch[..., 1:3].float()
+        coords = batch[..., 1:-1].float()
     return tokens, coords.contiguous(), labels
 
 
@@ -640,14 +650,13 @@ def main():
         # and the val indices are disjoint from training by construction.
         import synthetic_grid
         block_gen = synthetic_grid.GridStream(
-            args.data_seed, args.seq_len, args.grid_rows, args.grid_cols,
-            args.grid_query)
+            args.data_seed, args.seq_len, args.grid_coord_dims, args.grid_query)
         if resume_stream_state is not None:
             block_gen.restore(resume_stream_state)
         val_set = synthetic_grid.build_val_set(
-            args.data_seed, 64, args.seq_len, args.grid_rows, args.grid_cols,
+            args.data_seed, 256, args.seq_len, args.grid_coord_dims,
             args.grid_query)
-        print(f"[data] grid recall {args.grid_rows}x{args.grid_cols} "
+        print(f"[data] grid recall coord_dims={args.grid_coord_dims} "
               f"query={args.grid_query}: val set {tuple(val_set.shape)}", flush=True)
     elif args.data == "clrs":
         # CLRS-Text algorithmic traces: one problem per block, carrying a
