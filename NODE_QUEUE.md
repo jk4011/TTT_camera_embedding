@@ -196,10 +196,10 @@ Lakh MIDI(LMD-full, 176k 파일, 무인증) → miditok REMI 토크나이즈 →
 val 캐시(자연어/DNA와 동일한 ≈2M 토큰). 산출물은 datasets/music/ 및
 lact_llm/val_cache_music_4096.pt, 데이터 경로는 `--data music`.
 
-## T9.  music_nope       [PENDING] ./run_llm.sh <g> music_nope --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true}'
-## T10. music_rope       [PENDING] ./run_llm.sh <g> music_rope --data music --window_size 128 --bs 8 --token_budget 3000000000
-## T11. music_honly_g1   [PENDING] ./run_llm.sh <g> music_honly_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
-## T12. music_hpra_g1    [PENDING] ./run_llm.sh <g> music_hpra_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+## T9.  music_nope       [RUNNING node2 gpu0 2026-08-05 02:35] ./run_llm.sh <g> music_nope --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true}'
+## T10. music_rope       [RUNNING node2 gpu1 2026-08-05 02:35] ./run_llm.sh <g> music_rope --data music --window_size 128 --bs 8 --token_budget 3000000000
+## T11. music_honly_g1   [RUNNING node2 gpu2 2026-08-05 02:35] ./run_llm.sh <g> music_honly_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_nope": true, "ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
+## T12. music_hpra_g1    [RUNNING node2 gpu3 2026-08-05 02:35] ./run_llm.sh <g> music_hpra_g1 --data music --window_size 128 --bs 8 --token_budget 3000000000 --extra_json '{"ttt_hidden_rope": true, "ttt_hrope_gain": 1.0}'
 
 판정: 4셀끼리만 비교(vocab이 달라 자연어/DNA와 ppl 절대값 비교 불가).
 참조 서열 — 자연어(3-시드): nope 18.685 / rope 18.582 / honly 18.593 / hpra 18.578.
@@ -233,4 +233,8 @@ DNA 4k(1-시드): nope 3.0951 / rope 3.0988 / honly 3.0845 / hpra 3.1335.
   rope 3.1612 / honly 3.1678 / nope 3.1680 / hpra 3.1795 (범위 0.0183).
   참고 분해능: 종반 eval 변동 표준편차 0.0115-0.0221 → 셀 간 격차와 동일 자릿수, 1시드뿐.
   GPU 4장 확보 → T9-T12(음악) 착수 준비(sanity 먼저).
+- 2026-08-05 02:35 node2 T9-T12 RUNNING: music_{nope,rope,honly_g1,hpra_g1} → gpu0-3, self_heal.
+  선행 sanity_music.py ALL PASS (val 488x4096 vocab451, shuffle/resume/epoch-wrap 해시일치,
+  20스텝 loss ln(451)=6.111→5.207 감소, ckpt 왕복 배치해시·가중치 일치, 코퍼스 2.92B tok=1.03에폭).
+  91,552 step / 2,999,975,936 tok, 실측 ~155k tok/s → 약 5.4h 예상.
 
