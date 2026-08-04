@@ -50,6 +50,8 @@ Determinism matches synthetic_copy: every sequence is a pure function of
 exact. Val indices start at VAL_INDEX_BASE, disjoint from training.
 """
 
+import os
+
 import numpy as np
 import torch
 
@@ -59,7 +61,23 @@ PAD, BOS, EOS = 0, 1, 2
 GRID_MARKER_ID = 4
 QUERY_MARKER_ID = 5
 AXIS_ID_BASE = 6                  # axis a is token AXIS_ID_BASE + a  (6..11)
-NOISE_LO, NOISE_HI = 16, 1016     # content vocab: 1000 ids
+# Content vocab, 1000 ids by design. GRID_CONTENT_VOCAB is a LEARNABILITY-PROBE
+# knob only: at the designed size every arm -- including the d-D address arm the
+# design calls trivial -- sat exactly at chance (loss 6.909 == ln(1000)), so the
+# sweep had no dynamic range. Shrinking the vocab lowers the bits per cell while
+# leaving the lattice, the addresses and the retrieval pattern untouched, which
+# separates "cannot address" from "cannot restore content this precisely".
+# Keep >= 32: query tokens encode a fixed axis index as NOISE_LO + idx, and the
+# largest index in SHAPES is 31.
+_CONTENT_VOCAB = int(os.environ.get("GRID_CONTENT_VOCAB", "1000"))
+assert _CONTENT_VOCAB >= 32, "content vocab must cover the fixed-index encoding"
+NOISE_LO = 16
+NOISE_HI = NOISE_LO + _CONTENT_VOCAB
+if _CONTENT_VOCAB != 1000:
+    # provenance: a probe run must be identifiable from its log alone
+    print(f"[grid] PROBE: content vocab overridden to {_CONTENT_VOCAB} "
+          f"(chance = {1.0 / _CONTENT_VOCAB:.5f}); NOT the designed task",
+          flush=True)
 VOCAB_SIZE = 1024
 IGNORE_INDEX = -100
 

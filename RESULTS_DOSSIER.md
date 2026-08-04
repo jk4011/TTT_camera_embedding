@@ -370,6 +370,60 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F40: Q29 CLRS-Text address-DIMENSION grid — the 2-D address helps BOTH sites
+## equally; the hidden increment does NOT grow with dimensionality (2026-08-05)
+CLRS-Text 2d_long, 12L/768d/4 lact heads, seq 4096, window 128, 1.2B tokens,
+seed 42, held-out CLRS test seeds. `coord_mode=1d` feeds (t, t), which recombines
+the split ladder into inv_freq*t — bit-identically the stock rotary — so 2d-vs-1d
+moves the address dimension and NOTHING else (same data, tokens, length, load).
+Paired per-problem over n=488 held-out blocks (pooled answer_acc in parens):
+
+| contrast | mean d | t | win% |
+|---|---|---|---|
+| in_1d − base | −0.0346 | −10.38 | 24.6 |
+| h_1d − base | −0.0289 | −11.51 | 19.3 |
+| both_1d − base | −0.0350 | −14.79 | 6.1 |
+| in_2d − base | −0.0156 | −15.27 | 15.0 |
+| h_2d − base | −0.0103 | −4.62 | 46.3 |
+| both_2d − base | −0.0166 | −7.84 | 36.7 |
+| **h_2d − in_2d** | **+0.0053** | 2.26 | 66.6 |
+| **h_1d − in_1d** | **+0.0057** | 4.24 | 41.6 |
+| in_2d − in_1d | +0.0189 | 5.76 | 35.5 |
+| h_2d − h_1d | +0.0185 | 10.47 | 70.1 |
+
+pooled: base .8559, h_2d .8414, in_2d .8407, both_2d .8350, h_1d .8240,
+both_1d .8182, in_1d .8164.
+
+- PRE-REGISTERED PREDICTION REFUTED. The prediction was that the h-over-in
+  increment GROWS in the 2-D arms and not in the 1-D arms. It is FLAT: +0.0057
+  (1d) vs +0.0053 (2d). Whatever the hidden site buys on this task, a
+  higher-dimensional address is not what unlocks it. F20's dimensionality
+  hypothesis is refuted FOR CLRS.
+- The 2-D address is nonetheless strongly load-bearing, and helps both sites by
+  the SAME amount (in +0.0189, h +0.0185). So dimensionality is real but
+  site-agnostic.
+- NoPE BEATS EVERY ROTARY ARM (t = −4.6 .. −15.3). On algorithmic traces the
+  retrieval is content-keyed, and a positional phase on Q/K stops equal-content
+  tokens at different positions from matching — pure nuisance the model must
+  cancel. The 2-D address halves the deficit (−0.032 → −0.011) but never
+  overturns it. This is the OTHER SIDE of the inner-product addressing lemma:
+  the rotary pays off when the retrieval key IS relative geometry (NVS), and
+  costs when it is content.
+- SEED CAVEAT: the t-statistics are paired over BLOCKS and control block
+  difficulty, not initialisation. One seed per arm. The base-vs-rotary gaps and
+  the +0.019 dimensionality gain are far too large to be seed artifacts; the
+  h−in +0.005 (t=2.26) is NOT — it is within what a seed swap produces (cf.
+  F33/F18). "Hidden beats input" remains UNESTABLISHED; 2-3 seeds per arm would
+  be needed.
+- VALIDITY: the first Q29 grid returned bit-identical 2d/1d numbers because
+  `ttt_layers` was empty, so the address never reached the rotary. Those runs are
+  quarantined as `outputs/q29_*_INVALID_stockrotary`. Every cell here carries the
+  startup guard line (`COORD VERIFIED ACTIVE`, |d| = 1.1e-01 / 1.4e-01 / 3.5e-02;
+  base `address correctly inert`, |d| = 0.000e+00).
+- Stats: `lact_llm/paired_clrs.py`, raw in `lact_llm/outputs/q29_paired.json`.
+- SCOPE: procedurally-generated algorithmic traces, not natural language. The
+  3-seed natural-language LM null (F33) stands unchanged.
+
 ## F39: Q28 tttLRM warmup grid, step-1000 held-out — the fine-tune design is a
 ## STRUCTURAL dead end, not a budget shortfall (2026-08-04)
 DL3DV-140, 140 scenes, 32 input views, K-means selection, 536x960 — the same
