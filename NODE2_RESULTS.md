@@ -80,8 +80,40 @@ seed 95로 전 arm이 일치하므로 **per-scene paired** (arm − base):
 (LPIPS는 낮을수록 좋음: win%는 base 대비 낮아진 scene 비율.) 단일 시드 결과이므로
 F18 기준(~0.1-0.3 dB는 init 노이즈)에 비추어 arm 간 서열이 아니라 base 대비 크기만 읽을 것.
 
-Figure 1 view sweep: `run_fig1_viewsweep.sh`의 `ARM_RUN`에 `base` 항목 추가
-(`base_s95 config/lact_l6_d256_p16.yaml`), 기본 ARMS에 포함. VIEWS="2 4 8 16 24 32" 실행 중.
+**Figure 1 view sweep: 네 arm 6/6 완성.** `ARM_RUN`에 `base`(`base_s95`) 추가.
+base 곡선: v2 18.0641 / v4 20.6474 / v8 21.8252 / v16 22.0309 / v24 21.9368 / v32 21.9314.
+
+**스크립트 버그 수정(node1 Figure 1을 막고 있던 원인)**: `run_fig1_viewsweep.sh`가
+`launch_exp.sh`와 달리 triton/inductor 캐시 env를 export하지 않아, 기본 `/tmp/torchinductor_*`
+(noexec tmpfs)에서 `ImportError: ... failed to map segment from shared object`로 죽었다.
+이 때문에 `pra_hi` v=2/v=4가 실패해 있었다(114분 방치). 캐시 env를 추가하고 두 점을 재실행해
+채웠다: pra_hi v2 17.8663 / v4 20.6609. 이제 네 arm 모두 6/6.
+
+### P3. Video input-only + Both  [BLOCKED — node1 판단 필요]
+두 가지 선행 문제를 확인했다(둘 다 실행 전 단계, 아직 아무것도 돌리지 않음).
+1. **`abl_video_*.yaml` 경로가 리셋 후 미마이그레이션**: `output_path`/`data_root`가 죽은
+   `26msit001_T_B/POSTECH-CGLAB/...`을, 체크포인트가 노드-로컬 `/tmp/wan_ckpt`(리셋으로 소실)를
+   가리킨다. 세 경로 모두 부재 확인. `abl_ccv_*.yaml`은 `26msit001_A/jinhyeok/datasets/...`로
+   갱신돼 있어, video config만 빠진 것으로 보인다.
+2. **F22 대조군의 per-step 로그가 소실**: F21/F22는 데이터 순서+deterministic noise를 공유하는
+   *paired per-step* 비교인데, 평문 video 런 로그·체크포인트가 리셋에서 전부 사라졌다
+   (`lact_ar_video/outputs/`에 `ccv_*`만 생존). 게다가 데이터가 리셋 후 재구축돼(새 clip index)
+   설령 로그가 남았어도 스텝 단위 페어링이 성립하지 않는다.
+   → 지시대로 2런(input-only, Both)만 돌리면 **기존 base/hidden 셀과 짝지을 수 없다**.
+   비교 가능한 Table 6을 만들려면 base(및 h_pra)까지 같은 재구축 데이터로 재실행해야 하므로
+   2런이 아니라 3-4런이 된다. 프로토콜 변경이라 node2가 임의 결정하지 않는다.
+
+플래그 자체는 확인됨: `ARFastWeightSwiGLU`에 `ttt_input_rope`(입력 사이트)와
+`ttt_hidden_rope`(hidden 사이트)가 있어 input-only = `ttt_input_rope: true`,
+Both = 둘 다 true. `abl_video_full`은 `ttt_hidden_rope+ttt_learnable_freqs`라 Both가 아님(명명 함정 확인).
+
+### P5. CCV hidden-only  [BLOCKED — arm 정의 확인 필요]
+데이터·체크포인트·config 경로는 모두 정상이라 실행 자체는 가능하다. 다만 **arm 정의가
+문서와 config에서 어긋난다**: RESULTS_DOSSIER F30 표는 `ccv_pra`를 "(input, learnable)"로
+적었는데, `abl_ccv_pra.yaml`은 `ttt_input_rope: true`와 `ttt_hidden_rope: true`를 **둘 다**
+켜고 `use_cam_encoder: false`만 다르다(즉 "input 전용"이 아니라 "cam_encoder 없는 PRA 양쪽").
+따라서 "hidden-only"가 (a) `ttt_hidden_rope`만 켜고 cam_encoder 없음인지, (b) cam_encoder 있고
+hidden만인지가 갈린다. ~46h 런이라 추측으로 시작하지 않고 node1 확인을 기다린다.
 
 ## WAVE 2 — DNA 장거리 (seq 32768, bs 1, w128, 3B 토큰, s42)
 **WAVE 2는 WAVE 2 4셀끼리만 비교** (seq가 달라 ppl 절대값이 WAVE 1과 다름).

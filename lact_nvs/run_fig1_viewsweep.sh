@@ -24,6 +24,15 @@ cd "$HERE"
 PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
 GPU=${1:-0}
 
+# Default /tmp/torchinductor_* is a noexec tmpfs here, so triton fails to load its
+# compiled launcher ("failed to map segment from shared object") — this killed
+# pra_hi v=2 and v=4 on the first pass. Same repo-local caches launch_exp.sh uses.
+REPO_ROOT="$(cd .. && pwd)"
+export TRITON_CACHE_DIR="$REPO_ROOT/.cache_triton_nvs"
+export TORCHINDUCTOR_CACHE_DIR="$REPO_ROOT/.cache_inductor_nvs"
+export TORCHINDUCTOR_COMPILE_THREADS=1
+mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
+
 # arm -> "run_dir config"
 declare -A ARM_RUN=(
   [base]="base_s95 config/lact_l6_d256_p16.yaml"
