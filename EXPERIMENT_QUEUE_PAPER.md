@@ -79,6 +79,19 @@ null (spread 0.0069 ppl), its cause is identified (REMI emits Bar/Position token
 position is readable as content), and the user declined the TSD follow-up twice. WAVE 3
 fired on its "4 GPUs free" gate before that decision reached the node2 queue.
 
+## P8. Make DCP checkpoint saving atomic [small code change, no GPU]
+
+`save_job` writes straight into `checkpoint_model_{step:06d}/`, and
+`find_latest_checkpoint` picks the highest step number without checking that the
+directory is complete. So a Slurm stop DURING a save leaves a partial directory that
+resume will then load. That is why `keep_last_iter` is 1000 (4 checkpoints) rather
+than 1: the older ones are the fallback.
+
+Fix: write to `checkpoint_model_{step:06d}.tmp/`, fsync, then rename. A partial write
+never acquires the name `find_latest_checkpoint` looks for, and one kept checkpoint
+becomes sufficient. Not done now because it touches the DCP save path and P3/P5 launch
+imminently; a bug there would cost more than the disk it saves.
+
 ## Also outstanding, tracked elsewhere
 
 * **tttLRM from-scratch, 4 arms** [node1, 8 GPUs] : Table 2's real row. Ladder at
