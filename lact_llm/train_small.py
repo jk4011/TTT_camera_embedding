@@ -74,7 +74,7 @@ def parse_args():
                    help="JSON dict merged into the config dict LAST.")
     # data
     p.add_argument("--data", type=str, default="fineweb",
-                   choices=["fineweb", "dna", "music", "clrs"],
+                   choices=["fineweb", "dna", "music", "clrs", "grid"],
                    help="'fineweb': fineweb-edu char/BPE stream (default, unchanged). "
                         "'dna': hg38 char-level LM (vocab_size=8, chr20 held out for "
                         "val); see dna_data.py. "
@@ -83,6 +83,16 @@ def parse_args():
                         "'clrs': CLRS-Text algorithmic traces, char-level, with a "
                         "per-token 2-D address parsed from the serialization "
                         "(Q29 dimensionality ablation); see clrs_data.py.")
+    p.add_argument("--grid_rows", type=int, default=32,
+                   help="--data grid: grid height R (a column query is R tokens).")
+    p.add_argument("--grid_cols", type=int, default=32,
+                   help="--data grid: grid width C (a column query gathers at stride C).")
+    p.add_argument("--grid_query", type=str, default="col",
+                   choices=["col", "row", "mix"],
+                   help="--data grid: 'col' = stride-C gather (the hard case that a "
+                        "1-D address must hold R distinct offsets for, and a (row,col) "
+                        "address holds as one constant axis); 'row' = contiguous "
+                        "control; 'mix' = both, chosen per sample.")
     p.add_argument("--clrs_quadrant", type=str, default="2d_long",
                    choices=["2d_long", "1d_long", "2d_short", "1d_short"],
                    help="--data clrs: which (dimensionality x memory-load) cell to "
@@ -398,7 +408,7 @@ def run_validation(model, val_set, args, step, tokens_seen, device, val_log_path
                    ttt_layers=()):
     t0 = time.time()
     entry = {"step": step}
-    if args.data == "clrs":
+    if args.data in ("clrs", "grid"):
         val_loss, acc, exact = evaluate_clrs(
             model, val_set, args.val_bs, device, args.clrs_coord_mode, ttt_layers)
         ppl = math.exp(min(20.0, val_loss))
@@ -528,6 +538,11 @@ def main():
         tok_name, vocab_size = "music", tokenizer.vocab_size
         print(f"[data] music REMI tokenizer (vocab_size={vocab_size}, "
               f"bos={tokenizer.bos_token_id} eos={tokenizer.eos_token_id})", flush=True)
+    elif args.data == "grid":
+        import synthetic_grid
+        tokenizer = synthetic_grid.GridCharTokenizer()
+        tok_name, vocab_size = "grid", synthetic_grid.VOCAB_SIZE
+        print(f"[data] grid-recall tokenizer (vocab_size={vocab_size})", flush=True)
     elif args.data == "clrs":
         import clrs_data
         tokenizer = clrs_data.ClrsCharTokenizer()
@@ -620,6 +635,20 @@ def main():
             block_gen.restore(resume_stream_state)
         print(f"[data] music LMD-full REMI: {block_gen.N:,} train blocks, val set "
               f"{tuple(val_set.shape)} (held-out files)", flush=True)
+    elif args.data == "grid":
+        # Grid recall: deterministic in (data_seed, index), so no cache is needed
+        # and the val indices are disjoint from training by construction.
+        import synthetic_grid
+        block_gen = synthetic_grid.GridStream(
+            args.data_seed, args.seq_len, args.grid_rows, args.grid_cols,
+            args.grid_query)
+        if resume_stream_state is not None:
+            block_gen.restore(resume_stream_state)
+        val_set = synthetic_grid.build_val_set(
+            args.data_seed, 64, args.seq_len, args.grid_rows, args.grid_cols,
+            args.grid_query)
+        print(f"[data] grid recall {args.grid_rows}x{args.grid_cols} "
+              f"query={args.grid_query}: val set {tuple(val_set.shape)}", flush=True)
     elif args.data == "clrs":
         # CLRS-Text algorithmic traces: one problem per block, carrying a
         # per-token 2-D address. val comes from the HELD-OUT test repo, so it is
@@ -678,7 +707,7 @@ def main():
     # batches of every 100th step — used by the crash-resume gold test.
     batch_fp = str2bool(os.environ.get("LLM_BATCH_FP", "0"))
 
-    if args.data == "clrs":
+    if args.data in ("clrs", "grid"):
         verify_clrs_coords_active(model, val_set, args, device, ttt_layers)
 
     # ---- training loop -------------------------------------------------
@@ -726,7 +755,7 @@ def main():
             # copy task: supervise ONLY the copy region (-100 elsewhere);
             # clrs: supervise the answer region and install the 2-D address;
             # otherwise plain LM (labels = inputs, shifted inside the model).
-            if args.data == "clrs":
+            if args.data in ("clrs", "grid"):
                 x, _coords, labels = clrs_split(x, args.clrs_coord_mode)
                 set_ext_coords(ttt_layers, _coords)
             elif args.synthetic == "copy":
