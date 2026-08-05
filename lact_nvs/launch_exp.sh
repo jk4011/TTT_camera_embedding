@@ -6,6 +6,13 @@ GPU=$1
 EXP=$2
 CONFIG=$3
 SEED=${4:-95}
+# Budget overrides. Defaults reproduce the standard 30k protocol exactly, so every
+# existing queue entry is untouched. STEPS=80000 WARMUP=4000 is the budget-sensitivity
+# run: warmup scales with the budget (1500 x 80/30 = 4000, which is also train.py's own
+# default at 80k) so the cosine keeps its shape. lpips_start stays ABSOLUTE at 5000,
+# which preserves the early-training recipe rather than the LPIPS-on fraction.
+STEPS=${STEPS:-30000}
+WARMUP=${WARMUP:-1500}
 
 PY_ENV=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin
 cd "$(dirname "$0")"
@@ -25,7 +32,7 @@ CUDA_VISIBLE_DEVICES=$GPU $PY_ENV/torchrun \
   --config $CONFIG \
   --data_path /tmp/re10k/train_index.json --dataset re10k --scene_pose_normalize \
   --expname $EXP \
-  --steps 30000 --warmup 1500 --lr 1e-4 --lpips_start 5000 --seed $SEED \
+  --steps $STEPS --warmup $WARMUP --lr 1e-4 --lpips_start 5000 --seed $SEED \
   --bs_per_gpu 16 --num_all_views 15 --num_input_views 8 --num_target_views 8 \
   --image_size 256 256 --num_workers 7 \
   --save_every 10000 --log_every 200 \

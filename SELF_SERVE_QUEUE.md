@@ -161,3 +161,45 @@ directly on a task where we control it.
      that does not exist and pass silently;
   4. `ps | grep <pattern>` matches your own command line, exactly like `pkill -f`;
      exclude `$$` or kill by PID only.
+
+---
+
+## GROUP E: budget sensitivity (do these FIRST once a node frees 4 GPUs)
+
+The 30k protocol is a fixed budget, not a convergence criterion. `train.py`'s own
+default is 80000, and base_s95's train PSNR is still climbing in its final window
+(20.855 -> 21.061 over the last 5k steps). A reviewer will ask whether the rotary's
+gain is an artefact of stopping early, and right now we cannot answer.
+
+There is a second, sharper reason. Both's lead over hidden-only DECAYS monotonically
+through training (train PSNR, seed 95, same data order):
+
+| step | 2500 | 10000 | 15000 | 25000 | 27500 |
+|---|---|---|---|---|---|
+| Both - hidden | +0.398 | +0.158 | +0.056 | +0.044 | -0.001 |
+
+Extrapolated, hidden-only could OVERTAKE Both at 80k. That is a result we need to know
+before the paper claims the two sites compose. This is why `hidden` is not optional.
+
+One command per arm, ~4.3 h each on one B200, four in parallel:
+
+```bash
+cd lact_nvs && bash run_budget80k.sh <gpu> <arm>     # arm = base | input | hidden | both
+# or all four at once:  GPUS="0 1 2 3" bash run_budget80k.sh
+```
+
+| ITEM_ID | arm | config | what it answers |
+|---|---|---|---|
+| `E1_b80k_base` | base | `lact_l6_d256_p16` | does NoPE catch up given 2.7x the budget |
+| `E2_b80k_input` | input | `cam_pra_hi` | input-site gain at a converged budget |
+| `E3_b80k_hidden` | hidden | `cam_h_pra_hi` | **does hidden-only overtake Both** |
+| `E4_b80k_both` | both | `cam_pra_h_hi` | the headline recipe at a longer budget |
+
+Seed 95, fixed ladders (input F21 / hidden F_h42), everything else the standard
+protocol. warmup scales 1500 -> 4000 so the cosine keeps its shape; `lpips_start`
+stays at 5000, which preserves the early-training recipe rather than the fraction of
+training that carries LPIPS.
+
+**Report all four together as paired per-scene deltas on the same 256 held-out scenes.
+These numbers are comparable ONLY to each other, never to the 30k table** -- different
+budget means a different schedule, so mixing them would be a confound.
