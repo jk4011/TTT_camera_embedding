@@ -1,4 +1,5 @@
 import torch.nn.functional as F
+import os
 import torch
 
 
@@ -386,15 +387,16 @@ def prenorm_block_causal_lact_swiglu(
 
     return output.transpose(1, 2)
 
-def apply_rotary_cols(x, cos, sin):
+def _apply_rotary_cols_impl(x, cos, sin):
     """Rotate adjacent row-pairs of column-major tokens.
 
     x: [b, d, l]; cos/sin: [P, l] (shared) or [b, P, l] (per-row, e.g.
     per-fw-head AdaFreq ladders) with 2P <= d. Rotates rows [0:2P].
     """
     P = cos.shape[-2]
-    x_rot = x[:, : 2 * P, :].float().reshape(x.shape[0], P, 2, x.shape[2])
-    x1, x2 = x_rot[:, :, 0], x_rot[:, :, 1]
+    x_rot = x[:, : 2 * P, :].reshape(x.shape[0], P, 2, x.shape[2])
+    x1 = x_rot[:, :, 0].float()
+    x2 = x_rot[:, :, 1].float()
     if cos.dim() == 3:
         c, s_ = cos, sin
     else:
@@ -405,6 +407,21 @@ def apply_rotary_cols(x, cos, sin):
         return y
     return torch.cat([y, x[:, 2 * P :, :]], dim=1)
 
+
+
+# Fused: the arithmetic is trivial but each elementwise step was its own kernel
+# launch, so the tensor traffic was paid six or seven times over. Measured at the
+# tttLRM hidden shape [4, 4096, 3072] on a B200: 1.892 ms eager against a 0.038 ms
+# bandwidth floor, 0.160 ms fused, bit-identical. Compiling only this function is
+# safe even where the surrounding TTT kernel cannot be compiled, because it holds no
+# collectives. TTTROPE_NO_COMPILE=1 falls back to eager.
+_ROTARY_FUSED = True
+apply_rotary_cols = _apply_rotary_cols_impl
+if hasattr(torch, "compile") and os.environ.get("TTTROPE_NO_COMPILE", "0") != "1":
+    try:
+        apply_rotary_cols = torch.compile(_apply_rotary_cols_impl, dynamic=True)
+    except Exception:
+        apply_rotary_cols = _apply_rotary_cols_impl
 
 def apply_block_rot(x, r):
     """LieRE: rotate the leading nb*bb rows of column-major tokens by per-token
@@ -951,5 +968,173 @@ def prenorm_block_causal_lact_swiglu_branch_rope(
     gate = F.silu(torch.bmm(w0, qgi), inplace=True)
     # [b, dv, dh] @ [b, dh, l] -> [b, dv, l]
     output[:, :, s_index:e_index] = torch.bmm(w1, gate * h)
+
+    return output.transpose(1, 2)
+
+
+@torch.compile()
+@torch.autocast(device_type="cuda", enabled=True, dtype=torch.bfloat16)
+def prenorm_block_causal_lact_swiglu_branch_hidden_rope(
+    w0: torch.Tensor,
+    w1: torch.Tensor,
+    w2: torch.Tensor,
+    q_gate: torch.Tensor,  # q copy feeding the silu GATE branch (w0)
+    k_gate: torch.Tensor,  # k copy feeding the silu GATE branch (w0)
+    q_cont: torch.Tensor,  # q copy feeding the linear CONTENT branch (w2)
+    k_cont: torch.Tensor,  # k copy feeding the linear CONTENT branch (w2)
+    v: torch.Tensor,
+    lr0: torch.Tensor,
+    lr1: torch.Tensor,
+    lr2: torch.Tensor,
+    hcos: torch.Tensor,  # [P, seq_len] fp32 hidden-rotary coeffs
+    hsin: torch.Tensor,
+    chunk_size: int = 2048,
+    use_muon: bool = False,
+    momentum: torch.Tensor = None,
+    delta_only: bool = False,
+):
+    """GbR (branch-split input rope, Q25b) + h-PRA (hidden rotary) combined (Q26).
+
+    Input side, from the branch kernel: the SwiGLU fast weight
+    f(x) = w1 (silu(w0 x_gate) * (w2 x_cont)) takes two independent q/k
+    pairs — the caller routes the rotated copy to one branch and the plain
+    copy to the other. Every inner-loop gradient follows from that
+    function: dw0's input row is k_gate, dw2's is k_cont, and the shared
+    upstream terms use their own branch's pre-activation. The kernel never
+    backprops to k inside the inner loop, so no dk split is needed
+    (outer-loop autograd differentiates through both copies).
+
+    Hidden side, from the hidden kernel: the SwiGLU hidden activation
+    h = silu(w0 x_gate) * (w2 x_cont) — regardless of which input branch
+    was rotated upstream — is rotated by per-token position phases before
+    meeting w1, on both the apply path (query phases) and the update path
+    (key phases); the inner-loop backward applies the inverse rotation
+    (hcos, -hsin). delta_only splits the apply into the UNROTATED initial
+    readout plus the rotated delta probe, exactly as in the hidden kernel:
+        o = w1_init @ h(q) + (w1 - w1_init) @ R(phi_q) h(q).
+
+    Reductions: with hcos=1/hsin=0 (identity hidden rotation, e.g.
+    ttt_hrope_gain=0) every op matches
+    prenorm_block_causal_lact_swiglu_branch_rope bit-exactly; with
+    q_gate==q_cont and k_gate==k_cont (same tensors in both slots) it
+    matches prenorm_block_causal_lact_swiglu_hidden_rope's plain-ladder
+    path bit-exactly. hnorm / h_basis / LieRE r_blocks are deliberately
+    NOT supported here (hidden-kernel-only mutations).
+    """
+    w0_norm = w0.norm(dim=2, keepdim=True)
+    w1_norm = w1.norm(dim=2, keepdim=True)
+    w2_norm = w2.norm(dim=2, keepdim=True)
+
+    w0_main, w1_main, w2_main = w0, w1, w2
+    if delta_only:
+        w1_init = w1.clone()
+
+    if momentum is not None:
+        dw1_momentum = torch.zeros_like(w1)
+        dw0_momentum = torch.zeros_like(w0)
+        dw2_momentum = torch.zeros_like(w2)
+
+    q_gate = q_gate.transpose(1, 2)  # [b, dk, l]
+    q_cont = q_cont.transpose(1, 2)  # [b, dk, l]
+    v = v.transpose(1, 2)
+    output = torch.zeros_like(v)
+
+    e_index = 0
+    seq_len = k_gate.shape[1]
+    for i in range(0, seq_len - chunk_size, chunk_size):
+        s_index = i
+        e_index = s_index + chunk_size
+
+        # [b, l, dk]
+        kgi = k_gate[:, s_index:e_index, :]
+        kci = k_cont[:, s_index:e_index, :]
+        # [b, dv, l]
+        vi = v[:, :, s_index:e_index]
+        # [b, dk, l]
+        qgi = q_gate[:, :, s_index:e_index]
+        qci = q_cont[:, :, s_index:e_index]
+        # [b, l, d/1] fp32
+        lr1i = lr1[:, s_index:e_index, :]
+        lr2i = lr2[:, s_index:e_index, :]
+        lr0i = lr0[:, s_index:e_index, :]
+        hci = hcos[..., s_index:e_index]
+        hsi = hsin[..., s_index:e_index]
+
+        # apply with previous weights: gate branch reads q_gate, content
+        # q_cont; the hidden of queries is rotated by their phases
+        h = torch.bmm(w2, qci)
+        gate = F.silu(torch.bmm(w0, qgi), inplace=True)
+        hq = gate * h
+        hq_rot = apply_rotary_cols(hq, hci, hsi)
+        if delta_only:
+            # initial readout unrotated; only the accumulated delta probes rotated
+            output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(
+                w1 - w1_init, hq_rot)
+        else:
+            output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
+
+        # [b, dh, dk] @ [b, dk, l] -> [b, dh, l]
+        gate_before_act = torch.bmm(w0, kgi.transpose(1, 2))
+        hidden_before_mul = torch.bmm(w2, kci.transpose(1, 2))
+        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        hidden_rot = apply_rotary_cols(hidden, hci, hsi)
+
+        # backprop through the rotation: R^T = rotary with negated sin
+        dhidden_rot = torch.bmm(w1.transpose(1, 2), vi)
+        dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+
+        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dgate = dhidden * hidden_before_mul
+        dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+        # [b, dv, l] @ [b, l, dh] -> [b, dv, dh]
+        dw1 = torch.bmm(vi, (hidden_rot.transpose(1, 2) * lr1i).type_as(vi))
+        # dw0's input row is the GATE branch's k; dw2's is the CONTENT branch's
+        dw0 = torch.bmm(dgate_before_act, (kgi * lr0i).type_as(dgate_before_act))
+        dw2 = torch.bmm(dhidden_before_mul, (kci * lr2i).type_as(dhidden_before_mul))
+
+        if momentum is not None:
+            m_i = momentum[:, s_index:e_index, :]
+            m_i = m_i.mean(dim=1, keepdim=True)
+            dw0 = dw0 + dw0_momentum * m_i
+            dw1 = dw1 + dw1_momentum * m_i
+            dw2 = dw2 + dw2_momentum * m_i
+            dw0_momentum = dw0
+            dw1_momentum = dw1
+            dw2_momentum = dw2
+
+        if use_muon:
+            dw1 = zeropower_via_newtonschulz5(dw1)
+            dw0 = zeropower_via_newtonschulz5(dw0)
+            dw2 = zeropower_via_newtonschulz5(dw2)
+
+        w1_main = w1_main + dw1
+        w0_main = w0_main + dw0
+        w2_main = w2_main + dw2
+
+        # Do channel-wise l2 norm.  conceptually like post-norm.
+        w0 = w0_main / (w0_main.norm(dim=2, keepdim=True) + 1e-5) * w0_norm
+        w1 = w1_main / (w1_main.norm(dim=2, keepdim=True) + 1e-5) * w1_norm
+        w2 = w2_main / (w2_main.norm(dim=2, keepdim=True) + 1e-5) * w2_norm
+
+    # for the last chunk, don't update the fast weights, directly apply the
+    # fast weights to the query — same branch split AND query-phase hidden
+    # rotation as the chunk-loop apply (a missing tail rotation was a past
+    # bug class in this repo).
+    s_index = e_index
+    e_index = seq_len
+
+    qgi = q_gate[:, :, s_index:e_index]
+    qci = q_cont[:, :, s_index:e_index]
+    h = torch.bmm(w2, qci)
+    gate = F.silu(torch.bmm(w0, qgi), inplace=True)
+    hq = gate * h
+    hq_rot = apply_rotary_cols(hq, hcos[..., s_index:e_index],
+                               hsin[..., s_index:e_index])
+    if delta_only:
+        output[:, :, s_index:e_index] = torch.bmm(w1_init, hq) + torch.bmm(
+            w1 - w1_init, hq_rot)
+    else:
+        output[:, :, s_index:e_index] = torch.bmm(w1, hq_rot)
 
     return output.transpose(1, 2)

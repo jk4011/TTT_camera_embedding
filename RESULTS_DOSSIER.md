@@ -370,6 +370,45 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F42: the rotary's wall-clock cost was 50x its bandwidth floor; fusing it cuts the
+## overhead from 42% to 9% (2026-08-05)
+The rotary's arithmetic is trivial, yet `both` ran 42% slower than `base` on tttLRM.
+Profiled at the real hidden shape [4, 4096, 3072] on a B200:
+| implementation | time | vs bandwidth floor |
+|---|---|---|
+| memory-bandwidth floor (8 TB/s, 288 MiB traffic) | 0.038 ms | 1x |
+| original | 1.892 ms | **50.1x** |
+| removing the redundant stack/cat only | 1.794 ms | 47.5x (worth 5%) |
+| **fused into one kernel** | **0.160 ms** | **4.2x (11.8x faster)** |
+CAUSE: not FLOPs. Each elementwise step was its own kernel launch, so the 288 MiB of
+traffic was paid six or seven times. Fusion pays it once.
+WHY IT HAD NEVER BEEN FUSED: the launchers exported `TORCH_COMPILE_DISABLE=1`, which
+disables compilation *globally*. It was set for ONE function,
+`fast_weight_swish_glu_weight_norm_mini_batch_apply`, whose `sp_all_reduce` carries a
+ProcessGroup that inductor cannot trace. Removing `@torch.compile` from just that
+function (and its cam twin) lets everything else compile.
+Also removed per-block recomputation of the phases: `gain` is a plain float and `omega`
+a fixed buffer, so all 24 blocks were rebuilding identical cos/sin. At nf_h=256 and 16
+views that is ~36 GB of redundant allocation per forward. Now memoised in `info`, keyed
+by rotary_scale and token count.
+MEASURED END TO END (tttLRM from-scratch grid, 300 s window, 2 GPUs/cell):
+| arm | before | after | vs base |
+|---|---|---|---|
+| base | 2.72 | 2.50 | . |
+| input | 2.93 | **2.50** | **0%** |
+| hidden | 3.62 | 2.73 | +9% |
+| **Both** | 3.85 | **2.73** | **+9%** |
+The input site's overhead is now zero. `base` also gained 8%, because the global switch
+had been suppressing unrelated compiles (`silu_backprop` and friends).
+Applied to all four tasks: tttLRM, NVS, video/CCV, LLM.
+**REPRODUCIBILITY CAVEAT, and it is real:** the fused kernel is NOT bit-identical to
+eager. Inductor reorders the rounding, giving 1 ULP in bf16 (9.77e-04, up to 0.0156 at
+full ladder width; 9.5e-07 in fp32). Comparisons WITHIN an experiment stay exact in kind,
+since all arms share the code path, and 1 ULP is orders of magnitude below our own noise
+floor (F18: 0.1-0.3 dB PSNR gaps are seed noise). But numbers produced after this change
+do not bit-reproduce numbers produced before it, which includes F25, F40 and F41.
+`TTTROPE_NO_COMPILE=1` restores the eager path if an exact re-run is ever needed.
+
 ## F41: Q31 attn_nope — removing the ATTENTION rotary FLIPS the hidden rotary from
 ## harmful to helpful, and leaves the input rotary's gain untouched (2026-08-05)
 200M LaCT LM, 3B tokens fineweb-edu, data_seed 42, bs 8x4096, window 1024, 91,552
