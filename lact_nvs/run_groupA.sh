@@ -15,6 +15,15 @@ set -u
 GPU=$1
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
+# The eval step runs eval.py as its own process, so it does NOT inherit the compile
+# caches launch_exp.sh exports for training. Default /tmp/torchinductor_* is a noexec
+# tmpfs and inductor dies there ("failed to map segment from shared object") -- which
+# is exactly how camimg_s95 finished training and then lost its eval.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export TRITON_CACHE_DIR="$REPO_ROOT/.cache_triton_nvs"
+export TORCHINDUCTOR_CACHE_DIR="$REPO_ROOT/.cache_inductor_nvs"
+export TORCHINDUCTOR_COMPILE_THREADS=1
+mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
 CLAIM=outputs/.groupA_claims; mkdir -p "$CLAIM"
 HOST="$(hostname -s)"
 

@@ -1156,3 +1156,75 @@ finishes clean.
 Q31 completion status otherwise: 8/8 cells at 3B tokens, step 91552, two data seeds.
 Q29 is 7/7 complete with `q29_paired.json` computed. Only Q30 (13 of 15 cells for
 DIMS='2 4 6') remained from node3's queue.
+
+## F45: tttLRM from-scratch grid, 15,000 steps — every rotary arm beats NoPE, but the
+## two sites do NOT compose here (2026-08-06)
+DL3DV-140, 8 input views, 272x480, d768/24L, from scratch, cosine to 0 at 15,000 (the
+annealed endpoint; there is deliberately no wave 2). Rotary arms at NVS ladder width
+(num_freqs 64 / num_freqs_h 256), which removes the 25%/8.2% coverage confound of the
+fine-tune round. Paired per scene, n=140.
+
+| arm | PSNR | SSIM | LPIPS | dPSNR vs base | t | improved |
+|---|---|---|---|---|---|---|
+| base (NoPE) | 15.240 | 0.3682 | 0.6508 | — | — | — |
+| **in** (input site) | **15.691** | **0.3825** | 0.6158 | **+0.451** | +16.90 | 135/140 |
+| h (hidden site) | 15.672 | 0.3820 | **0.6132** | +0.433 | +15.56 | 134/140 |
+| both | 15.532 | 0.3799 | 0.6200 | +0.293 | +11.07 | 124/140 |
+
+1. **The rotary works from scratch on 3D reconstruction.** All three arms beat NoPE at
+   t=11-17 on 124-135 of 140 scenes, and LPIPS improves on 139-140/140. This is the
+   result the fine-tune round (F39) structurally could not produce: the released
+   checkpoint was already converged, leaving ~0.08 dB of headroom, so that design could
+   only ever measure what the rotary COSTS.
+2. **in and h are statistically indistinguishable** (+0.451 vs +0.433) — unlike NVS,
+   where the hidden site carries most of the fixed-ladder gain.
+3. **both is WORSE than either single site** (+0.293), not merely sub-additive. Adding
+   the second site here REMOVES about a third of the gain.
+
+Point 3 is the same direction as the NVS through-training result (Both's lead over
+hidden-only decays to zero by 27.5k) and the same direction as Q4's sub-additivity, but
+stronger: in NVS the sites still add a little at 8 views, here they subtract. Both
+observations say the two address spaces overlap; tttLRM at full ladder width is where
+the overlap turns costly.
+
+CAVEAT ON ABSOLUTE LEVEL: 15.2-15.7 PSNR is NOT comparable to the 25.062 anchor or to
+the fine-tune grid. Those use 32 input views at 536x960; these are 8 views at 272x480
+from scratch at 15k steps. The four numbers are comparable only to each other, which is
+all the four-arm contrast needs.
+
+## F46: PRoPE-style camera/image budget split on NVS (camimg, seed 95, 2026-08-06)
+Standard protocol. Budget-matched to qk_rope_cam by construction and by measurement:
+6*F_cam + 2*F_img = 6*10 + 2*33 = 126 pairs = 6*21, 252 of 256 head dims rotated in
+both. So this is purely a question of ALLOCATION.
+
+| variant | PSNR | LPIPS |
+|---|---|---|
+| base | 21.825 | 0.2874 |
+| pra_hi (input site, 100% camera) | 22.333 | 0.2751 |
+| **camimg (input site, 50% camera + 50% image)** | **22.451** | **0.2738** |
+| pra_h_hi (input + hidden, 100% camera) | 22.797 | 0.2685 |
+
+Paired per scene, n=256:
+- camimg - pra_hi: **+0.117 PSNR (t=+8.51, 181/256), -0.0013 LPIPS (t=-3.96)**
+- camimg - base: +0.625 (t=+19.23, 230/256)
+- camimg - pra_h_hi: **-0.346 (t=-21.19, 17/256)**
+
+1. **Spending half the input-site budget on in-view 2D position beats spending all of
+   it on camera** — small (+0.117) but consistent, 181 of 256 scenes, t=8.51. It is
+   below the 0.35 dB seed-noise floor (F18) as an absolute PSNR gap, so a 3-seed
+   confirmation is needed before this goes anywhere near the paper; the paired t is
+   about the same checkpoint pair, not about seed robustness.
+2. **It does not approach the second SITE.** Adding the hidden site is worth +0.464
+   over pra_hi; reallocating half the input budget to image coordinates is worth
+   +0.117, i.e. a quarter as much. The site axis dominates the allocation axis.
+3. Partially replicates F34's finding that PRoPE's gain in this stack came from its
+   image-coordinate ropes, now WITHOUT the projective transform that cost -0.294.
+
+## Infrastructure bug: eval steps ran without the compile caches (2026-08-06)
+`launch_exp.sh` exports TRITON_CACHE_DIR / TORCHINDUCTOR_CACHE_DIR to lustre, but
+run_camimg.sh, run_budget80k.sh and run_groupA.sh invoked `eval.py` as a separate
+process that did not inherit them. Default /tmp/torchinductor_* is a noexec tmpfs, so
+inductor died with "failed to map segment from shared object" AFTER training completed.
+camimg_s95 hit this and lost its eval; the four 80k runs and seven Group A runs would
+each have hit it hours later. Fixed by exporting in all three scripts. Any new launcher
+that calls eval.py directly needs the same three lines.
