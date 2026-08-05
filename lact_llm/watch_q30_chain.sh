@@ -22,8 +22,17 @@ while :; do
     case " $DONE " in *" $C "*) continue;; esac
     [ -f "$TTT/outputs/scratch_$C/final.pt" ] || continue
     G=${ODD[$C]}
-    echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> Q30 worker on GPU $G"
-    ( DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
+    if [ "$C" = base ]; then
+      # Longest job on the first GPU to free. The Q31 nope repair is 3B tokens, about
+      # 3.75x one Q30 cell, so starting it last would leave it running alone for hours
+      # after everything else is done. It falls through to the Q30 pool when finished.
+      echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> Q31 nope repair on GPU $G, then Q30"
+      ( ./run_q31_nope_rerun.sh "$G" >> "outputs/q31_nope_rerun_gpu${G}.log" 2>&1
+        DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
+    else
+      echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> Q30 worker on GPU $G"
+      ( DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
+    fi
     DONE="$DONE $C"
   done
   [ "$(echo $DONE | wc -w)" -eq 4 ] && break

@@ -1128,3 +1128,31 @@ CONSEQUENCE: the 30k budget is a stopping point, not convergence (train.py's own
 default is 80000, and base_s95 is still climbing in its last window: 20.855 -> 21.061).
 Both's lead over hidden decaying to zero AT that stopping point is why GROUP E's 80k
 run includes a hidden-only arm.
+
+## Q31 quarantine: `q31_attnnope_nope_s43` diverged mid-training (2026-08-05)
+
+Do not average this cell in. It tracks its siblings exactly for the first half, then
+turns around and climbs:
+
+| step | 2k | 14k | 26k | 38k | 50k | 62k | 74k | 86k |
+|---|---|---|---|---|---|---|---|---|
+| nope_s43 | 116.76 | 32.51 | 27.25 | 24.67 | 22.78 | 26.20 | 28.50 | **30.40** |
+| nope_s42 | 118.84 | 32.80 | 27.49 | 24.90 | 22.94 | 21.37 | 20.26 | 19.72 |
+| in_s43 | 116.35 | 32.34 | 27.10 | 24.58 | 22.62 | 21.06 | 19.95 | 19.42 |
+
+A mid-training instability at 50-62k, not a bad init and not a data-order effect:
+through 50k it is indistinguishable from the cells that finished. Every other Q31 cell
+lands in 19.38-19.72, so folding 30.40 into a mean would manufacture a large fake
+"NoPE is much worse under attn_nope" effect out of one blown-up run.
+
+Repair: `q31_attnnope_nope_s43b`, data_seed 43 (so it stays paired with in/h/both at
+that data seed), init seed 42 -> 44. The diverged run is KEPT as evidence.
+
+**If the rerun also diverges, that is the result.** A model with no explicit positional
+code anywhere (attn_nope + ttt_nope) being less trainable is a real property and should
+be reported as instability, not as a perplexity. Do not keep drawing seeds until one
+finishes clean.
+
+Q31 completion status otherwise: 8/8 cells at 3B tokens, step 91552, two data seeds.
+Q29 is 7/7 complete with `q29_paired.json` computed. Only Q30 (13 of 15 cells for
+DIMS='2 4 6') remained from node3's queue.
