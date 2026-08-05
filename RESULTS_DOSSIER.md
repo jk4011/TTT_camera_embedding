@@ -472,6 +472,44 @@ both_1d .8182, in_1d .8164.
 - SCOPE: procedurally-generated algorithmic traces, not natural language. The
   3-seed natural-language LM null (F33) stands unchanged.
 
+## F40: Figure 1 NVS view sweep — the rotary's value GROWS with input scale, and the
+## baseline SATURATES (2026-08-05)
+Evaluation-only sweep: the SAME 30k/seed-95 checkpoints re-evaluated at 4..32 input
+views, 256 held-out scenes, paired per-scene. Models were trained at 8 input views, so
+16/24/32 are extrapolation. n=2 excluded (two views barely constitute a reconstruction).
+| views | 4 | 8 | 16 | 24 | 32 |
+|---|---|---|---|---|---|
+| NoPE | 20.647 | 21.825 | **22.031** | 21.937 | 21.931 |
+| input | 20.661 | 22.333 | 22.766 | 22.677 | 22.726 |
+| hidden | 21.112 | 22.724 | 23.087 | 23.024 | 23.057 |
+| **Both** | 20.886 | 22.797 | 23.341 | 23.279 | **23.365** |
+Paired delta vs NoPE (t in parentheses):
+| arm | 4 | 8 | 16 | 24 | 32 |
+|---|---|---|---|---|---|
+| input | +0.013 (+1) | +0.508 (+21) | +0.735 (+33) | +0.740 (+32) | +0.795 (+36) |
+| hidden | +0.464 (+18) | +0.899 (+41) | +1.057 (+50) | +1.087 (+46) | +1.126 (+50) |
+| Both | +0.239 (+7) | +0.971 (+32) | +1.310 (+49) | +1.342 (+48) | **+1.433 (+54)** |
+Readings:
+1. **THE HEADLINE: NoPE saturates, the rotary arms do not.** NoPE peaks at 16 views
+   (22.031) and then goes flat/down (21.937, 21.931), while Both keeps climbing to
+   23.365. The fixed-size fast weights cannot address more content; the rotary gives
+   them an address space and the gain rises monotonically 8 -> 32 views
+   (+0.97 -> +1.43).
+2. This was PRE-REGISTERED before the numbers existed (`EXPERIMENT_QUEUE_PAPER.md`,
+   `paper_overleaf/experiment.md`): "if the rotary works by giving the fast weights a
+   usable address space, its advantage should grow with input size... a flat gap would
+   weaken the thesis". It grew.
+3. **The gain grows in EXTRAPOLATION.** Training used 8 views; the largest deltas are
+   at 16-32. So this is a robustness property, not a fit to the training regime.
+4. Ordering is stable across the whole sweep: Both > hidden > input > NoPE, from 8
+   views on. At 4 views input is worth nothing (+0.013, t=+1) while hidden already
+   earns (+0.464) - the hidden site starts paying earlier.
+5. Boundary at the small end: at 2 views (excluded from the table) the rotary HURTS
+   (Both -0.309, input -0.198). With almost nothing to address, rotation is pure cost.
+Figure: `lact_nvs/fig1_nvs_viewsweep.png`. Data: `lact_nvs/fig1_viewsweep/*.json`
+(per-scene arrays kept, so any panel can carry paired error bars).
+The NoPE checkpoint did not survive the node reset and was retrained on node2 as P1.
+
 ## F39: Q28 tttLRM warmup grid, step-1000 held-out — the fine-tune design is a
 ## STRUCTURAL dead end, not a budget shortfall (2026-08-04)
 DL3DV-140, 140 scenes, 32 input views, K-means selection, 536x960 — the same

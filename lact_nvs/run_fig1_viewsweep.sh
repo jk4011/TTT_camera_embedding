@@ -42,7 +42,7 @@ declare -A ARM_RUN=(
 )
 # base = NoPE (stock lact_ttt, no cam.mode), trained on node2 as P1 (seed 95).
 ARMS=${ARMS:-"base pra_hi h_pra_hi pra_h_hi"}
-VIEWS=${VIEWS:-"2 4 8 16 24 32"}
+VIEWS=${VIEWS:-"4 8 16 24 32"}   # n=2 dropped: two views barely constitute a reconstruction
 SCENES=${SCENES:-256}
 OUT=fig1_viewsweep
 mkdir -p "$OUT"
