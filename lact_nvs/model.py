@@ -311,6 +311,12 @@ class LaCTLVSM(nn.Module):
         # int -> fixed n. list -> MULTI-CHUNK TRAINING: one n is drawn uniformly per
         # forward, so a single model learns to update under every chunk count instead
         # of training one model per n. Eval still passes a fixed int.
+        # Normalized here because a YAML list arrives as an omegaconf ListConfig,
+        # which is NOT a list/tuple subclass: the isinstance check below would miss
+        # it and fall through to `ttt_num_chunks > 1`, which raises TypeError on a
+        # ListConfig. Coerce any non-int sequence to a plain list of ints once.
+        if not isinstance(ttt_num_chunks, int):
+            ttt_num_chunks = [int(x) for x in ttt_num_chunks]
         self.ttt_num_chunks = ttt_num_chunks
         self.ttt_view_tour = ttt_view_tour
         # Q1 probe: per-scene-constant random rotary-phase coordinates
