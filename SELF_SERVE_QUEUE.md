@@ -62,7 +62,7 @@ two separate NoPE rows.
 |---|---|---|
 | `B1_ccv_input` | CCV site ablation, input only | ~46 h, 1 GPU |
 | `B2_ccv_hidden` | CCV site ablation, hidden only | ~46 h, 1 GPU |
-| `B3_ccv_both_fixed` | CCV both sites, fixed ladder | ~46 h, 1 GPU |
+| `B3_ccv_both_fixed` | CCV both sites, fixed ladder, 100% hidden | ~46 h, 1 GPU |
 | `B4_video_input` | plain video, input only | ~55 h, 1 GPU |
 | `B5_video_both` | plain video, both sites | ~55 h, 1 GPU |
 
@@ -72,13 +72,27 @@ Start from `abl_ccv_both.yaml`, which already has `use_cam_encoder: true`, and s
 ```yaml
 use_cam_encoder: true          # the headline pair (ccv_base vs ccv_both) both have it
 cam_phase_mode: plucker
-ttt_learnable_freqs: false     # user decision: fixed ladder for headlines
+ttt_learnable_freqs: false     # fixed ladder for headlines
+ttt_hrope_frac: 1.0            # 100% of the hidden dims, NOT the 0.5 default
 ttt_input_rope:  true / false  # B1: true,  B2: false, B3: true
 ttt_hidden_rope: false / true  # B1: false, B2: true,  B3: true
 ```
 
-`ccv_both` cannot serve as the "both" cell because it used a learnable ladder, which is
-why B3 exists.
+**Why `ttt_hrope_frac: 1.0`.** The existing ccv runs rotate 98.4% of the fast q/k but
+only **50%** of the hidden, because `ttt_hrope_frac` defaults to 0.5. Every other task
+we compare against sits differently: NVS is 98.4/98.4, and the 3D-reconstruction grid
+is being re-run at 100/100 after its original 25/8.2 turned out to be the outlier where
+`Both` loses. Holding the hidden width at 50% would leave CCV as the odd one out and
+confound any input-vs-hidden comparison with ladder width. At `frac: 1.0` the hidden
+ladder is 1536/1536 with `nf_h = 128`; the assert `2*P_h <= d_h` passes exactly.
+
+The input site cannot reach a literal 100%: `nf_in = (768 - 12) / 12 = 63` deliberately
+leaves at least 12 dimensions unrotated, giving 98.4%, the same as NVS.
+
+**Consequence for the existing numbers.** `ccv_base` stays valid, since it has no rotary
+and the fraction is irrelevant to it. `ccv_pra`, `ccv_pra_fixed` and `ccv_both` are all
+50%-hidden runs and are superseded by B1-B3; the CCV column in the paper will be
+re-measured except for the baseline row.
 
 **B4/B5 naming trap.** In the plain-video runs `full` means *hidden + learnable
 frequencies*, NOT input+hidden, so the existing `full` cell is not the Both arm. Match

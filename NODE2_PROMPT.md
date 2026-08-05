@@ -104,6 +104,13 @@ Three runs, not two: `ccv_both` cannot serve as the "both" cell because it used
 `ttt_learnable_freqs: true`, and the user has chosen the fixed ladder for headlines
 (fixed also beats learnable in ccv: 0.04633 vs 0.04742).
 
+**`ttt_hrope_frac: 1.0` matters.** The existing ccv runs rotate 98.4% of the fast q/k
+but only 50% of the hidden, because that parameter defaults to 0.5. NVS is 98.4/98.4,
+and the 3D-reconstruction grid is being re-run at 100/100 after its original 25/8.2
+turned out to be the one setting where `Both` loses. Leaving CCV at 50% would confound
+input-vs-hidden with ladder width. At 1.0 the hidden ladder is 1536/1536 (`nf_h = 128`)
+and the assert passes exactly.
+
 Start from `abl_ccv_both.yaml` (cam_encoder already ON), set
 `ttt_learnable_freqs: false`, and switch the two site flags per row. Keep everything
 else identical: `cam_phase_mode: plucker`, same data, same seed, same step budget, and
