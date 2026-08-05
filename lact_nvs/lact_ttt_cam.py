@@ -65,7 +65,7 @@ def to_heads(t, num_heads):
     return t.repeat_interleave(num_heads, dim=0)
 
 
-def _apply_rotary_pairs_impl(x, coeff_cos, coeff_sin):
+def _apply_rotary_pairs_impl(x, coeff_cos, coeff_sin, inverse: bool = False):
     """Rotate adjacent feature pairs. coeff_*: [B, L, P]; acts on x[..., :2P]."""
     P = coeff_cos.size(-1)
     # index the pair dim and cast each half explicitly. Upcasting the whole slice
@@ -74,8 +74,14 @@ def _apply_rotary_pairs_impl(x, coeff_cos, coeff_sin):
     x_rot = x[..., : 2 * P].reshape(*x.shape[:-1], P, 2)
     x1 = x_rot[..., 0].float()
     x2 = x_rot[..., 1].float()
-    y1 = x1 * coeff_cos - x2 * coeff_sin
-    y2 = x1 * coeff_sin + x2 * coeff_cos
+    # inverse=True is the backward's transpose rotation. Negating the sin tensor at
+    # the call site allocated a full copy per chunk; folding the sign in costs nothing.
+    if inverse:
+        y1 = x1 * coeff_cos + x2 * coeff_sin
+        y2 = -x1 * coeff_sin + x2 * coeff_cos
+    else:
+        y1 = x1 * coeff_cos - x2 * coeff_sin
+        y2 = x1 * coeff_sin + x2 * coeff_cos
     y = torch.stack([y1, y2], dim=-1).reshape(*x.shape[:-1], 2 * P)
     return torch.cat([y.to(x.dtype), x[..., 2 * P :]], dim=-1)
 
@@ -224,10 +230,14 @@ def fast_weight_swish_glu_branch_input_rotary_apply(
             # gate branch consumes k_gate, content branch k_cont
             gate_before_act = kgi @ w0_now       # [b, l, dh]
             hidden_before_mul = kci @ w2_now     # [b, l, dh]
-            hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            # silu(gate) is used twice; it was recomputed over the full
+            # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+            # so nothing else removes it. Bit-exact.
+            gate_act = F.silu(gate_before_act, inplace=False)
+            hidden = gate_act * hidden_before_mul
 
             dhidden = vi @ w1_now.transpose(-1, -2)
-            dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+            dhidden_before_mul = dhidden * gate_act
             dgate = dhidden * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)
 
@@ -325,7 +335,11 @@ def fast_weight_swish_glu_hidden_rotary_apply(
 
             gate_before_act = ki @ w0_now
             hidden_before_mul = ki @ w2_now
-            hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            # silu(gate) is used twice; it was recomputed over the full
+            # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+            # so nothing else removes it. Bit-exact.
+            gate_act = F.silu(gate_before_act, inplace=False)
+            hidden = gate_act * hidden_before_mul
             if hnorm:
                 hidden_n, hn_y, hn_rms = _hn_fwd(hidden)
             else:
@@ -334,11 +348,11 @@ def fast_weight_swish_glu_hidden_rotary_apply(
 
             # Backprop: dL/dh = R^T (dL/dh'), R^T = rotary with negated sin.
             dhidden_rot = vi @ w1_now.transpose(-1, -2)
-            dhidden = apply_rotary_pairs(dhidden_rot, hci, -hsi)
+            dhidden = apply_rotary_pairs(dhidden_rot, hci, hsi, inverse=True)
             if hnorm:
                 # exact RMSNorm Jacobian back to the pre-norm hidden
                 dhidden = _hn_bwd(dhidden, hn_y, hn_rms)
-            dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+            dhidden_before_mul = dhidden * gate_act
             dgate = dhidden * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)
 
@@ -411,12 +425,16 @@ def fast_weight_swish_glu_hidden_rotary_delta_apply(
 
             gate_before_act = ki @ w0_now
             hidden_before_mul = ki @ w2_now
-            hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            # silu(gate) is used twice; it was recomputed over the full
+            # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+            # so nothing else removes it. Bit-exact.
+            gate_act = F.silu(gate_before_act, inplace=False)
+            hidden = gate_act * hidden_before_mul
             hidden_rot = apply_rotary_pairs(hidden, hci, hsi)
 
             dhidden_rot = vi @ w1_now.transpose(-1, -2)
-            dhidden = apply_rotary_pairs(dhidden_rot, hci, -hsi)
-            dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+            dhidden = apply_rotary_pairs(dhidden_rot, hci, hsi, inverse=True)
+            dhidden_before_mul = dhidden * gate_act
             dgate = dhidden * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)
 
@@ -486,12 +504,16 @@ def fast_weight_swish_glu_hidden_rotary_multistep_apply(
 
             gate_before_act = ki @ w0_now
             hidden_before_mul = ki @ w2_now
-            hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            # silu(gate) is used twice; it was recomputed over the full
+            # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+            # so nothing else removes it. Bit-exact.
+            gate_act = F.silu(gate_before_act, inplace=False)
+            hidden = gate_act * hidden_before_mul
             hidden_rot = apply_rotary_pairs(hidden, hci, hsi)
 
             dhidden_rot = vi @ w1_now.transpose(-1, -2)
-            dhidden = apply_rotary_pairs(dhidden_rot, hci, -hsi)
-            dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+            dhidden = apply_rotary_pairs(dhidden_rot, hci, hsi, inverse=True)
+            dhidden_before_mul = dhidden * gate_act
             dgate = dhidden * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)
 
@@ -552,12 +574,16 @@ def fast_weight_swish_glu_hidden_rotary_res2_apply(
     def one_update(w0_now, w1_now, w2_now, ki, vi, lr0i, lr1i, lr2i, hci, hsi, gains):
         gate_before_act = ki @ w0_now
         hidden_before_mul = ki @ w2_now
-        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        # silu(gate) is used twice; it was recomputed over the full
+        # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+        # so nothing else removes it. Bit-exact.
+        gate_act = F.silu(gate_before_act, inplace=False)
+        hidden = gate_act * hidden_before_mul
         hidden_rot = apply_rotary_pairs(hidden, hci, hsi)
 
         dhidden_rot = vi @ w1_now.transpose(-1, -2)
-        dhidden = apply_rotary_pairs(dhidden_rot, hci, -hsi)
-        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dhidden = apply_rotary_pairs(dhidden_rot, hci, hsi, inverse=True)
+        dhidden_before_mul = dhidden * gate_act
         dgate = dhidden * hidden_before_mul
         dgate_before_act = silu_backprop(dgate, gate_before_act)
 
@@ -659,7 +685,11 @@ def fast_weight_swiglu3l_weight_norm_apply(
 
             gate_before_act = ki @ w0_now
             hidden_before_mul = ki @ w2_now
-            h1 = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            # silu(gate) is used twice; it was recomputed over the full
+            # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+            # so nothing else removes it. Bit-exact.
+            gate_act = F.silu(gate_before_act, inplace=False)
+            h1 = gate_act * hidden_before_mul
             if h1cos is not None:
                 h1r = apply_rotary_pairs(h1, h1cos[:, start:end, :], h1sin[:, start:end, :])
             else:
@@ -683,7 +713,7 @@ def fast_weight_swiglu3l_weight_norm_apply(
                 dh1 = apply_rotary_pairs(dh1r, h1cos[:, start:end, :], -h1sin[:, start:end, :])
             else:
                 dh1 = dh1r
-            dhidden_before_mul = dh1 * F.silu(gate_before_act, inplace=False)
+            dhidden_before_mul = dh1 * gate_act
             dgate = dh1 * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)
 

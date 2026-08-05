@@ -109,10 +109,14 @@ def fast_weight_swish_glu_weight_norm_mini_batch_apply(
 
             gate_before_act = ki @ w0_now       # b[b, l, dh] = [b, l, d] @ [b, d, dh]
             hidden_before_mul = ki @ w2_now     # b[b, l, dh] = [b, l, d] @ [b, d, dh]
-            hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            # silu(gate) is used twice; it was recomputed over the full
+            # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+            # so nothing else removes it. Bit-exact.
+            gate_act = F.silu(gate_before_act, inplace=False)
+            hidden = gate_act * hidden_before_mul
 
             dhidden = vi @ w1_now.transpose(-1, -2)  # [b, l, dh] = [b, l, d] @ [b, d, dh]
-            dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+            dhidden_before_mul = dhidden * gate_act
             dgate = dhidden * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)
 

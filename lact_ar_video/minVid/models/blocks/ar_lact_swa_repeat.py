@@ -259,7 +259,7 @@ if hasattr(torch, "compile") and os.environ.get("TTTROPE_NO_COMPILE", "0") != "1
     except Exception:
         apply_rotary_pairs = _apply_rotary_pairs_impl
 
-def apply_rotary_cols(x, cos, sin):
+def apply_rotary_cols(x, cos, sin, inverse: bool = False):
     """Rotate adjacent row-pairs of column-major tokens.
 
     x: [b, d, l]; cos/sin: [P, l] with 2P <= d. Rotates rows [0:2P].
@@ -268,7 +268,12 @@ def apply_rotary_cols(x, cos, sin):
     x_rot = x[:, : 2 * P, :].float().reshape(x.shape[0], P, 2, x.shape[2])
     x1, x2 = x_rot[:, :, 0], x_rot[:, :, 1]
     c, s_ = cos[None], sin[None]
-    y = torch.stack((x1 * c - x2 * s_, x1 * s_ + x2 * c), dim=2)
+    # inverse=True is the backward's transpose rotation; folding the sign in
+    # avoids allocating a negated sin per chunk.
+    if inverse:
+        y = torch.stack((x1 * c + x2 * s_, -x1 * s_ + x2 * c), dim=2)
+    else:
+        y = torch.stack((x1 * c - x2 * s_, x1 * s_ + x2 * c), dim=2)
     y = y.reshape(x.shape[0], 2 * P, x.shape[2]).type_as(x)
     if 2 * P == x.shape[1]:
         return y
@@ -354,7 +359,7 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
         hidden_rot = apply_rotary_cols(hidden, hci, hsi)
 
         dhidden_rot = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
-        dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+        dhidden = apply_rotary_cols(dhidden_rot, hci, hsi, inverse=True)
 
         dhidden_before_mul = dhidden * silu_gate
         dgate = dhidden * hidden_before_mul
@@ -423,7 +428,7 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
 
             # backprop through the rotation: R^T = rotary with negated sin
             dhidden_rot = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
-            dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+            dhidden = apply_rotary_cols(dhidden_rot, hci, hsi, inverse=True)
 
             dhidden_before_mul = dhidden * silu_gate
             dgate = dhidden * hidden_before_mul
@@ -546,14 +551,18 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_inference(
             gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
             hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
 
-            hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+            # silu(gate) is used twice; it was recomputed over the full
+            # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+            # so nothing else removes it. Bit-exact.
+            gate_act = F.silu(gate_before_act, inplace=False)
+            hidden = gate_act * hidden_before_mul
 
             # pred_v = torch.bmm(w1, hidden)
 
             # [b, d, l]
             dhidden = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
 
-            dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+            dhidden_before_mul = dhidden * gate_act
 
             dgate = dhidden * hidden_before_mul
             dgate_before_act = silu_backprop(dgate, gate_before_act)

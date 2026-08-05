@@ -148,12 +148,16 @@ def block_causal_lact_swiglu(
         gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
 
-        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        # silu(gate) is used twice; it was recomputed over the full
+        # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+        # so nothing else removes it. Bit-exact.
+        gate_act = F.silu(gate_before_act, inplace=False)
+        hidden = gate_act * hidden_before_mul
 
         # [b, dh, dv] @ [b, dv, l] -> [b, dh, l]
         dhidden = torch.bmm(w1.transpose(1, 2), vi)
 
-        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dhidden_before_mul = dhidden * gate_act
 
         dgate = dhidden * hidden_before_mul
         dgate_before_act = silu_backprop(dgate, gate_before_act)
@@ -308,12 +312,16 @@ def prenorm_block_causal_lact_swiglu(
         gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
 
-        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        # silu(gate) is used twice; it was recomputed over the full
+        # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+        # so nothing else removes it. Bit-exact.
+        gate_act = F.silu(gate_before_act, inplace=False)
+        hidden = gate_act * hidden_before_mul
 
         # [b, dh, dv] @ [b, dv, l] -> [b, dh, l]
         dhidden = torch.bmm(w1.transpose(1, 2), vi)
 
-        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dhidden_before_mul = dhidden * gate_act
 
         dgate = dhidden * hidden_before_mul
         dgate_before_act = silu_backprop(dgate, gate_before_act)
@@ -387,7 +395,7 @@ def prenorm_block_causal_lact_swiglu(
 
     return output.transpose(1, 2)
 
-def _apply_rotary_cols_impl(x, cos, sin):
+def _apply_rotary_cols_impl(x, cos, sin, inverse: bool = False):
     """Rotate adjacent row-pairs of column-major tokens.
 
     x: [b, d, l]; cos/sin: [P, l] (shared) or [b, P, l] (per-row, e.g.
@@ -401,7 +409,12 @@ def _apply_rotary_cols_impl(x, cos, sin):
         c, s_ = cos, sin
     else:
         c, s_ = cos[None], sin[None]
-    y = torch.stack((x1 * c - x2 * s_, x1 * s_ + x2 * c), dim=2)
+    # inverse=True is the backward's transpose rotation; folding the sign in avoids
+    # allocating a negated sin per chunk.
+    if inverse:
+        y = torch.stack((x1 * c + x2 * s_, -x1 * s_ + x2 * c), dim=2)
+    else:
+        y = torch.stack((x1 * c - x2 * s_, x1 * s_ + x2 * c), dim=2)
     y = y.reshape(x.shape[0], 2 * P, x.shape[2]).type_as(x)
     if 2 * P == x.shape[1]:
         return y
@@ -590,7 +603,11 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
 
         gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
-        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        # silu(gate) is used twice; it was recomputed over the full
+        # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+        # so nothing else removes it. Bit-exact.
+        gate_act = F.silu(gate_before_act, inplace=False)
+        hidden = gate_act * hidden_before_mul
         if hnorm != "none":
             hidden_n, hn_y, hn_rms = _hn_fwd(hidden)
         else:
@@ -605,7 +622,7 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
         dhidden_rot = torch.bmm(w1.transpose(1, 2), vi)
         dhidden = (apply_block_rot(dhidden_rot, ri.transpose(1, 2))
                    if r_blocks is not None
-                   else apply_rotary_cols(dhidden_rot, hci, -hsi))
+                   else apply_rotary_cols(dhidden_rot, hci, hsi, inverse=True))
         if h_basis is not None:
             # inner-loop gradient back through the basis: d(pre-basis hidden)
             dhidden = torch.matmul(h_basis.transpose(0, 1), dhidden)
@@ -613,7 +630,7 @@ def prenorm_block_causal_lact_swiglu_hidden_rope(
             # exact RMSNorm Jacobian back to the pre-norm hidden
             dhidden = _hn_bwd(dhidden, hn_y, hn_rms)
 
-        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dhidden_before_mul = dhidden * gate_act
         dgate = dhidden * hidden_before_mul
         dgate_before_act = silu_backprop(dgate, gate_before_act)
 
@@ -760,7 +777,11 @@ def prenorm_block_causal_lact_swiglu_value_rope(
 
         gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
-        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        # silu(gate) is used twice; it was recomputed over the full
+        # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+        # so nothing else removes it. Bit-exact.
+        gate_act = F.silu(gate_before_act, inplace=False)
+        hidden = gate_act * hidden_before_mul
 
         # rotated regression target R_t v_t; the rest of the update backward
         # is IDENTICAL to the baseline (no inverse rotation needed: the
@@ -770,7 +791,7 @@ def prenorm_block_causal_lact_swiglu_value_rope(
         # [b, dh, dv] @ [b, dv, l] -> [b, dh, l]
         dhidden = torch.bmm(w1.transpose(1, 2), vi_rot)
 
-        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dhidden_before_mul = dhidden * gate_act
         dgate = dhidden * hidden_before_mul
         dgate_before_act = silu_backprop(dgate, gate_before_act)
 
@@ -914,12 +935,16 @@ def prenorm_block_causal_lact_swiglu_branch_rope(
         gate_before_act = torch.bmm(w0, kgi.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, kci.transpose(1, 2))
 
-        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        # silu(gate) is used twice; it was recomputed over the full
+        # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+        # so nothing else removes it. Bit-exact.
+        gate_act = F.silu(gate_before_act, inplace=False)
+        hidden = gate_act * hidden_before_mul
 
         # [b, dh, dv] @ [b, dv, l] -> [b, dh, l]
         dhidden = torch.bmm(w1.transpose(1, 2), vi)
 
-        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dhidden_before_mul = dhidden * gate_act
 
         dgate = dhidden * hidden_before_mul
         dgate_before_act = silu_backprop(dgate, gate_before_act)
@@ -1076,14 +1101,18 @@ def prenorm_block_causal_lact_swiglu_branch_hidden_rope(
         # [b, dh, dk] @ [b, dk, l] -> [b, dh, l]
         gate_before_act = torch.bmm(w0, kgi.transpose(1, 2))
         hidden_before_mul = torch.bmm(w2, kci.transpose(1, 2))
-        hidden = F.silu(gate_before_act, inplace=False) * hidden_before_mul
+        # silu(gate) is used twice; it was recomputed over the full
+        # [.., d_h] tensor. These kernels are not compiled (sp_all_reduce),
+        # so nothing else removes it. Bit-exact.
+        gate_act = F.silu(gate_before_act, inplace=False)
+        hidden = gate_act * hidden_before_mul
         hidden_rot = apply_rotary_cols(hidden, hci, hsi)
 
         # backprop through the rotation: R^T = rotary with negated sin
         dhidden_rot = torch.bmm(w1.transpose(1, 2), vi)
-        dhidden = apply_rotary_cols(dhidden_rot, hci, -hsi)
+        dhidden = apply_rotary_cols(dhidden_rot, hci, hsi, inverse=True)
 
-        dhidden_before_mul = dhidden * F.silu(gate_before_act, inplace=False)
+        dhidden_before_mul = dhidden * gate_act
         dgate = dhidden * hidden_before_mul
         dgate_before_act = silu_backprop(dgate, gate_before_act)
 
