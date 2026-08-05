@@ -409,7 +409,7 @@ floor (F18: 0.1-0.3 dB PSNR gaps are seed noise). But numbers produced after thi
 do not bit-reproduce numbers produced before it, which includes F25, F40 and F41.
 `TTTROPE_NO_COMPILE=1` restores the eager path if an exact re-run is ever needed.
 
-## F41: Q31 attn_nope — removing the ATTENTION rotary FLIPS the hidden rotary from
+## F44 (was mis-numbered F41; the n-step finding below owns F41): Q31 attn_nope — removing the ATTENTION rotary FLIPS the hidden rotary from
 ## harmful to helpful, and leaves the input rotary's gain untouched (2026-08-05)
 200M LaCT LM, 3B tokens fineweb-edu, data_seed 42, bs 8x4096, window 1024, 91,552
 steps — F27's protocol exactly, with `attn_nope=true` in every cell so the
@@ -501,7 +501,7 @@ n-step regime; that is the multi-chunk training run (queued, `ttt_num_chunks` ac
 list and draws one n per forward). n=16 was measured too and continues the pattern
 (Both +3.281) but is left out of the table.
 
-## F40: Q29 CLRS-Text address-DIMENSION grid — the 2-D address helps BOTH sites
+## F43 (was mis-numbered F40; the NVS view sweep below owns F40): Q29 CLRS-Text address-DIMENSION grid — the 2-D address helps BOTH sites
 ## equally; the hidden increment does NOT grow with dimensionality (2026-08-05)
 CLRS-Text 2d_long, 12L/768d/4 lact heads, seq 4096, window 128, 1.2B tokens,
 seed 42, held-out CLRS test seeds. `coord_mode=1d` feeds (t, t), which recombines
