@@ -68,13 +68,46 @@ Protocol must match F21/F22 exactly (Wan1.3B attention-only finetune, MultiCamVi
 deterministic noise, 20k steps) or the new cells will not be comparable to the
 existing base and hidden cells.
 
-### P5. CCV hidden-only [1 GPU, 1 run]
+### P5. CCV site ablation [3 runs, ~46 h each, run them in PARALLEL]
 
-F30 ran base / pra(learnable) / pra_fixed / both, so hidden-only is the one hole in an
-otherwise complete table. It matters because CCV is the only video-domain setting
-where the hidden site earns (+3.9-4.6% over input), and the paper should show
-hidden-alone there rather than inferring it. Same protocol as F30 (held-out val loss,
-64 fixed pairs, EMA, common checkpoint step).
+**You were right to ask before starting. The arm labels in F30 were wrong.** Checked
+against the config each run actually SAVED (`outputs/ccv_*/seed_1/config.yaml`), not
+just the repo configs:
+
+| run | cam_encoder | rotary sites | ladder |
+|---|---|---|---|
+| ccv_base | **ON** | none | . |
+| ccv_pra | off | **input AND hidden** | learnable |
+| ccv_pra_fixed | off | **input AND hidden** | fixed |
+| ccv_both | **ON** | **input AND hidden** | learnable |
+
+So `both` means **cam_encoder + rotary**, not input+hidden, and `pra` was never
+input-only. Every rotary cell already has both sites. The consequence: F30's
+"THE HIDDEN ROTARY EARNS IN VIDEO" does not follow from that grid, and its t=-9.0 is
+the **cam_encoder** increment. Corrected in `RESULTS_DOSSIER.md` F30 and
+`paper_overleaf/CLAUDE.md`.
+
+**What to run (user decision 2026-08-05: FIXED ladder).** The headline CCV comparison is
+`ccv_base` vs `ccv_both`, which are matched except for the rotary, both with the
+cam_encoder ON. The site ablation must therefore live in the **cam_encoder ON** family,
+not the OFF family, so that it mirrors NVS Table 1 (where NoPE also still receives the
+camera, via ray maps):
+
+| cell | cam_encoder | ttt_input_rope | ttt_hidden_rope | ttt_learnable_freqs | status |
+|---|---|---|---|---|---|
+| none | true | false | false | . | = `ccv_base`, exists |
+| input | true | **true** | false | **false** | RUN |
+| hidden | true | false | **true** | **false** | RUN |
+| both | true | **true** | **true** | **false** | RUN |
+
+Three runs, not two: `ccv_both` cannot serve as the "both" cell because it used
+`ttt_learnable_freqs: true`, and the user has chosen the fixed ladder for headlines
+(fixed also beats learnable in ccv: 0.04633 vs 0.04742).
+
+Start from `abl_ccv_both.yaml` (cam_encoder already ON), set
+`ttt_learnable_freqs: false`, and switch the two site flags per row. Keep everything
+else identical: `cam_phase_mode: plucker`, same data, same seed, same step budget, and
+evaluate at the same common checkpoint step F30 used so the numbers line up.
 
 ## 3. House rules
 
@@ -119,3 +152,23 @@ number continues rather than restarting at 0, and say so in your report.
 **Before launching, confirm each cell prints its resume line, and after the first
 checkpoint interval confirm a checkpoint directory actually appeared.** A run that
 silently never checkpoints looks identical to a healthy one until Slurm kills it.
+
+## 5. Three failures node1 hit today, so you do not repeat them
+
+1. **Port collisions.** Launchers that derive `--master_port` from a loop index give
+   every per-cell invocation the same port, because the index is always 0. Two runs on
+   one node then die with `EADDRINUSE`. Derive the port from something actually unique
+   (GPU id, and the sweep variable if there is one).
+2. **kmeans view selection has a floor.** `kmeans_input True` clusters the available
+   frames into `num_input_views` groups, so it needs n_samples >= n_clusters. Asking
+   for 4 input views dies with `n_samples=4 should be >= n_clusters=8`. Any view sweep
+   has to start at the trained view count and go up.
+3. **Log redirects that drop the sweep variable.** If every point of a sweep appends to
+   one log file, the per-point checks (like grepping for `rotary VERIFIED ACTIVE`) look
+   at a file that does not exist and silently pass. Put the sweep variable in the log
+   filename too, not only in the output directory.
+
+And the standing one: a cam checkpoint strict-loads into a stock model with zero
+missing keys, so an eval that forgets to convert the model first reports a plausible
+NULL with nothing in any log to indicate a problem. Always require a positive
+`rotary VERIFIED ACTIVE` line.
