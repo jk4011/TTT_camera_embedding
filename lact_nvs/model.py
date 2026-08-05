@@ -204,9 +204,21 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
     tok_o = c2w[:, :, :3, 3][..., None, None].expand_as(tok_d)         # cam center
     tok_m = torch.cross(tok_o, tok_d, dim=2)
 
+    hh, ww = tok_d.shape[-2], tok_d.shape[-1]
     tok_o = rearrange(tok_o, "b v c hh ww -> b (v hh ww) c")
     tok_d = rearrange(tok_d, "b v c hh ww -> b (v hh ww) c")
     tok_m = rearrange(tok_m, "b v c hh ww -> b (v hh ww) c")
+
+    # Per-token 2-D patch coordinate WITHIN its view, normalised to [-1, 1] so it
+    # shares the O(1) scale of the Plucker coordinates and the same omega ladder is
+    # meaningful for both. Plucker says which view a token came from; this says where
+    # inside that view it sits, which the Plucker coordinates alone do not encode at
+    # patch resolution. Token order matches the rearrange above.
+    _u = torch.linspace(-1.0, 1.0, hh, device=tok_d.device)
+    _v = torch.linspace(-1.0, 1.0, ww, device=tok_d.device)
+    _uu, _vv = torch.meshgrid(_u, _v, indexing="ij")
+    tok_uv = torch.stack([_uu, _vv], dim=-1).reshape(1, 1, hh * ww, 2)
+    tok_uv = tok_uv.expand(b, v, hh * ww, 2).reshape(b, v * hh * ww, 2).contiguous()
 
     # Per-token patch footprint (half-range of each Plucker coordinate over
     # the patch's pixel rays) for ray-cone anti-aliased phases.
@@ -269,7 +281,7 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
         tok_m = rand_m.expand(b, L, 3)
 
     return {
-        "tok_o": tok_o, "tok_d": tok_d, "tok_m": tok_m,
+        "tok_o": tok_o, "tok_d": tok_d, "tok_m": tok_m, "tok_uv": tok_uv,
         "tok_d_delta": tok_d_delta, "tok_m_delta": tok_m_delta,
         "cam_feat": cam_feat, "cam_feat_lr": cam_feat_lr,
         "view_rot": rot, "view_w2c": w2c, "view_c2w": c2w,
@@ -282,6 +294,7 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
 class LaCTLVSM(nn.Module):
     def __init__(self, patch_size, dim, layers, block_config,
                  ttt_chunk_per_view=False, ttt_view_tour=False,
+                 ttt_num_chunks=1,
                  cam_scene_random=False):
         super().__init__()
         self.patch_size = patch_size
@@ -291,6 +304,14 @@ class LaCTLVSM(nn.Module):
         # -> near-target so that target-adjacent views are written last
         # (weight-norm recency works in our favor).
         self.ttt_chunk_per_view = ttt_chunk_per_view
+        # ttt_num_chunks: split the input-token update into n sequential chunks.
+        # The method is derived for a SINGLE update step; at scale the update is
+        # chunked, so this exists to test that the learned phases survive that.
+        # Evaluation-time knob: 1 reproduces the trained setting exactly.
+        # int -> fixed n. list -> MULTI-CHUNK TRAINING: one n is drawn uniformly per
+        # forward, so a single model learns to update under every chunk count instead
+        # of training one model per n. Eval still passes a fixed int.
+        self.ttt_num_chunks = ttt_num_chunks
         self.ttt_view_tour = ttt_view_tour
         # Q1 probe: per-scene-constant random rotary-phase coordinates
         # (see compute_camera_info). Default OFF.
@@ -384,6 +405,35 @@ class LaCTLVSM(nn.Module):
                 TTTOperator(start=v * num_img_tokens, end=(v + 1) * num_img_tokens,
                             update=True, apply=False)
                 for v in range(num_input_views)
+            ] + [
+                TTTOperator(start=0, end=num_input_tokens + num_target_tokens,
+                            update=False, apply=True),
+            ]
+        elif (isinstance(self.ttt_num_chunks, (list, tuple))
+              or self.ttt_num_chunks > 1):
+            # n sequential update steps over equal spans of the input tokens, then one
+            # apply over everything. Chunk size stays num_input_tokens / n, so keep n
+            # small enough that it stays above Muon's ~427-token amortisation point
+            # (F8: 256-token chunks lose 0.23 dB for that reason alone).
+            n = self.ttt_num_chunks
+            if isinstance(n, (list, tuple)):
+                # Multi-chunk training: one n drawn per forward, so a single model
+                # learns to update under every chunk count. Eval passes a fixed int
+                # and takes the first entry if a list somehow reaches it.
+                #
+                # NOTE this draw is only safe because the NVS ablations run on ONE
+                # GPU (launch_exp.sh uses --nproc_per_node=1). Under DDP each rank
+                # would draw its own n, build a different ttt_op_order, and therefore
+                # a different graph; averaging those gradients does not correspond to
+                # any single loss, and mismatched collectives can deadlock. If this is
+                # ever run multi-GPU, draw on rank 0 and broadcast.
+                n = int(n[torch.randint(len(n), (1,)).item()]) if self.training else int(n[0])
+            assert num_input_tokens % n == 0, \
+                f"{num_input_tokens} input tokens do not divide into {n} chunks"
+            step = num_input_tokens // n
+            ttt_op_order = [
+                TTTOperator(start=i * step, end=(i + 1) * step, update=True, apply=False)
+                for i in range(n)
             ] + [
                 TTTOperator(start=0, end=num_input_tokens + num_target_tokens,
                             update=False, apply=True),

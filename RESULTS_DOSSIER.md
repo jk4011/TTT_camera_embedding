@@ -418,6 +418,50 @@ h −0.0054 (t=−9.93, 69.7%), both −0.0086 (t=−15.65, 75.8%).
 - Seed replication of the OFF column (seed 43, data_seed held at 42) is in flight;
   within-column paired t of −9.9..−18.1 is block-level noise only, not init noise.
 
+## F41: TTT-RoPE survives the n-step update, and its value GROWS with it (2026-08-05)
+The method is derived for a SINGLE update step: the phases cancel inside one inner
+product, one gradient step. At scale the update is split into n sequential chunks, each
+updating the fast weights on top of the previous chunk's result, and the derivation does
+not cover that. tttLRM already runs this way (`full_ttt_op`, update_minibatch 1024)
+while NVS does one update over all input tokens, so this is also a live candidate for
+the NVS-vs-3D-reconstruction difference.
+EVALUATION ONLY: the same 30k/seed-95 checkpoints, all TRAINED with a single update, are
+re-evaluated with the input-token update split n ways. 32 input views = 8192 update
+tokens, so chunk size is 8192/n and every setting stays above Muon's ~427-token
+amortisation point. 256 held-out scenes, paired per scene.
+| arm | n=1 | n=2 | n=4 | n=8 |
+|---|---|---|---|---|
+| NoPE | 21.931 | 19.646 | **15.936** | **14.303** |
+| input | 22.726 | 22.049 | 20.393 | 18.358 |
+| hidden | 23.057 | 21.583 | 17.312 | 15.251 |
+| **Both** | **23.365** | **22.701** | **20.961** | **19.067** |
+Paired delta vs NoPE (t in parentheses):
+| arm | n=1 | n=2 | n=4 | n=8 |
+|---|---|---|---|---|
+| input | +0.795 (+36) | +2.404 (+61) | +4.457 (+62) | +4.054 (+51) |
+| hidden | +1.126 (+50) | +1.937 (+53) | +1.375 (+37) | +0.948 (+21) |
+| **Both** | +1.433 (+54) | +3.055 (+68) | **+5.025 (+69)** | +4.763 (+68) |
+Readings:
+1. **The rotary's value more than triples under chunked updates** (Both +1.43 -> +5.03)
+   and stays significant at every n. `Both` leads at every n. The extension holds.
+2. **The mechanism is visible in the NoPE row: chunking COLLAPSES the baseline**
+   (21.93 -> 14.30). In a sequential update each chunk writes on top of the previous
+   fast weights and per-chunk weight-norm decays the earlier ones, so without an address
+   space the earlier chunks are overwritten. With a rotary the chunks sit at different
+   phases and stay separable. Sequential updating is therefore the regime where
+   addressing matters MOST, not a regime the method merely tolerates.
+3. The two sites respond OPPOSITELY: input's delta grows with n (+0.80 -> +4.05) while
+   hidden's shrinks (+1.13 -> +0.95). Worth stating; not yet explained.
+4. This rules chunking OUT as the explanation for `Both` trailing the single-site arms
+   on 3D reconstruction: here more chunks make `Both` MORE favoured. The remaining
+   candidate is ladder width (3D recon rotated 8.2% of the hidden vs NVS's 98.4%), which
+   the nf 64/256 re-run tests directly.
+SCOPE: these checkpoints were trained with one update, so this shows the learned phases
+survive chunked application. It is NOT the same as showing the method trains well in the
+n-step regime; that is the multi-chunk training run (queued, `ttt_num_chunks` accepts a
+list and draws one n per forward). n=16 was measured too and continues the pattern
+(Both +3.281) but is left out of the table.
+
 ## F40: Q29 CLRS-Text address-DIMENSION grid — the 2-D address helps BOTH sites
 ## equally; the hidden increment does NOT grow with dimensionality (2026-08-05)
 CLRS-Text 2d_long, 12L/768d/4 lact heads, seq 4096, window 128, 1.2B tokens,

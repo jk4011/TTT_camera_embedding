@@ -942,7 +942,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
-        known = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
+        known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
                  "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
@@ -1021,6 +1021,31 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         self.head_dim = head_dim
         self.num_freqs = num_freqs
         d_h = int(head_dim * inter_multi)
+
+        if "qk_rope_camimg" in self.cam_modes:
+            # PRoPE-style split: half the rotary budget on the 6 Plucker coords
+            # (which view a token came from), half on the 2 in-view patch
+            # coordinates (where inside that view it sits). F34 found PRoPE's
+            # entire gain in this stack came from its image-coordinate ropes
+            # (+0.379) while its projective transform cost -0.294, yet our own
+            # ladder spends 100% on camera and nothing on image position.
+            # Pair count is held EQUAL to qk_rope_cam so the two are
+            # budget-matched: 6*F_cam + 2*F_img = 6*num_freqs.
+            assert "qk_rope_cam" not in self.cam_modes, \
+                "qk_rope_camimg replaces qk_rope_cam; enable only one"
+            F_cam = max(1, num_freqs // 2)
+            F_img = (6 * num_freqs - 6 * F_cam) // 2
+            assert F_img >= 1 and 2 * (6 * F_cam + 2 * F_img) <= head_dim, \
+                f"split budget 6*{F_cam}+2*{F_img} does not fit head_dim {head_dim}"
+            self.n_freqs_cam, self.n_freqs_img = F_cam, F_img
+            omega_ci = math.pi * torch.logspace(
+                math.log2(0.5), math.log2(16.0), F_cam, base=2.0)
+            omega_im = math.pi * torch.logspace(
+                math.log2(0.5), math.log2(16.0), F_img, base=2.0)
+            self.register_buffer("omega_ci", omega_ci, persistent=False)
+            self.register_buffer("omega_im", omega_im, persistent=False)
+            self.gain_ci = _gain("gain_ci", 6, F_cam)
+            self.gain_im = _gain("gain_im", 2, F_img)
 
         if "qk_rope_cam" in self.cam_modes:
             # 6 Plucker coords x num_freqs pairs.
@@ -1292,6 +1317,20 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             tok_m = tok_m / info["_m_scale"]
         return torch.cat([info["tok_d"], tok_m], dim=-1)
 
+    def _rope_coeffs_camimg(self, info):
+        """cos/sin for the camera+image split rotary. Returns heads-shaped
+        coeffs over 6*F_cam + 2*F_img pairs: the Plucker block first, then the
+        in-view patch block."""
+        cam = self._coords6(info)                        # [b, L, 6]
+        img = info["tok_uv"].to(cam.dtype)               # [b, L, 2] in [-1, 1]
+        th_c = (cam[..., None] * (self.omega_ci[None, None, None]
+                                  * self.gain_ci[None, None])).flatten(2)
+        th_i = (img[..., None] * (self.omega_im[None, None, None]
+                                  * self.gain_im[None, None])).flatten(2)
+        theta = torch.cat([th_c, th_i], dim=-1)          # [b, L, 6F_cam+2F_img]
+        return (to_heads(theta.cos(), self.num_heads),
+                to_heads(theta.sin(), self.num_heads))
+
     def _rope_coeffs(self, info, omega=None, gain=None, dOmega=None, bias=None):
         """cos/sin for Plucker line rotary. Returns [B, L, 6F]."""
         omega = self.omega if omega is None else omega
@@ -1433,7 +1472,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 prope_raw_P_h = P_h
 
         q_plain = k_plain = None
-        if "qk_rope_cam" in modes:
+        if "qk_rope_camimg" in modes:
+            ccos, csin = self._rope_coeffs_camimg(info)
+            q = apply_rotary_pairs(q, ccos, csin)
+            k = apply_rotary_pairs(k, ccos, csin)
+        elif "qk_rope_cam" in modes:
             ccos, csin = self._rope_coeffs(
                 info, dOmega=getattr(self, "dOmega", None),
                 bias=getattr(self, "phase_b", None),

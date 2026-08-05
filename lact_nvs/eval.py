@@ -28,10 +28,17 @@ parser.add_argument("--num_target_views", type=int, default=4)
 parser.add_argument("--image_size", nargs=2, type=int, default=[256, 256])
 parser.add_argument("--window", type=int, default=128)
 parser.add_argument("--bs", type=int, default=8)
+parser.add_argument("--ttt_num_chunks", type=int, default=1,
+                    help="Split the input-token fast-weight update into n sequential "
+                         "chunks at EVAL time. The method is derived for one update "
+                         "step; this tests that the learned phases survive chunking. "
+                         "1 reproduces the trained setting.")
 parser.add_argument("--out", type=str, default=None)
 args = parser.parse_args()
 
 model_config = omegaconf.OmegaConf.load(args.config)
+if args.ttt_num_chunks > 1:
+    model_config["ttt_num_chunks"] = args.ttt_num_chunks
 model = LaCTLVSM(**model_config).cuda()
 
 checkpoint = torch.load(args.load, map_location="cpu", weights_only=False)
