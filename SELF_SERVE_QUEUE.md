@@ -101,22 +101,46 @@ F21/F22 exactly (Wan1.3B attention-only finetune, MultiCamVideo, deterministic n
 
 ---
 
-## GROUP C: the update-count ablation
+## GROUP C: does the method survive n-step updates?
 
-| ITEM_ID | what |
-|---|---|
-| `C1_updates` | 1 / 2 / 4 / 8 update steps, NoPE and Both |
+| ITEM_ID | what | cost |
+|---|---|---|
+| `C1_updates` | NVS, chunks n in {1, 2, 4} x {NoPE, Both} | 6 runs, ~10 h |
+| `C2_updates_sites` | same, adding input-only and hidden-only | +6 runs |
 
-**Design it as repeated update steps on ONE chunk, not as more chunks.** F8 already
-tested per-view multi-chunk updates and found -0.23 dB, which it attributed to
-per-chunk weight-norm decaying earlier views and to 256-token chunks falling below
-Muon's amortisation point. F8 explicitly notes that multi-step updates on the same full
-chunk were never tested. Implemented as more chunks, this reproduces F8 and answers
-nothing.
+**The claim being tested.** TTT-RoPE is derived for a SINGLE update step: the phases
+cancel inside one inner-product, one gradient step. In practice, once the token count
+grows, the update is split into n sequential chunks, each updating the fast weights on
+top of the previous chunk's result. The paper needs to show experimentally that the
+method still works in that regime, because the derivation does not cover it.
 
-Can be halved to 4 runs by sweeping only the Both arm.
+So the quantity of interest is **Delta(rotary - NoPE) at each n**, and the claim is that
+it stays positive and roughly stable as n grows. It is NOT a comparison of absolute PSNR
+across n: absolute quality is expected to fall with more chunks, and that is a property
+of chunking, not of the rotary.
 
----
+**Why this is not already answered by F8.** F8 tested NVS with one chunk per view: 8
+chunks of 256 tokens, and found -0.23 dB. But two things were confounded there. Chunk
+size fell to 256 tokens, below Muon's amortisation point of about 427, and per-chunk
+weight-norm decays earlier views. So F8 shows that chunking *too finely* hurts; it does
+not show what happens to the rotary's benefit at sensible chunk sizes.
+
+**Design, to avoid repeating F8's confound.** NVS has 8 input views x 256 tokens = 2048
+update tokens. Sweep n over {1, 2, 4}, giving chunks of 2048 / 1024 / 512 tokens, all at
+or above Muon's amortisation point. Do not include n = 8: that is F8's 256-token setting
+and is already known to fail for a reason unrelated to addressing.
+
+Set it with `ttt_op_order`: `lact_nvs/model.py` builds a single
+`TTTOperator(0, num_input_tokens, update=True)` today, and `ttt_chunk_per_view` already
+implements the per-view split, so the n-chunk version is the same construction with the
+token range divided n ways instead of per view.
+
+**Context that makes this worth the GPU time.** tttLRM already runs this way:
+`full_ttt_op` updates in `update_minibatch = 1024` steps sequentially, while NVS does a
+single update over all input tokens. That is a structural difference between the two
+tasks, alongside the ladder-width difference, and it is a live candidate for why `Both`
+leads on NVS but trails the single-site arms on 3D reconstruction. C1 measures that axis
+directly on a task where we control it.
 
 ## Rules for whoever runs these
 
