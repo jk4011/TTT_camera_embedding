@@ -107,7 +107,32 @@ base 곡선: v2 18.0641 / v4 20.6474 / v8 21.8252 / v16 22.0309 / v24 21.9368 / 
 `ttt_hidden_rope`(hidden 사이트)가 있어 input-only = `ttt_input_rope: true`,
 Both = 둘 다 true. `abl_video_full`은 `ttt_hidden_rope+ttt_learnable_freqs`라 Both가 아님(명명 함정 확인).
 
-### P5. CCV hidden-only  [BLOCKED — arm 정의 확인 필요]
+### P5. CCV site ablation (3셀)  [RUNNING 2026-08-05]
+node1이 NODE2_PROMPT.md를 갱신해 arm 정의를 확정했다(F30 라벨이 틀렸었고, 저장된 config 기준으로
+정정됨). 사용자 결정: **FIXED ladder**. 세 셀 모두 cam_encoder ON, `ttt_learnable_freqs: false`,
+`cam_phase_mode: plucker`, seed 1, deterministic_noise, index_seed 42, 20,000 steps,
+save_every 250 / keep_last_iter 1000.
+
+| 셀 | run | ttt_input_rope | ttt_hidden_rope | GPU |
+|---|---|---|---|---|
+| input | `ccv_site_in` | true | false | 0 |
+| hidden | `ccv_site_h` | false | true | 1 |
+| both | `ccv_site_both` | true | true | 2 |
+
+신규 파일: `minVid/configs/ar/abl_ccv_site_{in,h,both}.yaml`, `run_ccv_site.sh`(셀당 1 GPU,
+**master_port를 GPU id에서 유도** — 루프 인덱스 유도 시 전 셀이 같은 포트를 받아 EADDRINUSE),
+`watch_ccv_site.sh`(첫 체크포인트 생성 확인 + step 13999 별도 보관).
+
+**착수 중 고친 stale 경로 2건** (기록 목적): 저장소가 `TTT_camera_embedding` → `TTT_rope`로
+바뀐 뒤 ccv config의 절대경로가 갱신되지 않았다. `output_path`는 존재하지 않는 구 경로를
+가리켰고(실제 산출물은 TTT_rope 아래), `api_key_path`는 wandb가 disabled인데도 코드가 파일
+존재를 단언해 3셀 모두 즉시 죽었다(`AssertionError: API key file does not exist`).
+둘 다 현행 경로로 수정. 프로토콜 파라미터는 일절 건드리지 않았다.
+
+기동 검증: 덤프된 config에서 3셀의 `ttt_input_rope`/`ttt_hidden_rope`/`ttt_learnable_freqs=false`/
+`use_cam_encoder=true`/`max_fwdbwd_passes=20000` 모두 의도대로 확인. 실측 ~11 s/step → **~61h 예상**.
+
+### (구) P5 질문 — 해소됨
 데이터·체크포인트·config 경로는 모두 정상이라 실행 자체는 가능하다. 다만 **arm 정의가
 문서와 config에서 어긋난다**: RESULTS_DOSSIER F30 표는 `ccv_pra`를 "(input, learnable)"로
 적었는데, `abl_ccv_pra.yaml`은 `ttt_input_rope: true`와 `ttt_hidden_rope: true`를 **둘 다**
