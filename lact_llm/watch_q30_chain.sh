@@ -29,6 +29,12 @@ while :; do
       echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> Q31 nope repair on GPU $G, then Q30"
       ( ./run_q31_nope_rerun.sh "$G" >> "outputs/q31_nope_rerun_gpu${G}.log" 2>&1
         DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
+    elif [ "$C" = in ]; then
+      # camimg first: it is 1.6 h and it decides an allocation question that gates the
+      # CCV and Group A follow-ups, whereas Q30 is 13 exploratory cells at 2.4 h each.
+      echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> NVS camimg on GPU $G, then Q30"
+      ( cd ../lact_nvs && ./run_camimg.sh "$G" 95 >> outputs/camimg_s95.launch.log 2>&1
+        cd ../lact_llm && DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
     else
       echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> Q30 worker on GPU $G"
       ( DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
