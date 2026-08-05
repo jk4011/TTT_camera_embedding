@@ -36,8 +36,18 @@ while :; do
       ( cd ../lact_nvs && ./run_camimg.sh "$G" 95 >> outputs/camimg_s95.launch.log 2>&1
         cd ../lact_llm && DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
     else
-      echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> Q30 worker on GPU $G"
-      ( DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
+      # h -> gpu3 and both -> gpu1 take the 3D-reconstruction view sweep FIRST: it is a
+      # figure the paper needs, whereas Q30 is exploratory. Both workers pull from one
+      # atomically-claimed pool of 4 arms x 5 view counts, then fall through to Q30.
+      # The sweep worker waits for each arm's final.pt itself, so starting before the
+      # grid has finished is fine.
+      echo "[$(date +%H:%M)] tttLRM cell '$C' finished -> 3D view sweep on GPU $G, then Q30"
+      ( cd ../tttlrm_ref && ./run_scratch_viewsweep.sh "$G" >> logs/sweep_driver_gpu${G}.log 2>&1
+        if [ "'$C'" = both ]; then
+          /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python make_fig1.py \
+            >> logs/make_fig1.log 2>&1
+        fi
+        cd ../lact_llm && DIMS="2 4 6" ./run_grid_diag.sh "$G" >> "outputs/q30_worker_gpu${G}.log" 2>&1 ) &
     fi
     DONE="$DONE $C"
   done
