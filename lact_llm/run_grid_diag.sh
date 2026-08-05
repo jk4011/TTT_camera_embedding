@@ -5,21 +5,35 @@
 #   e.g.  ./run_grid_diag.sh 0,1,2,3
 #         DIMS="1 2 5" ARMS="h" ./run_grid_diag.sh 0,1
 #
-# The stored tokens are IDENTICAL at every coord_dims -- byte for byte, verified
-# by synthetic_grid.selftest(). Only the factorisation of the flat index into
-# coordinate axes changes. So this measures address REPRESENTATION with the
-# task, the retrieval pattern, the memory load and the answer length all held
-# fixed.
+# WHAT VARIES WITH WHAT. Two different things move here, and conflating them
+# would misread every number:
 #
-# k=1 is the stock rotary (one band = the whole ladder), so the k=1 cells are
-# the baseline that every larger k is compared against WITHIN its own arm.
+#   `d` (--grid_coord_dims) changes THE DATA. The 1024 stored tokens are laid out
+#   on a d-dimensional lattice -- (32,32) at d=2, (8,8,4,4) at d=4, (4,4,4,4,2,2)
+#   at d=6 -- always 1024 elements, so memory load and answer length (32
+#   supervised tokens) are constant, but the retrieval pattern is not: a fiber in
+#   a different lattice is a different set of cells. Generated from one seed, so
+#   the stored grid region is byte-identical across d (verified: positions
+#   512..1536 equal for d=2/4/6); only the query and answer tail differ. `base`
+#   runs at every d precisely to measure how much harder the task itself got.
 #
-# Pre-registered prediction: NOT a monotone gain. _ext_angles gives each axis
-# only ~P/k frequencies, so extra axes buy structure and spend resolution. The
-# curve should peak near the data's true structure (k=2 here: fiber position x
-# fiber index) and decay after. The load-bearing comparison is whether the
-# hidden site's curve peaks HIGHER or LATER than the input site's -- that is the
-# claim that the hidden site is the multi-dimensional-address mechanism.
+#   `nd` vs `flat` (--clrs_coord_mode 2d/1d) changes ONLY THE ADDRESS, at fixed d.
+#   Same block, byte for byte; only the coordinate channel fed to the rotary
+#   differs. `flat` passes the token position, which recombines the ladder bands
+#   into inv_freq*t, i.e. bit-identically the stock rotary. THIS is the controlled
+#   comparison; d is the axis it is swept along.
+#
+# There is no d=1: at d=1 the flat index IS the coordinate, so nd and flat would
+# be the same run.
+#
+# Pre-registered prediction: NOT a monotone gain. Rising d gives the flat address
+# more strides to resolve, so nd-flat should grow -- but _ext_angles gives each
+# axis only ~P/d frequencies, so extra axes buy structure and spend resolution.
+# Expect a peak, not a ramp. The load-bearing comparison is whether the HIDDEN
+# site's nd-flat curve peaks HIGHER or LATER than the INPUT site's -- that is the
+# claim that the hidden site is the multi-dimensional-address mechanism. Where
+# the peak sits also speaks to NVS, which splits the ladder 6 ways for Plucker
+# and has never been checked against a dimension sweep.
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
