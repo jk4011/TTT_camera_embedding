@@ -109,6 +109,18 @@ Start from `abl_ccv_both.yaml` (cam_encoder already ON), set
 else identical: `cam_phase_mode: plucker`, same data, same seed, same step budget, and
 evaluate at the same common checkpoint step F30 used so the numbers line up.
 
+## When your queue empties: take from SELF_SERVE_QUEUE.md
+
+Do not idle. `SELF_SERVE_QUEUE.md` at the repo root lists every remaining experiment
+that fills a blank cell in `paper_overleaf/experiment.tex`, ordered by value per
+GPU-hour. Claim an item with the atomic `set -o noclobber` recipe at the top of that
+file before starting, or two nodes will run the same thing.
+
+Group A is seven short NVS runs (~1.6 h each) that finish the single-seed cells. They
+are the cheapest items and they remove a caveat the paper currently has to print:
+Table 1 is split into two blocks with two different baselines purely because GTA and
+PRoPE have one seed.
+
 ## 3. House rules
 
 - **Report paired**, never unpaired: per-scene/per-pair deltas with a t-statistic,

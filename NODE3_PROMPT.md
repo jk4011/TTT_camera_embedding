@@ -175,6 +175,18 @@ SOTA claim.
 
 ---
 
+## When your queue empties: take from SELF_SERVE_QUEUE.md
+
+Do not idle. `SELF_SERVE_QUEUE.md` at the repo root lists every remaining experiment
+that fills a blank cell in `paper_overleaf/experiment.tex`, ordered by value per
+GPU-hour. Claim an item with the atomic `set -o noclobber` recipe at the top of that
+file before starting, or two nodes will run the same thing.
+
+Group A is seven short NVS runs (~1.6 h each) that finish the single-seed cells. They
+are the cheapest items and they remove a caveat the paper currently has to print:
+Table 1 is split into two blocks with two different baselines purely because GTA and
+PRoPE have one seed.
+
 ## Rules that apply to both jobs
 
 - **GPU locks** are on lustre and therefore SHARED BETWEEN NODES. Both launchers
