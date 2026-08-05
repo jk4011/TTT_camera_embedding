@@ -107,7 +107,22 @@ base 곡선: v2 18.0641 / v4 20.6474 / v8 21.8252 / v16 22.0309 / v24 21.9368 / 
 `ttt_hidden_rope`(hidden 사이트)가 있어 input-only = `ttt_input_rope: true`,
 Both = 둘 다 true. `abl_video_full`은 `ttt_hidden_rope+ttt_learnable_freqs`라 Both가 아님(명명 함정 확인).
 
-### P5. CCV site ablation (3셀)  [RUNNING 2026-08-05]
+### P5. CCV site ablation (3셀)  [RESTARTED 2026-08-05 at ttt_hrope_frac=1.0]
+**재시작 사유(NODE2_PROMPT_RESTART_CCV.md)**: 최초 투입분은 `ttt_hrope_frac`을 기본값 0.5로
+두어 hidden이 50%만 회전했다(입력은 98.4%). NVS는 98.4/98.4, 3D 재구성은 100/100으로 재실행
+중이므로, CCV만 half-width 사다리면 input-vs-hidden 차이가 **사이트 때문인지 사다리 폭 때문인지
+구분되지 않는다**. `ttt_hrope_frac: 1.0` 한 줄만 바꿔 재투입(다른 파라미터 불변).
+
+폐기분은 삭제하지 않고 `outputs/ccv_site_{in,h,both}_frac05_ABANDONED`로 **이름만 비켜 뒀다**.
+이유: 같은 exp_name으로 재실행하면 `find_latest_checkpoint`가 frac0.5 체크포인트를 물어
+오염된 상태로 auto-resume 된다. 재시작 후 세 셀 모두 **step 1부터** 시작함을 로그로 확인.
+
+런타임 config 덤프 기준 positive 확인(3셀 공통: use_cam_encoder=True, ttt_hrope_frac=1.0,
+ttt_learnable_freqs=False, cam_phase_mode=plucker, max_fwdbwd_passes=20000, save_every=250,
+keep_last_iter=1000, seed=1, deterministic_noise=True):
+`ccv_site_in` input=True/hidden=False · `ccv_site_h` input=False/hidden=True ·
+`ccv_site_both` input=True/hidden=True.
+
 node1이 NODE2_PROMPT.md를 갱신해 arm 정의를 확정했다(F30 라벨이 틀렸었고, 저장된 config 기준으로
 정정됨). 사용자 결정: **FIXED ladder**. 세 셀 모두 cam_encoder ON, `ttt_learnable_freqs: false`,
 `cam_phase_mode: plucker`, seed 1, deterministic_noise, index_seed 42, 20,000 steps,

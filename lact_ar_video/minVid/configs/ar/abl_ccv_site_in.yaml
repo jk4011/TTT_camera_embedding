@@ -62,6 +62,7 @@ model:
           ttt_hidden_rope: false # P5 site ablation
           cam_phase_mode: plucker # camera Plucker phases for both sites
           ttt_learnable_freqs: false # user decision 2026-08-05: FIXED ladder
+          ttt_hrope_frac: 1.0 # rotate 100% of hidden dims (default 0.5 would half-width the ladder)
           # Q9 hidden-rotary genes (optional; defaults reproduce this run exactly):
           # ttt_hrope_frac: 0.5         # fraction of hidden dims rotated
           # ttt_hrope_gain: 1.0         # global multiplier on the hidden freq ladder
