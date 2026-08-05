@@ -1064,3 +1064,67 @@ rope 27.92 / hpra 28.57 -> hpra−rope = **+0.65 ppl (hurt)**.
   the old-vs-new level shift). FIX: cache filename now carries _ds<seed> (train_small.py);
   seed-42 cache regenerated deterministically and verified (rope 2.9126, buckets bit-match).
   In-flight ds43 pair unaffected (evaluates on the seed-43 blocks, internally consistent).
+
+## Protocol decision: the tttLRM from-scratch grid ENDS at 15,000 steps (2026-08-05)
+
+No wave 2. `train_cam.py:49` `lr_at()` is a cosine with `total = max_opt_steps` and a
+pure function of `step`, so raising `max_opt_steps` and resuming does NOT extend the
+schedule: it lifts the LR from 0 back to ~5.3e-5 at step 15000, i.e. a warm restart.
+The 15k endpoint and any extended endpoint would not be two points on one curve, and
+neither would be reproducible from a single config. If a longer budget is ever wanted,
+set `total=30000` and train from scratch. (User decision; supersedes the "wave 2 raises
+max_opt_steps and resumes" note that was in `run_scratch_grid.sh`.)
+
+Measured cost, 2 GPUs per cell, all 8 GPUs loaded (instantaneous s/step by
+cumulative-average differencing over 1000 steps):
+
+| cell | s/step | 15,000 steps |
+|---|---|---|
+| base | 2.705 | 11.3 h |
+| in | 2.555 | 10.6 h |
+| h | 2.765 | 11.5 h |
+| both | 2.856 | 11.9 h |
+
+`in` is FASTER than `base` while doing strictly more work, so GPU-placement variance is
+at least 2.6 percentage points here. Read `both`'s overhead as 3-8%, the same size as
+the hardware variance, not as the 5.6% the table nominally shows.
+
+## NVS: is the rotary's lead stable THROUGH training? (seed 95, train PSNR, 2026-08-05)
+
+Same seed and data order in all four arms; 2500-step window means. This is TRAINING
+PSNR, not held out, so it bounds nothing about generalisation on its own.
+
+| step | base | input | hidden | Both | Both-hidden | Both-input |
+|---|---|---|---|---|---|---|
+| 2500 | 20.187 | 20.812 | 20.891 | 21.288 | +0.398 | +0.476 |
+| 7500 | 19.818 | 20.346 | 20.537 | 20.800 | +0.263 | +0.454 |
+| 12500 | 20.610 | 21.012 | 21.332 | 21.433 | +0.101 | +0.421 |
+| 15000 | 20.605 | 20.992 | 21.338 | 21.394 | +0.056 | +0.402 |
+| 20000 | 20.779 | 21.142 | 21.515 | 21.584 | +0.068 | +0.442 |
+| 25000 | 20.855 | 21.199 | 21.531 | 21.575 | +0.044 | +0.375 |
+| 27500 | 21.061 | 21.338 | 21.705 | 21.704 | **-0.001** | +0.367 |
+
+1. All three rotary arms beat base in EVERY window, start to finish. No rank inversion.
+2. Both > input holds throughout at a stable +0.35 to +0.51, no trend.
+3. **Both > hidden decays monotonically to zero.** +0.398 -> +0.056 -> -0.001.
+
+Held-out confirmation of (3), Both minus hidden-only paired over the same 256 scenes
+(view sweep checkpoints, seed 95):
+
+| views | 4 | 8 | 16 | 24 | 32 |
+|---|---|---|---|---|---|
+| delta | **-0.225** | +0.073 | +0.254 | +0.255 | +0.308 |
+| t | -10.44 | +3.70 | +16.64 | +16.29 | +21.91 |
+| Both wins | 56/256 | 155/256 | 219/256 | 220/256 | 233/256 |
+
+At 4 views hidden-only BEATS Both outright. At 8 views -- the standard protocol -- the
++0.073 gap is a fifth of the 0.35 dB seed-noise floor (F18), i.e. a tie despite
+t=3.70. Both only separates from 16 views on. Consistent with Q4's sub-additivity
+(0.60 + 0.96 = 1.56 but full = 1.08): the two address spaces overlap, and the second
+site pays only once the address space is actually the bottleneck. Same mechanism as
+F40's "NoPE saturates at 16 views".
+
+CONSEQUENCE: the 30k budget is a stopping point, not convergence (train.py's own
+default is 80000, and base_s95 is still climbing in its last window: 20.855 -> 21.061).
+Both's lead over hidden decaying to zero AT that stopping point is why GROUP E's 80k
+run includes a hidden-only arm.
