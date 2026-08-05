@@ -48,11 +48,32 @@ it is implemented as more chunks it will reproduce F8 and tell us nothing new.
 Cost can be halved to 4 runs if only the Both arm is swept (NoPE at each update count
 is the more expensive half and arguably not needed).
 
-### P5. CCV hidden-only [1 run] -> ASSIGNED node2 (2026-08-05)
-Deferred earlier, now queued. F30 ran base / pra(learnable) / pra_fixed / both, so the
-hidden-only cell is the one hole in an otherwise complete table. CCV is the only
-video-domain setting where the hidden site earns (+3.9-4.6% over input), so the paper
-should be able to show hidden-alone there rather than inferring it.
+### P5 / P5b. CCV site ablation: hidden-only AND input-only [2 runs, ~46 h each]
+
+**ARM DEFINITION, answering node2's question.** Both cells must be:
+
+```
+use_cam_encoder: false          # match ccv_pra_fixed, which is the "both sites" cell
+cam_phase_mode: plucker
+ttt_learnable_freqs: false      # fixed ladder: it beats learnable in ccv (F30)
+ttt_input_rope:  true / false   # P5b: true,  P5: false
+ttt_hidden_rope: false / true   # P5b: false, P5: true
+```
+
+Start from `abl_ccv_pra_fixed.yaml` and turn OFF exactly one site. That makes the
+ablation `{none, input, hidden, both} x cam_encoder OFF`, with `ccv_base` (cam_encoder
+ON, no rotary) as the separate feature-injection reference.
+
+**Why this was not obvious, and why node2 was right to ask before burning 46 h.** F30's
+table labelled `ccv_pra` as "input" and `ccv_both` as "input+hidden". Both labels are
+wrong: verified against each run's SAVED config, every rotary cell has BOTH sites on,
+and `ccv_both` differs from `ccv_pra` by the **cam_encoder**, not by the hidden site.
+So the video input-vs-hidden split has never been measured, and the "hidden rotary
+earns in video" reading did not follow from that grid. Corrected in
+`RESULTS_DOSSIER.md` F30 and in `paper_overleaf/CLAUDE.md`.
+
+This is now 2 runs, not 1, and it is the only way Table 2's CCV block becomes a site
+ablation comparable to Table 1's.
 
 ### P6. GTA and PRoPE, seeds 137 + 211 [4 runs, ~6.4 h]
 Decision was that single-seed comparators are acceptable with a caption footnote, so

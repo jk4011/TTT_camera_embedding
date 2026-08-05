@@ -841,17 +841,34 @@ probe_val trajectories; eval protocol row-compatible with F30c's external anchor
 New eval path (commit 92e2486; Phase-1 = deterministic held-out val loss, 64 fixed pairs
 disjoint from the training index, per-pair fixed noise/timesteps; EMA weights, common
 checkpoint step 13999):
-| variant | mean loss | vs base (paired) |
-|---|---|---|
-| ccv_base | 0.04997 | — |
-| ccv_pra (input, learnable) | 0.04742 | −5.1%, t=−12.6, win 64/64 |
-| ccv_pra_fixed (input, fixed ladder) | 0.04633 | −7.3%, t=−12.9, 64/64; beats pra t=−11.6 |
-| ccv_both (input+hidden) | **0.04562** | **−8.7%, t=−11.3, 63/64; beats pra t=−9.0 (54/64), beats pra_fixed t=−5.9** |
-- THE HIDDEN ROTARY EARNS IN VIDEO once the task forces cross-camera information through
-  the fast weights (ccv: source view enters ONLY via fast-weight update; target camera
-  differs). F21/F22 neutrality was the idle-memory regime, exactly as CAMCTRL_DESIGN
-  hypothesized. Paper video story upgrades from "neutral boundary" to "neutral when the
-  memory carries no exclusive workload, large when it does".
+**LABELS CORRECTED 2026-08-05.** The original table called these arms "input",
+"input, fixed" and "input+hidden". That is WRONG, verified against the config each run
+actually saved (`outputs/ccv_*/seed_1/config.yaml`), not just the repo configs. The
+real axis is **camera-as-features vs camera-as-addressing**, and EVERY rotary cell has
+BOTH sites on:
+| variant | cam_encoder | rotary sites | ladder | mean loss | vs base (paired) |
+|---|---|---|---|---|---|
+| ccv_base | **ON** | none | — | 0.04997 | — |
+| ccv_pra | off | input+hidden | learnable | 0.04742 | −5.1%, t=−12.6, 64/64 |
+| ccv_pra_fixed | off | input+hidden | fixed | 0.04633 | −7.3%, t=−12.9, 64/64; beats pra t=−11.6 |
+| ccv_both | **ON** | input+hidden | learnable | **0.04562** | **−8.7%, t=−11.3, 63/64; beats pra t=−9.0, beats pra_fixed t=−5.9** |
+WHAT THIS GRID DOES SUPPORT, and it is strong:
+1. **Rotary addressing BEATS ReCamMaster-style feature injection, and replaces it.**
+   `ccv_pra_fixed` has NO cam_encoder at all and still beats `ccv_base`, which has one,
+   by −7.3%. Camera as an address outperforms camera as injected features.
+2. **The two compose**: adding the cam_encoder back on top (`ccv_both`) gains a further
+   −1.4 points to −8.7%.
+3. Fixed ladder beats learnable in video too (third domain: NVS F25 / LLM F20/F27).
+WHAT IT DOES **NOT** SUPPORT: any input-vs-hidden decomposition. There is no
+hidden-only cell and no input-only cell here, so the earlier claim "THE HIDDEN ROTARY
+EARNS IN VIDEO" is NOT established by these four runs, and F30b's "hidden increment"
+is really the **cam_encoder increment** (`both` − `pra`). The load-bearing-memory story
+(F21/F22 idle vs ccv load-bearing) still holds for the ROTARY AS A WHOLE, since
+ccv forces the source view through the fast-weight update; it just cannot be attributed
+to the hidden site from this grid.
+TO MAKE CCV A SITE ABLATION, two runs are needed, both with cam_encoder OFF and fixed
+ladders so they line up with `ccv_pra_fixed`: input-only and hidden-only. Queued as P5
+(hidden-only) and P5b (input-only).
 - Fixed ladder beats learnable in video too (third domain: NVS F25 / LLM F20/F27 / ccv).
 - Generation eval + ReCamMaster external anchor: see F30c.
 - Q10 gain variants (g03/g01) CANCELLED at step ~650 (2026-07-12 user pivot to Q11:
