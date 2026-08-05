@@ -77,19 +77,34 @@ COMMON=(
 echo "[q30] host=$HOST gpus=${GPUS[*]} budget=$BUDGET"
 echo "[q30] ${#CELLS[@]} cells: dims='$DIMS' arms='$ARMS'"
 
+# Cells are claimed atomically rather than striped by index, so this script can be
+# invoked once per GPU AS THAT GPU FREES -- which is how it actually gets used, because
+# GPUs come free at staggered times. Index striping only works if every worker starts
+# together and knows the full GPU list; two independent invocations would both begin at
+# index 0 and run the same cell twice.
+CLAIM_DIR="outputs/.q30_claims"
+mkdir -p "$CLAIM_DIR"
+
 for i in "${!GPUS[@]}"; do
   (
     g="${GPUS[$i]}"
     lock="$LOCK_DIR/${HOST}_gpu${g}"
     echo "q30-grid" > "$lock"
     trap 'rm -f "$lock"' EXIT
-    for ((j = i; j < ${#CELLS[@]}; j += ${#GPUS[@]})); do
+    for ((j = 0; j < ${#CELLS[@]}; j += 1)); do
       read -r name arm k mode <<< "${CELLS[$j]}"
       out="outputs/$name"
       if [ -f "$out/final.pt" ]; then
         echo "[q30] gpu$g: $name already complete -> skip"
         continue
       fi
+      # atomic claim: only one worker can create the file. A crashed worker's claim is
+      # removed by the trap below, so the cell returns to the pool on the next pass.
+      if ! ( set -o noclobber; echo "$HOST gpu$g $$" > "$CLAIM_DIR/$name" ) 2>/dev/null; then
+        echo "[q30] gpu$g: $name claimed by $(cat "$CLAIM_DIR/$name" 2>/dev/null) -> skip"
+        continue
+      fi
+      trap 'rm -f "$lock"; rm -f "$CLAIM_DIR/'"$name"'"' EXIT
       echo "[q30] gpu$g: launching $name (arm=$arm d=$k coord=$mode)"
       mkdir -p "$out"
       # resubmission = resume: train_small.py auto-resumes from its own ckpt
@@ -101,6 +116,10 @@ for i in "${!GPUS[@]}"; do
       # the startup guard must have fired, or the address never reached a layer
       grep -q "COORD VERIFIED ACTIVE\|address correctly inert" "$out/train.log" \
         || echo "[q30] gpu$g: $name -- NO COORD VERIFICATION LINE, TREAT AS INVALID"
+      # keep the claim only while the cell is unfinished; a finished cell is guarded by
+      # final.pt from here on, and a failed one must go back into the pool
+      [ -f "$out/final.pt" ] || rm -f "$CLAIM_DIR/$name"
+      trap 'rm -f "$lock"' EXIT
     done
   ) &
 done
