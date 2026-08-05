@@ -370,6 +370,54 @@ Supporting proxy-scale findings (20k, 0.65B):
   distinctions (0.03 vs 0.1) are unresolved at proxy scale; only the 3B trajectory-stable
   comparison is decision-grade. (LLM analogue of F18.)
 
+## F41: Q31 attn_nope — removing the ATTENTION rotary FLIPS the hidden rotary from
+## harmful to helpful, and leaves the input rotary's gain untouched (2026-08-05)
+200M LaCT LM, 3B tokens fineweb-edu, data_seed 42, bs 8x4096, window 1024, 91,552
+steps — F27's protocol exactly, with `attn_nope=true` in every cell so the
+sliding-window attention carries no explicit positional code and the TTT rotary is
+the model's only one. Wiring guarded before launch: the flag reaches 12/12 layers
+and changes the forward (|dloss| = 1.5e-05 untrained / 2.7e-04 trained, matched
+state_dict) — a silent no-op would have been indistinguishable from a null (cf. Q29).
+
+VAL-CACHE FIX. Q31 logged against `val_cache_..._ds42.pt`; F27 used
+`val_cache_..._4096.pt`, since deleted. As logged the two columns are NOT
+comparable. The F27-era cache was restored from git and the Q31 checkpoints
+re-scored on it, so the table below is a SAME-SAMPLE comparison (`paired_lm.py`,
+raw in `outputs/q31_paired_F27cache.json`).
+
+| Δ ppl vs its own nope | attn rope ON (F27) | attn rope OFF (Q31) |
+|---|---|---|
+| input fw-RoPE (`in`) | −0.22 | **−0.209** |
+| hidden rotary (`h`) | +0.23 | **−0.112** |
+| both | +0.02 | **−0.175** |
+
+Q31 absolute (F27-era cache): nope 20.558, in 20.349, h 20.447, both 20.383.
+Paired per-block over n=488, vs `nope`: in −0.0102 nats (t=−18.08, win 79.5%),
+h −0.0054 (t=−9.93, 69.7%), both −0.0086 (t=−15.65, 75.8%).
+
+- THE HYPOTHESIS SPLITS BY SITE. "Attention already supplies position, so the
+  fast-weight rotary has nothing left to contribute" is SUPPORTED for the hidden
+  site (+0.23 → −0.11: it stops hurting and starts helping) and REFUTED for the
+  input site (−0.22 → −0.21: unchanged, so its gain was never redundancy with
+  attention). Whatever the input rotary buys, attention was not already providing.
+- The arms do NOT collapse together; they order in→both→h→nope with every rotary
+  arm now beating nope.
+- Absolute ppl worsens 18.62 → 20.56 on nope, as pre-registered. We removed a
+  useful code. This is a channel-value decomposition, NOT a SOTA claim.
+- SCOPE: causal masking still leaks position, so this is "no explicit positional
+  code", not "position-free" — that leak is why NoPE transformers work at all
+  (Kazemnejad et al.).
+- CONFOUND, NOT YET CLOSED: the ON column is F27 (2026-07-09) and the OFF column
+  is Q31 (2026-08-05), i.e. different environment instances. F27b established that
+  env changes alone shift absolute ppl ~0.9 and FLIPPED this very contrast once
+  (hidden −0.19 old-env vs +0.24 new-env). The observed flip (+0.23 → −0.11) is
+  the same magnitude as that env-induced flip, so it CANNOT yet be attributed to
+  attn_nope. Closing it requires re-running the attn-rope-ON column in the current
+  env (4 cells, ~5 h each). Until then this is a strong lead, not an established
+  result.
+- Seed replication of the OFF column (seed 43, data_seed held at 42) is in flight;
+  within-column paired t of −9.9..−18.1 is block-level noise only, not init noise.
+
 ## F40: Q29 CLRS-Text address-DIMENSION grid — the 2-D address helps BOTH sites
 ## equally; the hidden increment does NOT grow with dimensionality (2026-08-05)
 CLRS-Text 2d_long, 12L/768d/4 lact heads, seq 4096, window 128, 1.2B tokens,
