@@ -77,3 +77,59 @@ paper is under FREEZE — do not touch paper claims.
 2. `grep "rotary"` in each cam arm's log — the cam_mode line must appear; base must
    NOT have one.
 3. GPU locks: claim `outputs/.gpu_locks/<host>_gpu<i>` per the house convention.
+
+---
+
+# ADDENDUM — Q33: gobjaverse (object orbits), the third geometry point
+
+The user has extended the assignment: after (or alongside, if you have 8 GPUs) the
+DL3DV grid, run the same four arms on gobjaverse. Pull again first (`git pull`).
+
+Geometry axis, all measured through the actual loader: RE10K 7.2 deg -> DL3DV
+61.1 deg -> **gobjaverse 93.2 deg** median between-view angle. If `both`'s failure to
+compose tracks this axis monotonically, the camera-baseline claim becomes a
+dose-response curve.
+
+Data: `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobjaverse_wai` — 20,001
+scenes, 40 frames each, 512x512 RGBA renders, WAI `scene_meta.json` (opencv, c2w
+`transform_matrix`; +z verified to look at the origin). `reshard_dl3dv.py` already
+understands this format (auto-detected per scene) and composites the alpha on white
+per the GSO recipe. Verified end to end on this side: loader emits 93.2 deg median
+angle, poses normalize to max|t| = 1, images land in [0,1].
+
+```bash
+cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs
+PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
+G=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobjaverse_wai
+
+# hold out the LAST 500 keys (sorted) as test; the rest train.
+# symlink split first so the reshard sees two dirs:
+mkdir -p /tmp/gobj_src/{train,test}
+$PY - <<'EOP'
+import os
+G="/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobjaverse_wai"
+ks=sorted(os.listdir(G)); ks=[k for k in ks if os.path.isdir(os.path.join(G,k))]
+for k in ks[:-500]: os.symlink(os.path.join(G,k), f"/tmp/gobj_src/train/{k}")
+for k in ks[-500:]: os.symlink(os.path.join(G,k), f"/tmp/gobj_src/test/{k}")
+print(len(ks)-500, "train /", 500, "test")
+EOP
+$PY data_preprocess/reshard_dl3dv.py --src /tmp/gobj_src/train --odir /tmp/gobj/train \
+    --index /tmp/gobj/train_index.json --workers 64
+$PY data_preprocess/reshard_dl3dv.py --src /tmp/gobj_src/test  --odir /tmp/gobj/test \
+    --index /tmp/gobj/test_index.json  --workers 32
+
+./run_gobj_grid.sh "0 1 2 3"     # or "4 5 6 7" alongside the DL3DV grid
+```
+
+**Deviations from the standard protocol, forced by the data and shared by all arms
+(state them in the report):**
+- `--min_frames 40`: gobjaverse scenes have exactly 40 frames, under the default
+  `num_views*3 = 45` filter. Without the flag the dataset filters to EMPTY. The
+  launcher passes it; do not strip it.
+- No official test split: last 500 sorted keys held out. Deterministic, disjoint.
+- 40-frame scenes mean the train window is always the whole orbit.
+- Absolute numbers comparable only within this grid.
+
+Report as F51: paired per-scene vs `gobj_base_s95`, n=500, and the one number
+**(both - max(input, hidden))**, alongside the same number from DL3DV (F50) and
+RE10K. Three points, one axis.

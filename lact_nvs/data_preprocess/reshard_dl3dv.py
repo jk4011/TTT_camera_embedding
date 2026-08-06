@@ -31,15 +31,24 @@ from multiprocessing import Pool
 
 import torch
 
-# a scene is a directory with opencv_cameras.json + images_undistort/*.png
+# DL3DV: a scene dir with opencv_cameras.json (fx/fy/cx/cy in pixels, w2c).
+# gobjaverse (WAI export): a scene dir with scene_meta.json (fl_x/fl_y/cx/cy in
+# pixels, transform_matrix = c2w, opencv convention -- verified +z looks at the
+# origin, dot(+z, to-origin) = 1.0). Detected per scene by which file exists.
 CAM_JSON = "opencv_cameras.json"
+WAI_JSON = "scene_meta.json"
 
 
 def process_scene(job):
     scene_dir, out_dir, short_side = job
     key = os.path.basename(scene_dir.rstrip("/"))
     out_path = os.path.join(out_dir, f"{key}.torch")
-    meta = json.load(open(os.path.join(scene_dir, CAM_JSON)))
+    if os.path.exists(os.path.join(scene_dir, CAM_JSON)):
+        meta = json.load(open(os.path.join(scene_dir, CAM_JSON)))
+        wai = False
+    else:
+        meta = json.load(open(os.path.join(scene_dir, WAI_JSON)))
+        wai = True
     frames = meta["frames"]
     if os.path.exists(out_path):
         return {"file": f"{key}.torch", "num_frames": len(frames)}
@@ -50,11 +59,23 @@ def process_scene(job):
     for fr in frames:
         w, h = fr["w"], fr["h"]
         # normalize intrinsics by image size, like the RE10K chunks
-        cam = [fr["fx"] / w, fr["fy"] / h, fr["cx"] / w, fr["cy"] / h, 0.0, 0.0]
-        w2c = torch.tensor(fr["w2c"], dtype=torch.float32)[:3].reshape(-1)
+        if wai:
+            cam = [fr["fl_x"] / w, fr["fl_y"] / h, fr["cx"] / w, fr["cy"] / h, 0.0, 0.0]
+            c2w = torch.tensor(fr["transform_matrix"], dtype=torch.float32)
+            w2c = torch.linalg.inv(c2w)[:3].reshape(-1)
+        else:
+            cam = [fr["fx"] / w, fr["fy"] / h, fr["cx"] / w, fr["cy"] / h, 0.0, 0.0]
+            w2c = torch.tensor(fr["w2c"], dtype=torch.float32)[:3].reshape(-1)
         cameras.append(torch.tensor(cam + w2c.tolist(), dtype=torch.float32))
 
-        img = Image.open(os.path.join(scene_dir, fr["file_path"])).convert("RGB")
+        img = Image.open(os.path.join(scene_dir, fr["file_path"]))
+        if img.mode == "RGBA":
+            # gobjaverse renders carry alpha; composite on white like the GSO recipe
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[-1])
+            img = bg
+        else:
+            img = img.convert("RGB")
         scale = short_side / min(img.size[0], img.size[1])
         img = img.resize(
             (max(1, round(img.size[0] * scale)), max(1, round(img.size[1] * scale))),
@@ -90,6 +111,7 @@ def main():
         os.path.join(args.src, d)
         for d in os.listdir(args.src)
         if os.path.isfile(os.path.join(args.src, d, CAM_JSON))
+        or os.path.isfile(os.path.join(args.src, d, WAI_JSON))
     )
     print(f"{len(scenes)} scenes in {args.src}")
 
