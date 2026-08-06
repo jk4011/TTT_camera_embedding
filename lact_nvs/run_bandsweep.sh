@@ -41,6 +41,8 @@ CELLS=(
   "gobj_base_s137        config/lact_l6_d256_p16.yaml gobj 137"
   "gobj_prope_orig_s211  config/cam_prope_orig.yaml  gobj 211"
   "gobj_base_s211        config/lact_l6_d256_p16.yaml gobj 211"
+  "gobj_prope75_s95      config/cam_prope75.yaml     gobj"
+  "gobj_prope_in_s95     config/cam_prope_in.yaml    gobj"
 )
 for row in "${CELLS[@]}"; do
   read -r EXP CFG DATA SEED <<< "$row"

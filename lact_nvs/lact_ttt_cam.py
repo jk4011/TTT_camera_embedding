@@ -985,6 +985,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         num_registers: int = 4,
         rank: int = 8,
         omega_tilt: float = 0.0,
+        prope_proj_frac: float = 0.5,
         omega_scale: float = 1.0,
         freeze_freqs: bool = False,
         phase_bias: bool = False,
@@ -1350,8 +1351,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if "vo_rel" in self.cam_modes:
             pass  # parameter-free
 
+        self.prope_proj_frac = prope_proj_frac
         if self.cam_modes & {"prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope"}:
             assert head_dim % 8 == 0
+            assert 0.0 < prope_proj_frac < 1.0 and (int(head_dim * prope_proj_frac) // 8 * 8) % 4 == 0
 
         if "cam_lr" in self.cam_modes:
             self.lr_cam = zero_init(nn.Linear(12, 3 * self.num_heads))
@@ -1543,7 +1546,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 P = eye.expand_as(P).contiguous()
                 P_inv = P
             hd = self.head_dim
-            half, quart = hd // 2, hd // 4
+            # prope_proj_frac (Q40, 2026-08-07): budget split between the projective
+            # block and the two image ropes. F56: on gObjaverse projective-alone
+            # (+0.48) beats the 50/50 prope_orig (+0.32) while imgrope-alone is also
+            # positive (+0.34) -- both components help alone and interfere at 50/50,
+            # so the split is a live axis. Default 0.5 = the faithful original.
+            half = int(hd * self.prope_proj_frac) // 8 * 8
+            quart = (hd - half) // 2
             P_h = to_heads(P, nh)
             P_inv_h = to_heads(P_inv, nh)
             import math as _m
