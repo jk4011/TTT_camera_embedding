@@ -101,7 +101,12 @@ def main():
     ap.add_argument("--odir", required=True)
     ap.add_argument("--index", required=True)
     ap.add_argument("--split", choices=["train", "test"], required=True)
-    ap.add_argument("--n_test", type=int, default=200)
+    # MUST match the holdout run_gobj_grid.sh evaluates on (--num_scenes). Resharding
+    # the two splits at DIFFERENT --n_test silently leaks: train = all[:-n] means a
+    # smaller n puts the difference in BOTH splits. Caught once at n=200 vs 500 (300
+    # scenes leaked); the assert below only catches overlap within one invocation, so
+    # keep this default and the grid's --num_scenes in step.
+    ap.add_argument("--n_test", type=int, default=500)
     ap.add_argument("--max_scenes", type=int, default=None,
                     help="cap the TRAIN split (test is always the full holdout)")
     ap.add_argument("--workers", type=int, default=64)
