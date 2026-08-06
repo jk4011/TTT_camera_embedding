@@ -1228,3 +1228,76 @@ inductor died with "failed to map segment from shared object" AFTER training com
 camimg_s95 hit this and lost its eval; the four 80k runs and seven Group A runs would
 each have hit it hours later. Fixed by exporting in all three scripts. Any new launcher
 that calls eval.py directly needs the same three lines.
+
+## F47: NVS budget sensitivity — 30k is not convergence, and the gaps SHRINK but hold
+## (seed 95, 2026-08-06)
+Same protocol as the 30k table but 80,000 steps, warmup scaled 1500 -> 4000 so the
+cosine keeps its shape, `lpips_start` left absolute at 5000. Comparable only to itself.
+
+| arm | 30k PSNR | 80k PSNR | 30k d vs base | 80k d vs base (t, improved) |
+|---|---|---|---|---|
+| base | 21.825 | 23.260 | — | — |
+| input | 22.333 | 23.619 | +0.508 | +0.359 (t=+18.3, 234/256) |
+| hidden | 22.724 | 24.027 | +0.899 | +0.767 (t=+30.6, 249/256) |
+| both | 22.797 | **24.071** | +0.971 | **+0.811** (t=+29.5, 247/256) |
+
+LPIPS at 80k: base 0.2176, input 0.2056, hidden **0.1984**, both 0.1995.
+
+1. **30k was nowhere near convergence.** Every arm gains 1.3-1.4 dB from the extra
+   50k steps. Any statement of the form "the model has converged" at 30k is wrong.
+2. **The rotary's advantage survives, reduced.** Both keeps +0.81 dB at t=29.5 on
+   247/256 scenes. NoPE does NOT catch up. But the gap shrank ~17% (+0.971 -> +0.811),
+   so part of what the rotary bought at 30k was faster convergence, not only a better
+   endpoint. Report the 30k gap as budget-dependent, never as budget-invariant.
+3. **The hidden-overtakes-Both question is answered: no.** Both - hidden goes
+   +0.073 (t=3.69) at 30k to +0.044 (t=2.44) at 80k. The lead narrows further but does
+   not cross. So the two sites still do not COMPOSE meaningfully in NVS at 8 views --
+   the second site is worth about 0.04-0.07 dB, a fifth of the seed-noise floor -- but
+   the extrapolation that hidden-only would win was wrong.
+4. Note hidden takes the best LPIPS at 80k while both takes the best PSNR.
+
+## F48: tttLRM 3D-reconstruction view sweep, 4-32 input views (step 15000, n=140)
+Evaluation only: one checkpoint per arm read at five input scales. Trained at 8 views.
+View selection is one rule across all five points (kmeans, random_state=0); the test
+list precomputes 4/16/32 and v8/v24 recompute the identical quantity.
+
+| arm | 4 | 8 | 16 | 24 | 32 |
+|---|---|---|---|---|---|
+| base | 14.152 | 15.240 | 15.446 | 15.295 | 15.117 |
+| in | 14.452 | 15.691 | 15.880 | 15.666 | 15.424 |
+| h | 14.408 | 15.672 | **15.975** | **15.823** | **15.617** |
+| both | 14.006 | 15.532 | 15.526 | 15.210 | 14.955 |
+
+Paired delta vs base (t):
+
+| arm | 4 | 8 | 16 | 24 | 32 |
+|---|---|---|---|---|---|
+| in | +0.300 (11.6) | +0.451 (16.9) | +0.435 (13.0) | +0.370 (9.7) | +0.306 (7.9) |
+| h | +0.257 (8.7) | +0.433 (15.6) | +0.529 (16.8) | +0.528 (14.0) | **+0.500 (13.1)** |
+| both | **-0.145 (-4.8)** | +0.293 (11.1) | +0.080 (2.1) | -0.086 (-1.9) | **-0.162 (-3.6)** |
+
+1. **The single sites separate along the view axis exactly as the two-axis thesis
+   predicts.** `in` peaks at 8-16 views and decays (+0.451 -> +0.306); `h` keeps
+   climbing to 16 and HOLDS out to 32 (+0.529, +0.528, +0.500). By 32 views the hidden
+   site is worth 1.6x the input site. This is the cleanest within-task evidence we have
+   that the hidden site is what scales with input load.
+2. **`both` is actively harmful at the ends** — negative at 4 views (t=-4.8) and at 24
+   and 32 (t=-1.9, -3.6). It only helps in a narrow band around the trained point.
+3. Every arm including base peaks at 16 views and declines after, unlike NVS where NoPE
+   plateaued. Different backbone, different saturation shape; do not merge the panels'
+   narratives.
+
+Figure regenerated at paper_overleaf/fig1_input_scale.pdf with both panels complete.
+
+## F49: Q31 NoPE repair diverged again, worse — the instability IS the result
+`q31_attnnope_nope_s43b` (data_seed 43, init seed 44) ended at **ppl 526.0** against
+the first attempt's 30.4 and its siblings' 19.4-19.7. Per the rule written down before
+this run: a second divergence is reported as instability, not as a perplexity, and no
+further seeds are drawn. Two of two NoPE cells at data_seed 43 blew up while all six
+rotary cells at both data seeds finished clean.
+
+Reading: with `attn_nope` the model has no explicit positional code anywhere, and that
+configuration appears to be genuinely less trainable at 3B tokens. That is a property
+worth stating, and it makes the ds42 nope number (19.69) the one usable NoPE point.
+F44's conclusions rest on ds42 and are unaffected; what is NOT available is a two-seed
+confirmation of the NoPE arm.
