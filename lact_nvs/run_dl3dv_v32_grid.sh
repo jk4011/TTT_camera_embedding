@@ -67,6 +67,12 @@ run_one() {
     > "outputs/$EXP/eval.log" 2>&1
   echo "[$ARM] eval exit=$?"
 }
-for i in "${!ARMS[@]}"; do run_one "${G[$i]}" "${ARMS[$i]}" & sleep 5; done
-wait
-echo "[dl3dv32] all four arms done"
+if [ "${#G[@]}" -eq 1 ]; then
+  # single GPU given -> run the four arms SEQUENTIALLY on it (node2 mode, like the
+  # mc grid). Order: base first so the reference exists early, both last.
+  for ARM in base input hidden both; do run_one "${G[0]}" "$ARM"; done
+else
+  for i in "${!ARMS[@]}"; do run_one "${G[$i]}" "${ARMS[$i]}" & sleep 5; done
+  wait
+fi
+echo "[dl3dv32] all arms done"
