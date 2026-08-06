@@ -1289,6 +1289,46 @@ Paired delta vs base (t):
 
 Figure regenerated at paper_overleaf/fig1_input_scale.pdf with both panels complete.
 
+## F52: the baseline dose-response, WITHIN one dataset — the two sites compose at
+## ~6 deg and stop composing by ~48 deg, monotone across 2 seeds (2026-08-07)
+F50/F51 gave three points on the baseline axis but they were three DATASETS, so
+baseline co-varied with background, normalization, scale and difficulty. This removes
+that confound: ONE dataset (DL3DV), the SAME four checkpoints, the SAME 140 test
+scenes; only `eval.py --window` moves, which sets how far apart the selected views are.
+Eval-only, so nothing about the models changes. Median pairwise view angle measured
+through the loader at each window. Each cell is seed 95 / seed 137.
+
+| angle | window | **both - max(single)** | t | in-base | h-base | both-base |
+|---|---|---|---|---|---|---|
+| 5.73 | 16 | **+0.009 / -0.015** | 0.5 / -0.8 | +0.362 / +0.544 | +0.464 / +0.665 | +0.474 / +0.650 |
+| 8.45 | 24 | -0.045 / -0.055 | -2.6 / -3.1 | +0.294 / +0.467 | +0.388 / +0.601 | +0.343 / +0.545 |
+| 11.49 | 32 | -0.027 / -0.035 | -1.9 / -2.5 | +0.282 / +0.475 | +0.375 / +0.614 | +0.349 / +0.579 |
+| 16.48 | 48 | -0.066 / -0.063 | -4.2 / -4.0 | +0.180 / +0.377 | +0.297 / +0.521 | +0.232 / +0.458 |
+| 20.98 | 64 | -0.076 / -0.064 | -4.6 / -3.9 | +0.154 / +0.354 | +0.258 / +0.478 | +0.181 / +0.413 |
+| 34.46 | 128 | -0.148 / -0.128 | -9.7 / -9.1 | +0.010 / +0.116 | +0.139 / +0.244 | -0.009 / +0.116 |
+| 47.84 | 300 | **-0.162 / -0.148** | -10.8 / -9.1 | -0.044 / -0.010 | +0.053 / +0.052 | -0.110 / -0.096 |
+
+1. **This is the dose-response F50/F51 could only gesture at.** `both - max(single)` is
+   monotone in baseline (one shared wobble at window 32, present in BOTH seeds, so it is
+   a protocol property and not noise), and it is replicated seed-to-seed at every point.
+2. **At ~6 deg the two sites COMPOSE**: +0.009 / -0.015, indistinguishable from zero
+   (t = 0.5 / -0.8), with every arm gaining +0.36..+0.67. **By ~48 deg they interfere**:
+   `both` is -0.16 below the best single site and NEGATIVE against base, while only the
+   hidden site is still (barely) above water at +0.05.
+3. **It reproduces the CROSS-dataset numbers from inside one dataset.** At 5.7 deg the
+   gap matches RE10K's +0.073 (F47); at 34.5 deg it matches DL3DV's -0.148 (F50). So
+   what the three-dataset comparison measured really was baseline, not dataset
+   idiosyncrasy — which is what F50 point 3 and F51 point 3 flagged as unproven.
+4. The rotary's TOTAL value falls with baseline too: input +0.36 -> -0.04, hidden
+   +0.46 -> +0.05, both +0.47 -> -0.11 (s95). The hidden site degrades most slowly,
+   consistent with F48's view-axis result.
+5. SCOPE: this varies baseline at EVAL time; all eight checkpoints trained at the
+   dataset default (window 192). Whether training at a narrow baseline changes what the
+   model learns about composing the sites is a separate question — `train.py` gained
+   `--window` and the narrow-training grid (window 48) is running.
+6. Absolute PSNR rises at narrow windows because nearby views are an easier task; only
+   within-window arm contrasts are meaningful.
+
 ## F51: Q33 LaCT-LVSM on gObjaverse (~91 deg orbits) — at the wide end of the
 ## baseline axis the rotary HURTS, and `both` subtracts at every view count (2026-08-06)
 Same LaCT-LVSM, configs and 30k/bs16/lr1e-4/8+8/256x256 protocol as F50; gObjaverse
@@ -1365,8 +1405,11 @@ at once. Here only the data moves. Eval on the SAME 140-scene DL3DV test split F
    pre-registered reading is therefore the first one: **data geometry is the lever**,
    and "when do the two sites compose" is a claim about camera baseline, not about
    tttLRM's architecture.
-2. **The INPUT site dies at wide baseline.** +0.508 on RE10K -> **+0.010 (t=0.55)** here,
-   a clean null. The hidden site survives at +0.139 (t=7.81) and takes the only LPIPS
+2. **The INPUT site's gain collapses at wide baseline** (+0.508 on RE10K -> +0.010 here).
+   CORRECTION (seed 137, added 2026-08-07): "a clean null" was seed-fragile — s137 gives
+   +0.116 (t=5.52), clearly positive. The robust statement is that input's gain shrinks
+   by ~4-5x, not that it vanishes. What DOES replicate seed-to-seed is the headline:
+   both - hidden = -0.148 (s95) / -0.128 (s137), and hidden > input in both. The hidden site survives at +0.139 (t=7.81) and takes the only LPIPS
    improvement. hidden - input = +0.129 (t=9.28, 113/140). Contrast F45, where on
    tttLRM/DL3DV the two single sites were statistically indistinguishable (+0.451 vs
    +0.433) — so backbone still shapes WHICH single site wins, even though it is not what

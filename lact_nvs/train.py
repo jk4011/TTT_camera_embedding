@@ -33,6 +33,13 @@ parser.add_argument("--dataset", type=str, default="re10k", choices=["nvs", "re1
 parser.add_argument("--min_frames", type=int, default=None,
                     help="Re10KDataset scene filter; default num_views*3. gobjaverse "
                          "scenes have 40 frames < 15*3, so object-orbit runs pass 40.")
+parser.add_argument("--window", type=int, default=192,
+                    help="Re10KDataset training window: views are drawn from a random "
+                         "contiguous run of up to this many frames, so it sets the "
+                         "CAMERA BASELINE the model trains at. On DL3DV the eval-side "
+                         "sweep measures 5.7 deg at 16 and 47.8 deg at 300, which is "
+                         "the axis F52 varies. Default 192 = the dataset default, so "
+                         "omitting it reproduces every run made before this flag.")
 parser.add_argument("--num_workers", type=int, default=16)
 
 # Training
@@ -153,7 +160,7 @@ def remove_module_prefix(state_dict):
 # Data
 if args.dataset == "re10k":
     from data_re10k import Re10KDataset
-    dataset = Re10KDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize, min_frames=args.min_frames)
+    dataset = Re10KDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize, min_frames=args.min_frames, window=args.window)
 else:
     dataset = NVSDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize)
 datasampler = DistributedSampler(dataset)
