@@ -1601,3 +1601,9 @@ ours. Q36 (prope_orig + gta at the TTT site on OUR gObjaverse renders) tests (a)
 geometry we can measure; (b) cannot be tested without their renders. For the paper:
 one more reason to publish loader-measured angles with every dataset -- it is a
 reproducibility contrast in our favour.
+
+## Q38 scope decision (user, 2026-08-07): NO Wigner l=2 extension
+ogta stays as implemented -- exact fundamental rotation (single l=1 copy per unit) plus
+the capped SO(2) translation ladder. Higher-irrep rotation multi-frequency (Wigner-D
+l>=2) was floated as an upgrade path and is EXCLUDED by user decision; do not build it
+regardless of how the Q38 cells land.
