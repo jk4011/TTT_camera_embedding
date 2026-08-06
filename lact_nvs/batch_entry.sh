@@ -1,7 +1,7 @@
 #!/bin/bash
 # batch_entry.sh — self-contained Slurm-batch entry point (submit via web GUI).
 #
-#   bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_camera_embedding/lact_nvs/batch_entry.sh
+#   bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs/batch_entry.sh
 #
 # Requires nothing from the interactive session: env is the lustre venv, data
 # is reshared from the lustre RE10K source into this node's /tmp, and the job

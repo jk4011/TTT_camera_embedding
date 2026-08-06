@@ -1,0 +1,7 @@
+543 chunks -> /tmp/re10k/test
+  100/543 chunks, 1362 scenes
+  200/543 chunks, 2646 scenes
+  300/543 chunks, 3949 scenes
+  400/543 chunks, 5319 scenes
+  500/543 chunks, 6714 scenes
+DONE: 7286 scenes, index -> /tmp/re10k/test_index.json

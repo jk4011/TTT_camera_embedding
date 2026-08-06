@@ -25,6 +25,6 @@ CLAUDE_CONFIG_DIR="$PORTABLE/config" "$PORTABLE/bin/claude" -p \
    the numbers mean against the established findings (F-series). Also update EXPERIMENT_QUEUE.md
    statuses. Commit both files to git with a concise message. Do not launch any training." \
   --dangerously-skip-permissions \
-  --add-dir /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_camera_embedding \
+  --add-dir /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope \
   2>&1 | tail -20
 echo "[batch_with_claude] done $(date)"

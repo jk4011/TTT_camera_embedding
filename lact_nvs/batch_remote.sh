@@ -1,7 +1,7 @@
 #!/bin/bash
 # batch_remote.sh — interactive-Claude batch entry point. Submit via Slurm web GUI:
 #
-#   bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_camera_embedding/lact_nvs/batch_remote.sh
+#   bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs/batch_remote.sh
 #
 # Starts, on the batch node:
 #   1. RE10K bootstrap (reshard into node-local /tmp if missing)
@@ -30,6 +30,8 @@ PERMISSION_MODE=${PERMISSION_MODE:-acceptEdits}
 mkdir -p outputs
 exec > >(tee -a "outputs/batch_remote_$(date '+%F_%H%M%S').log") 2>&1
 echo "[remote] $(date) node=$(hostname)"
+NGPU=$(nvidia-smi -L 2>/dev/null | grep -c '^GPU ' || true)
+bash "$WORKSPACE/tools/ntfy.sh" "배치 잡 시작: $(hostname), GPU ${NGPU}개" "Slurm 배치"
 
 # ---- 1. data bootstrap ----
 if [ ! -f /tmp/re10k/train_index.json ]; then
