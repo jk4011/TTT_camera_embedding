@@ -1301,3 +1301,31 @@ configuration appears to be genuinely less trainable at 3B tokens. That is a pro
 worth stating, and it makes the ds42 nope number (19.69) the one usable NoPE point.
 F44's conclusions rest on ds42 and are unaffected; what is NOT available is a two-seed
 confirmation of the NoPE arm.
+
+## Q30 interim (d=2/4/6 complete at 800M tokens; d=3/5 at ~70%): one cell learns,
+## and it is exactly the predicted one (2026-08-06)
+N-dimensional tensor recall, single seed 42, answer_acc over held-out blocks; content
+vocab 1000 so CHANCE = 0.1%.
+
+| d | base | in flat | in nd | h flat | **h nd** |
+|---|---|---|---|---|---|
+| 2 | 0.05% | 0.04% | 0.06% | 0.07% | **0.90%** |
+| 4 | 0.07% | 0.07% | 0.07% | 0.07% | 0.07% |
+| 6 | 0.09% | 0.09% | 0.13% | 0.16% | 0.11% |
+
+1. **The ONLY configuration above chance anywhere in the grid is hidden + true 2-D
+   address**: 9x chance and still climbing at budget end (0.65 -> 0.90% over the last
+   4k steps; val_loss 6.843 vs 6.908 for all four others, which are mutually
+   indistinguishable). The input site given the SAME nd address stays at chance. As a
+   sign this is the dimensionality thesis's prediction exactly: the hidden site is
+   what exploits a multi-dimensional address.
+2. **d >= 4 is a floor effect, not a refutation.** Every arm sits at chance, so those
+   cells cannot distinguish anything at this budget. The pre-registered "peak" cannot
+   be located from a floor.
+3. Honest limits: single seed; the one live cell is at 0.9% ABSOLUTE accuracy; and the
+   task at 800M tokens is simply too hard for every other configuration. The clean
+   claim available today is the d=2 ordering (h_nd >> everything), not a curve over d.
+
+NEXT (cheap, decisive): extend q30_h_d2_nd + q30_in_d2_nd + q30_h_d2_flat to 3B
+tokens (the curve is still steep), and consider an easier variant (smaller grid or
+content vocab) so d>=3 lifts off the floor before comparing sites there.
