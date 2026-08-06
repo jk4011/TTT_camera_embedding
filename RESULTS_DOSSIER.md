@@ -1686,3 +1686,34 @@ NEAREST-neighbour pairs rather than on the typical pair. It is the opposite of w
 distinction Q34 was built to draw: training at 32 views, not extrapolating to it.
 
 Numbers only — node2. Interpretation and any paper claim are node1's.
+
+## F55: Q38 ogta (orthogonal group action, user design) -- clean math, no rescue
+## (seed 95, 30k standard protocol both datasets, 2026-08-07)
+Per-view block-diagonal orthogonal address transform on fast q/k: exact c2w rotation
+(3x3, fundamental rep only -- Wigner l>=2 excluded by user decision) + one SO(2) per
+translation axis, ladder capped at pi/2 so translation phases cannot wrap; 28 units =
+252/256 dims. Verified: norm preservation 1.2e-07, same-view cancellation 3.0e-08.
+
+| dataset | base | ogta | delta |
+|---|---|---|---|
+| gObjaverse (91 deg) | 22.193 | 22.099 | **-0.09** (means; 498 vs 499 scenes) |
+| RE10K (7 deg) | 21.825 | 21.908 | **+0.083** (t=+8.14, 182/256) |
+
+Context on gObjaverse: prope_orig +0.32, gta_in -0.15, ogta -0.09. On RE10K the
+sinusoidal ladder is +0.51 ahead of ogta (paired -0.425, t=-17.3).
+
+1. **The hypothesis behind ogta was reasonable and the machinery is clean** (norms
+   exactly preserved, no renorm hacks), and it does edge out the affine rigid
+   transform on gObjaverse (-0.09 vs gta_in's -0.15). But it does NOT beat base at
+   wide baseline and does NOT approach the ladder at narrow baseline. Orthogonality
+   was not the missing ingredient.
+2. Pattern across all TTT-site camera transforms on gObjaverse so far: pure camera
+   group actions on q/k (gta_in -0.15, ogta -0.09) LOSE; the only winner is
+   prope_orig (+0.32), which carries image-coordinate ropes on half the head dim.
+   Whether its win is the projective part or the image ropes is exactly what the
+   running decomposition (gobj_prope_imgrope / gobj_prope_raw, ~04:20) separates.
+3. GOAL STATUS (user /goal: one camera embedding that works on BOTH RE10K and
+   Objaverse in TTT): NOT achieved by ogta. Next candidate queued: omega_r-style
+   LEARNABLE per-frequency gains on the Plucker ladder -- on RE10K omega_r is the
+   3-seed record holder (22.971), and on gObjaverse learnable gains could down-weight
+   exactly the wrapped bands; one recipe, data-adaptive. One cell when a GPU frees.
