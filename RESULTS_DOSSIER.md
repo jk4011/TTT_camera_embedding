@@ -1607,3 +1607,39 @@ ogta stays as implemented -- exact fundamental rotation (single l=1 copy per uni
 the capped SO(2) translation ladder. Higher-irrep rotation multi-frequency (Wigner-D
 l>=2) was floated as an upgrade path and is EXCLUDED by user decision; do not build it
 regardless of how the Q38 cells land.
+
+## F53: Q34 — DL3DV at 32 input views, composition RESTORED (node2, 2026-08-07)
+
+F50 found `both` fails to compose on DL3DV at 8 views (both − best single = **−0.148**,
+t = −9.74) on the same LVSM backbone where RE10K composes. Q34 retrains all four arms at
+**32 input views** to test the user's hypothesis that packing the window with overlapping
+poses makes camera addressing matter more.
+
+Protocol (all four arms, stated for comparability): 32 input + 8 target (num_all_views 40),
+bs_per_gpu 8 (16 does not fit at 40 views), otherwise the F50 recipe — DL3DV 256x256,
+30k iters, lr 1e-4, LPIPS from step 5k, seed 95. Eval: same 140-scene DL3DV test split as
+F50 but **32 uniform inputs**, so these numbers are NOT comparable to F50's 8-view
+absolute numbers — only to each other. Four arms ran sequentially on one B200.
+
+| arm | PSNR | ΔPSNR vs base | t | win% | LPIPS | ΔLPIPS | t | win% |
+|---|---|---|---|---|---|---|---|---|
+| base | 16.9695 | — | — | — | 0.4804 | — | — | — |
+| input | 17.4410 | +0.4715 | +22.71 | 98.6% | 0.4564 | −0.0241 | −38.06 | 100.0% |
+| hidden | 17.4782 | +0.5088 | +29.00 | 99.3% | 0.4574 | −0.0231 | −37.41 | 100.0% |
+| both | 17.6159 | +0.6464 | +26.60 | 98.6% | 0.4572 | −0.0232 | −33.15 | 99.3% |
+
+**THE number — (both − max(input, hidden)), paired per scene, best single = hidden:**
+
+**Δ = +0.1377 dB, t = +11.19, win 83.6% (117/140 scenes)**, against F50's **−0.148**
+(t = −9.74) at 8 views.
+
+The sign flips. At 8 views `both` was worse than the better single site; at 32 views it is
+better than either, by about the same magnitude the failure had. Per the pre-registered
+reading in `run_dl3dv_v32_grid.sh`: the nearest-neighbour angle is what moves with view
+count (12.8 → 4.7 deg from 8 → 32 views) while the median pairwise angle barely does
+(45.3 → 38.7 deg), so this is the outcome predicted by retrieval leaning on
+NEAREST-neighbour pairs rather than on the typical pair. It is the opposite of what F48
+(tttLRM, eval-only extrapolation from 8-view-trained phases) suggested, which is the
+distinction Q34 was built to draw: training at 32 views, not extrapolating to it.
+
+Numbers only — node2. Interpretation and any paper claim are node1's.
