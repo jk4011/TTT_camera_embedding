@@ -31,18 +31,20 @@ HOST="$(hostname -s)"
 # result (prope_orig +0.32) with its seed-matched baselines -- the house rule
 # says a single-seed headline is not a result yet.
 CELLS=(
+  "gobj_hga_s95          config/cam_hga.yaml         gobj"
+  "hga_s95               config/cam_hga.yaml         re10k"
   "gobj_gentle_s128_s95  config/cam_gentle_s128.yaml gobj"
   "gobj_gentle_s8_s95    config/cam_gentle_s8.yaml   gobj"
   "gobj_gentle_s2_s95    config/cam_gentle_s2.yaml   gobj"
   "gentle_s8_s95         config/cam_gentle_s8.yaml   re10k"
   "gentle_s2_s95         config/cam_gentle_s2.yaml   re10k"
   "gentle_s128_s95       config/cam_gentle_s128.yaml re10k"
+  "gobj_prope75_s95      config/cam_prope75.yaml     gobj"
+  "gobj_prope_in_s95     config/cam_prope_in.yaml    gobj"
   "gobj_prope_orig_s137  config/cam_prope_orig.yaml  gobj 137"
   "gobj_base_s137        config/lact_l6_d256_p16.yaml gobj 137"
   "gobj_prope_orig_s211  config/cam_prope_orig.yaml  gobj 211"
   "gobj_base_s211        config/lact_l6_d256_p16.yaml gobj 211"
-  "gobj_prope75_s95      config/cam_prope75.yaml     gobj"
-  "gobj_prope_in_s95     config/cam_prope_in.yaml    gobj"
 )
 for row in "${CELLS[@]}"; do
   read -r EXP CFG DATA SEED <<< "$row"

@@ -48,6 +48,8 @@ from lact_ttt import (
     TTTOperator,
     fast_weight_swish_glu_weight_norm_mini_batch_apply,
     inv_softplus,
+    silu_backprop,
+    zeropower_via_newtonschulz5,
 )
 
 
@@ -266,6 +268,108 @@ def fast_weight_swish_glu_branch_input_rotary_apply(
             qci = q_cont[:, start:end, :]
             oi = (F.silu(qgi @ w0_now, inplace=True) * (qci @ w2_now)) @ w1_now
             output.append(oi)
+
+    output = torch.cat(output, dim=1)
+    return output, w0, w1, w2
+
+
+
+def _mat4_tok(x, M_tok):
+    """Per-TOKEN 4x4 block transform over the full width.
+
+    x: [B, L, D] with D % 4 == 0; M_tok: [B, L, 4, 4]. Every 4-dim block of every
+    token is multiplied by that token's matrix. fp32 math, cast back.
+    """
+    B, L, D = x.shape
+    # fp32 with TF32 off: under bf16 autocast einsum would run in bf16, and even in
+    # fp32 TF32 rounds the mantissa -- the identity-matrix audit then fails bit-
+    # exactness against the stock kernel. These are 4x4 blocks; precision > speed.
+    with torch.autocast(device_type=x.device.type, enabled=False):
+        old_tf32 = torch.backends.cuda.matmul.allow_tf32
+        torch.backends.cuda.matmul.allow_tf32 = False
+        try:
+            blocks = x.float().reshape(B, L, D // 4, 4)
+            out = torch.einsum("blij,blkj->blki", M_tok.float(), blocks)
+        finally:
+            torch.backends.cuda.matmul.allow_tf32 = old_tf32
+    return out.reshape(B, L, D).to(x.dtype)
+
+
+def fast_weight_swish_glu_hidden_mat4_apply(
+    w0, w1, w2, q, k, v, lr0, lr1, lr2,
+    Mu_tok, Ma_tok,
+    ttt_ua_order: list,
+    muon_update_steps: int = 0,
+):
+    """h-GA (Q41): the hidden-site GROUP ACTION. Identical to
+    fast_weight_swish_glu_hidden_rotary_apply except the per-token PHASE rotation is
+    replaced by a per-token tiled 4x4 MATRIX on the full hidden width:
+
+        update:  dW1 ~ (M_u(i) h(k_i))^T v_i      apply:  o_j = (M_a(j) h(q_j)) W1
+
+    With M_u = P^-1 (view of the update token) and M_a = P^T (view of the apply
+    token), the retrieval channel becomes <P_j^T h_q, P_i^-1 h_k> = h_q^T (P_j
+    P_i^-1) h_k: the relative projective transform, exactly prope's cancellation,
+    but in HIDDEN space. Motivation F56: at wide baselines matrix actions win at
+    the input site while every phase code loses; this asks whether the same holds
+    at our site.
+
+    The update backward passes through the exact transpose (dL/dh = M^T dL/dh'),
+    which for a general matrix is NOT its inverse -- using the inverse here (the
+    rotary habit) would silently corrupt the update. Muon and weight-norm are
+    untouched. Mu_tok/Ma_tok: [B, L, 4, 4], sliced per op like hcos/hsin.
+    """
+    w0_norm = w0.detach().norm(dim=1, keepdim=True)
+    w1_norm = w1.detach().norm(dim=1, keepdim=True)
+    w2_norm = w2.detach().norm(dim=1, keepdim=True)
+    output = []
+    for start, end, update, apply in ttt_ua_order:
+        w0_now, w1_now, w2_now = w0, w1, w2
+
+        if update:
+            ki, vi = k[:, start:end, :], v[:, start:end, :]
+            lr0i = lr0[:, start:end, :]
+            lr1i = lr1[:, start:end, :]
+            lr2i = lr2[:, start:end, :]
+            Mi = Mu_tok[:, start:end]
+
+            gate_before_act = ki @ w0_now
+            hidden_before_mul = ki @ w2_now
+            gate_act = F.silu(gate_before_act, inplace=False)
+            hidden = gate_act * hidden_before_mul
+            hidden_mat = _mat4_tok(hidden, Mi)
+
+            # dL/dh = M^T (dL/dh'): exact transpose, not the inverse.
+            dhidden_mat = vi @ w1_now.transpose(-1, -2)
+            dhidden = _mat4_tok(dhidden_mat, Mi.transpose(-1, -2))
+            dhidden_before_mul = dhidden * gate_act
+            dgate = dhidden * hidden_before_mul
+            dgate_before_act = silu_backprop(dgate, gate_before_act)
+
+            w1_grad = zeropower_via_newtonschulz5(
+                (hidden_mat * lr1i).transpose(-1, -2) @ vi, muon_update_steps
+            )
+            w0_grad = zeropower_via_newtonschulz5(
+                (ki * lr0i).transpose(-1, -2) @ dgate_before_act, muon_update_steps
+            )
+            w2_grad = zeropower_via_newtonschulz5(
+                (ki * lr2i).transpose(-1, -2) @ dhidden_before_mul, muon_update_steps
+            )
+            w1_now = w1_now + w1_grad
+            w0_now = w0_now + w0_grad
+            w2_now = w2_now + w2_grad
+
+            w0_now = w0_now / (w0_now.norm(dim=1, keepdim=True) + 1e-5) * w0_norm
+            w1_now = w1_now / (w1_now.norm(dim=1, keepdim=True) + 1e-5) * w1_norm
+            w2_now = w2_now / (w2_now.norm(dim=1, keepdim=True) + 1e-5) * w2_norm
+
+            w0, w1, w2 = w0_now, w1_now, w2_now
+
+        if apply:
+            qi = q[:, start:end, :]
+            hq = F.silu(qi @ w0_now, inplace=True) * (qi @ w2_now)
+            hq = _mat4_tok(hq, Ma_tok[:, start:end])
+            output.append(hq @ w1_now)
 
     output = torch.cat(output, dim=1)
     return output, w0, w1, w2
@@ -995,7 +1099,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
-        known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel", "ogta",
+        known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel", "ogta", "h_ga",
                  "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
@@ -1808,6 +1912,22 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                     muon_update_steps=self.muon_update_steps,
                     hnorm="hnrot" in modes,
                 )
+        elif "h_ga" in modes:
+            # Q41: hidden-site group action. Per-view projective mats expanded to
+            # per-token; update side P^-1, apply side P^T (prope's convention moved
+            # to hidden space). d_h must be divisible by 4 (512 = 128 blocks).
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                P, P_inv = self._prope_mats(info)                # [b, V, 4, 4]
+                V = P.shape[1]
+                Pt = to_heads(P.reshape(P.shape[0], V, 16), nh).reshape(-1, V, 4, 4)
+                Pi = to_heads(P_inv.reshape(P.shape[0], V, 16), nh).reshape(-1, V, 4, 4)
+                vidx = torch.arange(q.shape[1], device=q.device) // tpv
+                Ma_tok = Pt[:, vidx].transpose(-1, -2)           # P^T per apply token
+                Mu_tok = Pi[:, vidx]                             # P^-1 per update token
+            output, w0, w1, w2 = fast_weight_swish_glu_hidden_mat4_apply(
+                w0, w1, w2, q, k, v, lr0, lr1, lr2, Mu_tok, Ma_tok, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
         elif self.branch_rope:
             # gate_rope: gate branch (w0) reads the rotated q/k, content
             # branch (w2) the plain copy; content_rope is the mirror.
