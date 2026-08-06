@@ -985,6 +985,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         num_registers: int = 4,
         rank: int = 8,
         omega_tilt: float = 0.0,
+        omega_scale: float = 1.0,
+        freeze_freqs: bool = False,
         phase_bias: bool = False,
         t_near: float = 0.05,
         t_far: float = 4.0,
@@ -1121,9 +1123,20 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert 2 * 6 * num_freqs <= head_dim
             omega = math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), num_freqs, base=2.0
-            )
+            ) * omega_scale
+            # omega_scale (Q39, user hypothesis 2026-08-07): frequencies do not LEARN
+            # their way out of wrapping (F20/F29/F37 init lottery; F55-corr: learnable
+            # gains sat at -0.41 on gObjaverse), so wrap-freedom must come from the
+            # INIT. 1/32 puts the band at [pi/64, pi/2]: with |dc| <= 2 between views
+            # no rung can wrap, by construction -- the ladder analogue of ogta's cap.
             self.register_buffer("omega", omega, persistent=False)
-            self.freq_gain = _gain("freq_gain", 6, num_freqs)
+            if freeze_freqs:
+                # user decision 2026-08-07: FREQUENCY LEARNING OFF -- the init is the
+                # spectrum. (The learnable gain never rescued a bad band anyway.)
+                self.register_buffer("freq_gain", torch.ones(6, num_freqs),
+                                     persistent=False)
+            else:
+                self.freq_gain = _gain("freq_gain", 6, num_freqs)
 
         if "pra_sinc" in self.cam_modes:
             # Split rotary budget: Plucker line identity (6 x num_freqs pairs)
