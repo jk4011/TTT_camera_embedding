@@ -1441,3 +1441,22 @@ Consequence for the pending paper revision: state the geometry claim in terms of
 nearest-neighbour baseline, not the median pairwise angle. RE10K-vs-DL3DV at 8 views
 differs in BOTH statistics, so F50 alone could not separate them; this sweep can,
 because v moves only the NN statistic and the sign follows it.
+
+## Context check: the tttLRM PAPER's curriculum never trains the scene model below 16
+## views (arXiv 2602.20160, App. B.1; checked 2026-08-06)
+Scene-level (the DL3DV model all our tttLRM work derives from): three resolution
+stages, 144x256 -> 288x512 -> 540x960, and "we train the model across 16 to 64 input
+views"; the final stage trains "with 32 input views ... then 16 to 64 input views"
+(verbatim; one summary pass read the stage-3 step counts as 55K+11K and another as
+5K+1K -- re-verify against the PDF before citing step counts anywhere). Object-level
+GS model: "8 views as input and another 8 views as supervision" at every stage.
+
+Consequence for reading F45/F48: our from-scratch grid trains the SCENE task at 8+8
+views -- the OBJECT recipe's view count, below the scene curriculum's minimum of 16.
+So the composition failure (F45) and the worsening-with-views eval response (F48) were
+measured in a view regime the paper's scene model never occupies. Combined with F53
+(composition on LVSM/DL3DV flips positive once the nearest-neighbour angle drops to
+RE10K's), the 8-view choice is a real threat to external validity: the published
+tttLRM lives in the dense regime where composition should be easiest. A from-scratch
+cell at 16-64 mixed views (the paper's actual recipe) is the missing measurement;
+decision deferred until Q34 (LVSM trained-at-32) reports.
