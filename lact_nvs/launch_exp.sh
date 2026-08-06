@@ -13,6 +13,11 @@ SEED=${4:-95}
 # which preserves the early-training recipe rather than the LPIPS-on fraction.
 STEPS=${STEPS:-30000}
 WARMUP=${WARMUP:-1500}
+# Dataset overrides for the DL3DV cross-data run. Defaults reproduce RE10K exactly.
+# DL3DV is resharded into the RE10K per-scene .torch format (reshard_dl3dv.py), so
+# DATASET stays "re10k" even for DL3DV -- it names the FORMAT, not the corpus.
+DATA_PATH=${DATA_PATH:-/tmp/re10k/train_index.json}
+DATASET=${DATASET:-re10k}
 
 PY_ENV=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin
 cd "$(dirname "$0")"
@@ -30,7 +35,7 @@ CUDA_VISIBLE_DEVICES=$GPU $PY_ENV/torchrun \
   --rdzv-backend=c10d --rdzv-endpoint=localhost:0 --nproc_per_node=1 \
   train.py \
   --config $CONFIG \
-  --data_path /tmp/re10k/train_index.json --dataset re10k --scene_pose_normalize \
+  --data_path "$DATA_PATH" --dataset "$DATASET" --scene_pose_normalize \
   --expname $EXP \
   --steps $STEPS --warmup $WARMUP --lr 1e-4 --lpips_start 5000 --seed $SEED \
   --bs_per_gpu 16 --num_all_views 15 --num_input_views 8 --num_target_views 8 \
