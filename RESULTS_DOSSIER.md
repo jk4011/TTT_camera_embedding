@@ -1736,3 +1736,41 @@ REVISED candidate for the both-datasets goal, pending the 04:20 decomposition:
 - if that is not enough at wide baseline, the follow-up surgery is ogta + image
   ropes (both wrap-free: near-neutral camera code + positive image code), a budget
   split needing a small mode combination.
+
+## F56: the gObjaverse decomposition FLIPS the F34 pattern, and the wrap-free ladder
+## fails anyway -- at the TTT site the split is PHASE vs MATRIX, not wrapped vs not
+## (all seed 95, 30k, 2026-08-07 overnight)
+
+gObjaverse decomposition of prope_orig's +0.32 (n=498/499):
+
+| cell | PSNR | dPSNR | RE10K reference (F34) |
+|---|---|---|---|
+| base | 22.193 | -- | -- |
+| imgrope only | 22.533 | +0.34 | +0.379 |
+| **projective only (prope_raw)** | **22.669** | **+0.48** | **-0.294** |
+| full prope_orig | 22.513 | +0.32 | +0.285 |
+| camimg (half ladder + half img) | 22.285 | +0.09 | +0.12 over pra_hi |
+
+And the Q39 wrap-free-ladder verdict:
+
+| cell | band | PSNR | delta |
+|---|---|---|---|
+| gobj_gentle | [pi/64, pi/2], frozen | 22.088 | **-0.11** |
+| gentle (RE10K) | same | 21.866 | +0.04 (ladder is +0.51) |
+
+1. **The projective matrix action FLIPS SIGN with geometry**: -0.29 on RE10K, +0.48 on
+   gObjaverse -- where it is now the best TTT-site number we have. Combining it with
+   image ropes (prope_orig 50/50) LOSES 0.16 vs projective alone: interference again.
+2. **imgrope is the one component positive in both regimes** (+0.38 / +0.34).
+3. **The user's wrap-free-init hypothesis is REFUTED on gObjaverse**: a ladder that
+   provably cannot wrap still loses (-0.11), and ogta's wrap-free phases were also
+   ~0 (-0.09). So at the TTT site the wide-baseline failure of camera PHASES is not
+   (only) aliasing: phase codes on camera coords lose there even unwrapped, while
+   MATRIX actions on the content win. (Aliasing remains real at the ATTENTION site:
+   Q37's plucker_rope collapsed while group actions won by +7.4 dB.)
+4. RE10K side of Q39: capping the band costs everything (+0.04 vs +0.51) -- the
+   narrow-baseline gain lives in the high rungs, as expected.
+
+Goal ledger (user /goal 05:40: beat prope on Objaverse): the bar is prope_raw 22.669
+(strongest prope-family number in our TTT stack), or minimally prope_orig 22.513.
+Nothing of ours clears either yet.
