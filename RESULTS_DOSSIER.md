@@ -1717,3 +1717,22 @@ sinusoidal ladder is +0.51 ahead of ogta (paired -0.425, t=-17.3).
    LEARNABLE per-frequency gains on the Plucker ladder -- on RE10K omega_r is the
    3-seed record holder (22.971), and on gObjaverse learnable gains could down-weight
    exactly the wrapped bands; one recipe, data-adaptive. One cell when a GPU frees.
+
+## Correction to F55's next-step (2026-08-07, before launching it): the omega_r
+## premise is ALREADY REFUTED by F51 itself
+`qk_rope_cam`'s `freq_gain` is a learnable nn.Parameter (ones init) by default, and
+the F51 gObjaverse arms used exactly that mode -- so the ladder ALREADY had 30k steps
+of learnable per-coord/freq gains with which to shrink its wrapped bands, and still
+lost -0.41. "Learnable gains will down-weight the wrapped bands" is therefore not a
+new candidate; it is the thing that already failed (plausibly because gradients
+through wrapped cos/sin phases are too noisy to find the shrink direction). Do NOT
+run gobj_omega_r.
+REVISED candidate for the both-datasets goal, pending the 04:20 decomposition:
+- if gobj_prope_imgrope lands positive (F34's RE10K pattern), the image-coordinate
+  rope is the one component positive in BOTH regimes at the TTT site. Then test
+  `camimg` on gObjaverse (existing mode, F46: half camera ladder + half image rope;
+  RE10K 3-seed 22.41 = +0.58 over base) -- the camera dose is halved and the working
+  component added, zero new code.
+- if that is not enough at wide baseline, the follow-up surgery is ogta + image
+  ropes (both wrap-free: near-neutral camera code + positive image code), a budget
+  split needing a small mode combination.
