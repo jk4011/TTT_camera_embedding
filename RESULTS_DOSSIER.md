@@ -1774,3 +1774,29 @@ And the Q39 wrap-free-ladder verdict:
 Goal ledger (user /goal 05:40: beat prope on Objaverse): the bar is prope_raw 22.669
 (strongest prope-family number in our TTT stack), or minimally prope_orig 22.513.
 Nothing of ours clears either yet.
+
+## F57: the band dose-response lands -- MONOTONE OPPOSITE slopes, no shared band, and
+## even the best gObjaverse band is only +0.04 (frozen freqs, seed 95, 2026-08-07)
+
+| omega_scale | band | gObjaverse (base 22.193) | RE10K (base 21.825) |
+|---|---|---|---|
+| 1/128 | [pi/256, pi/8] | **+0.038** | +0.070 |
+| 1/32 | [pi/64, pi/2] | -0.105 | +0.041 |
+| 1/8 | [pi/16, 2pi] | -0.399 | +0.469 |
+| 1/2 | [pi/4, 8pi] | -0.498 | +0.505 |
+| 1 (learnable, ref) | [pi/2, 16pi] | -0.41 (F51) | +0.51 |
+
+1. **The curves are monotone in OPPOSITE directions.** RE10K wants the band as high
+   as it can get (+0.505 at s=1/2, matching the full ladder), gObjaverse wants it as
+   low as possible -- and even at the gentlest band the ladder only reaches +0.04,
+   NOISE, never a real win. There is no shared band, and no peak at the wrap
+   boundary: the gObjaverse damage is roughly proportional to how much of the band
+   wraps, but removing the wrap entirely leaves NOTHING, unlike the matrix action's
+   +0.48.
+2. This completes F56's argument with a dose-response: camera PHASES at the TTT
+   site range from useless to harmful at wide baseline no matter how the band is
+   placed, while the projective MATRIX action wins there. Phases vs matrices is the
+   operative axis; band placement only modulates the phase damage.
+3. RE10K's s=1/2 (+0.505) matching s=1 (+0.51) says the top octave [8pi, 16pi]
+   contributes nothing even at narrow baseline -- the working rungs live below 8pi.
+   Mildly useful for ladder budgeting; not load-bearing.
