@@ -25,16 +25,26 @@ export TORCHINDUCTOR_CACHE_DIR="$REPO_ROOT/.cache_inductor_nvs"
 export TORCHINDUCTOR_COMPILE_THREADS=1
 CLAIM=outputs/.bandsweep_claims; mkdir -p "$CLAIM"
 HOST="$(hostname -s)"
-# cell = "<exp> <config> <data>"
+# cell = "<exp> <config> <data> [seed]"  (seed defaults to 95)
+# Extended for the overnight block (user asleep until 10:00): the RE10K curve's
+# missing 1/128 point, and 3-seed confirmation of the ONLY positive gObjaverse
+# result (prope_orig +0.32) with its seed-matched baselines -- the house rule
+# says a single-seed headline is not a result yet.
 CELLS=(
   "gobj_gentle_s128_s95  config/cam_gentle_s128.yaml gobj"
   "gobj_gentle_s8_s95    config/cam_gentle_s8.yaml   gobj"
   "gobj_gentle_s2_s95    config/cam_gentle_s2.yaml   gobj"
   "gentle_s8_s95         config/cam_gentle_s8.yaml   re10k"
   "gentle_s2_s95         config/cam_gentle_s2.yaml   re10k"
+  "gentle_s128_s95       config/cam_gentle_s128.yaml re10k"
+  "gobj_prope_orig_s137  config/cam_prope_orig.yaml  gobj 137"
+  "gobj_base_s137        config/lact_l6_d256_p16.yaml gobj 137"
+  "gobj_prope_orig_s211  config/cam_prope_orig.yaml  gobj 211"
+  "gobj_base_s211        config/lact_l6_d256_p16.yaml gobj 211"
 )
 for row in "${CELLS[@]}"; do
-  read -r EXP CFG DATA <<< "$row"
+  read -r EXP CFG DATA SEED <<< "$row"
+  SEED=${SEED:-95}
   [ -f "outputs/$EXP/eval.json" ] && continue
   if ! ( set -o noclobber; echo "$HOST gpu$GPU $$" > "$CLAIM/$EXP" ) 2>/dev/null; then continue; fi
   if [ "$DATA" = gobj ]; then TRAIN=/tmp/gobj/train_index.json; TEST=/tmp/gobj/test_index.json; X="--min_frames 40"; N=500
@@ -46,7 +56,7 @@ for row in "${CELLS[@]}"; do
     train.py --config "$CFG" \
     --data_path "$TRAIN" --dataset re10k --scene_pose_normalize $X \
     --expname "$EXP" \
-    --steps 30000 --warmup 1500 --lr 1e-4 --lpips_start 5000 --seed 95 \
+    --steps 30000 --warmup 1500 --lr 1e-4 --lpips_start 5000 --seed "$SEED" \
     --bs_per_gpu 16 --num_all_views 15 --num_input_views 8 --num_target_views 8 \
     --image_size 256 256 --num_workers 7 --save_every 10000 --log_every 200 \
     > "outputs/$EXP/train.log" 2>&1
