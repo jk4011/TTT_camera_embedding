@@ -1379,3 +1379,28 @@ vocab 1000 so CHANCE = 0.1%.
 NEXT (cheap, decisive): extend q30_h_d2_nd + q30_in_d2_nd + q30_h_d2_flat to 3B
 tokens (the curve is still steep), and consider an easier variant (smaller grid or
 content vocab) so d>=3 lifts off the floor before comparing sites there.
+
+## F52: ladder width is a MODULATOR, not the cause -- the coverage comparison lands
+## (tttLRM from scratch @ step 10000, only the ladder differs; 2026-08-06)
+The nf16 grid's checkpoints survived under outputs/scratch_*_nf16 (its results were
+never recorded in this dossier -- repaired here). Same protocol, same seed, same step;
+nf16 = F16/F21 (coverage 25%/8.2%, oversampling 1.03x/1.35x, i.e. NVS-like density),
+wide = F64/F256 (100%/100%, 4.1x/16.5x).
+
+| | base | in | h | both | both - best single |
+|---|---|---|---|---|---|
+| nf16 | 15.007 | +0.505 | +0.529 | +0.432 | **-0.097** (t=-5.45, 42/140) |
+| wide | 15.104 | +0.556 | +0.496 | +0.309 | **-0.247** (t=-13.14, 17/140) |
+
+1. **`both` fails to compose at BOTH widths.** The near-critical nf16 ladder does not
+   rescue it, so oversampling/coverage is NOT the cause of the failure. The density
+   hypothesis in DENSITY_PROBE.md is refuted as the primary account, and the
+   scratch_d_* probe cells are now unnecessary.
+2. Width MODULATES the size of the failure: -0.097 -> -0.247 as the ladder saturates.
+   Consistent with the wrap account (a wider ladder doubles a larger dose) but only as
+   a second-order effect.
+3. Together with F50 the picture is: **data geometry decides WHETHER the sites
+   compose** (RE10K +0.07 vs DL3DV -0.148 at identical width on the same backbone);
+   **ladder width scales HOW BADLY** they interfere once they do not (-0.097 vs
+   -0.247); and the unrotated-dimension hypothesis is dead (nf16 leaves 75%/91.8%
+   unrotated and still fails).
