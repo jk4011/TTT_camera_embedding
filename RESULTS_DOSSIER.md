@@ -1289,6 +1289,58 @@ Paired delta vs base (t):
 
 Figure regenerated at paper_overleaf/fig1_input_scale.pdf with both panels complete.
 
+## F51: Q33 LaCT-LVSM on gObjaverse (~91 deg orbits) — at the wide end of the
+## baseline axis the rotary HURTS, and `both` subtracts at every view count (2026-08-06)
+Same LaCT-LVSM, configs and 30k/bs16/lr1e-4/8+8/256x256 protocol as F50; gObjaverse
+(20,000 objects x 40 rendered views, 512x512, `dataset/gobjaverse_wai`) resharded into
+the RE10K per-scene format. Train 19,500 / test 500 deterministic holdout, disjoint.
+Training views (8 input / 8 novel) match LaCT's own object-level setting (supp.tex:457).
+Eval: 499 scenes (>=40 frames), paired per scene.
+
+| arm | PSNR | LPIPS | dPSNR vs base | t | improved |
+|---|---|---|---|---|---|
+| **base (NoPE)** | **22.193** | **0.1445** | — | — | — |
+| input | 21.781 | 0.1496 | -0.412 | -21.06 | 77/499 |
+| hidden | 21.627 | 0.1532 | -0.566 | -30.22 | 38/499 |
+| both | 21.305 | 0.1549 | **-0.888** | -35.81 | 18/499 |
+
+VIEW SWEEP (eval-only, one ckpt per arm, `--min_frames 40` pins the SAME 499 scenes at
+every view count). dPSNR vs base (t):
+
+| arm | 4 | 8 | 16 | 24 | 32 |
+|---|---|---|---|---|---|
+| input | -0.515 (-13.4) | -0.412 (-21.1) | -0.315 (-16.7) | -0.740 (-22.3) | -0.209 (-11.6) |
+| hidden | -0.498 (-15.1) | -0.566 (-30.2) | -0.547 (-32.3) | -0.535 (-22.2) | -0.563 (-32.1) |
+| both | -1.021 (-23.8) | -0.888 (-35.8) | -0.709 (-31.8) | -1.051 (-28.5) | -0.635 (-26.2) |
+
+**both - max(input, hidden): -0.523 / -0.476 / -0.394 / -0.515 / -0.426** at v=4/8/16/24/32
+(t = -17..-26, both wins 44-101 of 499). Negative EVERYWHERE.
+
+1. **Not a view-count artifact.** F48 showed tttLRM's `both` was positive only in a
+   narrow band around its trained view count and flipped sign at 4/24/32, so a
+   single-view-count verdict was not safe. Here the sign never flips: across 4-32 input
+   views every rotary arm is below NoPE and `both` is below both single sites.
+2. **The third point on the baseline axis** (median pairwise view angle through the
+   loader: RE10K ~7 -> DL3DV 34.5 -> gObjaverse 91.2). Together with F47/F50 the second
+   site's marginal value is monotone in baseline: **+0.073 -> -0.148 -> -0.476**, and
+   the rotary's total value crosses zero: best arm +0.971 -> +0.139 -> NoPE wins.
+3. **NOT a controlled dose-response.** The three points are three DATASETS, so baseline
+   co-varies with background, object-centric normalization, bounded scene scale and
+   difficulty. gObjaverse is object-level and was never a single-variable extension of
+   F50 — see the scope note in `run_gobj_grid.sh`. The clean test varies baseline WITHIN
+   one dataset (view-window width on DL3DV); that is not yet run.
+4. ANOMALY, flagged not hidden: at v=24 ALL FOUR arms drop together (base 22.30 @16 ->
+   20.13 @24 -> 22.18 @32). At v=24 the uniformly spaced input indices collide with all
+   four target candidates (5, 15, 24, 34), so every target is bumped +1; no other view
+   count does that. It hits the arms equally so the contrast holds, but the absolute
+   v=24 numbers should not be quoted.
+5. TOOLING: `eval.py` gained `--min_frames`. Re10KDataset drops scenes with fewer than
+   `num_views*3` frames, a threshold that GROWS with the view count -- on a fixed-length
+   dataset a sweep silently changes its scene set, and here 16 inputs emptied it
+   entirely (0 scenes, PSNR nan). Default None keeps the old behaviour.
+6. Absolute PSNR is comparable only within this grid: 30k steps vs LaCT's 671B tokens,
+   40 rendered views vs their 32, target 4 vs their 8 novel.
+
 ## F50: Q32 LaCT-LVSM on DL3DV — changing ONLY the data flips `both` from the best
 ## arm to a harmful one (seed 95, 2026-08-06)
 Same LaCT-LVSM, same configs, same 30k/bs16/lr1e-4/8+8/256x256/LPIPS-from-5k protocol

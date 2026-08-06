@@ -27,6 +27,12 @@ parser.add_argument("--num_input_views", type=int, default=8)
 parser.add_argument("--num_target_views", type=int, default=4)
 parser.add_argument("--image_size", nargs=2, type=int, default=[256, 256])
 parser.add_argument("--window", type=int, default=128)
+# Re10KDataset drops scenes with fewer than num_views*3 frames. That default scales
+# with the view count, so a VIEW SWEEP silently changes the scene set as it goes --
+# and on a fixed-length dataset it can empty the set entirely (gObjaverse has 40
+# frames/scene, so 16 inputs => threshold 60 => 0 scenes, PSNR nan). Pin it to keep
+# one scene set across the whole sweep. None keeps the old behaviour.
+parser.add_argument("--min_frames", type=int, default=None)
 parser.add_argument("--bs", type=int, default=8)
 parser.add_argument("--ttt_num_chunks", type=int, default=1,
                     help="Split the input-token fast-weight update into n sequential "
@@ -53,6 +59,7 @@ dataset = Re10KDataset(
     image_size=tuple(args.image_size),
     scene_pose_normalize=True,
     window=args.window,
+    min_frames=args.min_frames,
     eval_mode=True,
     num_input_views=n_in,
     num_target_views=n_tg,
