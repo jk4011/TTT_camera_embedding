@@ -1460,3 +1460,47 @@ RE10K's), the 8-view choice is a real threat to external validity: the published
 tttLRM lives in the dense regime where composition should be easiest. A from-scratch
 cell at 16-64 mixed views (the paper's actual recipe) is the missing measurement;
 decision deferred until Q34 (LVSM trained-at-32) reports.
+
+## F51: Q33 gObjaverse (object orbits, ~91 deg) -- the third geometry point lands, the
+## dose-response is MONOTONE, and at the extreme the whole rotary family turns harmful
+## (seed 95, n=499, 2026-08-06)
+Same LaCT-LVSM, same configs, same protocol as F50; gObjaverse object orbits (40-frame
+scenes, RGBA on white, last-500-sorted-keys holdout, --min_frames 40). Node3 trained
+and evaluated; numbers computed from the shared-lustre eval.json files.
+
+| arm | PSNR | LPIPS | dPSNR vs base | t | improved |
+|---|---|---|---|---|---|
+| base (NoPE) | **22.193** | **0.1445** | -- | -- | -- |
+| input | 21.781 | 0.1496 | -0.412 | -21.06 | 77/499 |
+| hidden | 21.627 | 0.1532 | -0.566 | -30.22 | 38/499 |
+| both | 21.305 | 0.1549 | **-0.888** | -35.81 | 18/499 |
+
+**THE AXIS, complete (both - best single site, same backbone, same protocol, only
+data):**
+
+| RE10K 7.2 deg | DL3DV 61 deg | gObjaverse ~91 deg |
+|---|---|---|
+| +0.07 | -0.148 (t=-9.74) | **-0.476 (t=-25.16)** |
+
+1. **Monotone.** The composition failure grows with camera baseline across three
+   datasets on one backbone. The pre-registered dose-response reading holds.
+2. **STRONGER than predicted: at the extreme, every arm is harmful.** Not just
+   composition -- input -0.41, hidden -0.57 vs base, t over 20, on 499 scenes. At
+   ~91 deg median between-view angle essentially the whole ladder wraps between
+   views, and rotating AT ALL decorrelates cross-view matching faster than the
+   address pays. The two-axis thesis needs a third regime: narrow = compose,
+   intermediate = single-site (hidden) survives, extreme = NoPE wins outright.
+3. **The single-site ordering flips vs DL3DV**: there hidden survived (+0.139) while
+   input died (+0.010); here input (-0.41) is LESS harmful than hidden (-0.57).
+   Consistent with a wrap-dose account (the hidden site applies its rotation inside
+   the fast-weight MLP on update AND apply, a larger dose), but single-seed --
+   recorded as an observation, not a claim.
+4. Caveats: single seed; object renders on white background are an easier task
+   (base LPIPS 0.14); 40-frame scenes mean the train window IS the whole orbit;
+   held-out split is ours (last 500 sorted keys), not official.
+
+PAPER CONSEQUENCE: the pending revision's trigger has fired and the trend held, but
+the pre-agreed wording ("at wide baselines the hidden site alone is the right
+recipe") is falsified AT THE EXTREME POINT -- at ~91 deg the right recipe is no
+rotary at all. The revision needs the three-regime framing; user sign-off required
+before touching paper claims.
