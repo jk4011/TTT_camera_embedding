@@ -1556,3 +1556,26 @@ the pre-agreed wording ("at wide baselines the hidden site alone is the right
 recipe") is falsified AT THE EXTREME POINT -- at ~91 deg the right recipe is no
 rotary at all. The revision needs the three-regime framing; user sign-off required
 before touching paper claims.
+
+## Reconciliation note: why PRoPE's LVSM result and our geometry findings do not
+## conflict (checked against their release code, prope/scripts/nvs.sh; 2026-08-06)
+Their released training setting (the paper's LVSM experiments):
+- RE10K ONLY -- the narrowest-baseline regime we measure (7.2 deg median).
+- **2 input (context) views**, 1 supervised view per step; denser context counts
+  (4/8/16) appear only as EVAL-time extrapolation of the 2-view model.
+- Pure-transformer LVSM decoder-only (6L, d768, nhead 16, ffn 1024, qk_norm),
+  256x256, fp16, 80k steps, bs 8 scenes/GPU, lr 4e-4.
+- Encoding site: softmax attention q/k (+ inverse transforms on v/o).
+
+So their entire training lives at the extreme narrow end of our geometry axis --
+RE10K at TWO views, where the two context frames are near-duplicates and relative
+pose is almost the only signal separating them. That is precisely where our own
+results say camera addressing pays most: on RE10K we REPLICATE their win (F34
+faithful port +0.285; PRoPE 3-seed +0.37 in Table 1) and our own input rotary does
+better still (+0.60). Every "opposite" result of ours (input null on DL3DV, all arms
+negative on gObjaverse) comes from data regimes their paper never trains on, and at
+the fast-weight site rather than attention. Their result is the leftmost point of
+our axis, not a counterexample.
+Also relevant: F34 found that in OUR stack most of the faithful PRoPE port's gain
+came from its image-coordinate ropes (+0.379) while the projective part alone lost
+(-0.294); their transformer may distribute this differently -- untested there.
