@@ -992,7 +992,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
-        known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel",
+        known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel", "ogta",
                  "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
@@ -1071,6 +1071,25 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         self.head_dim = head_dim
         self.num_freqs = num_freqs
         d_h = int(head_dim * inter_multi)
+
+        if "ogta" in self.cam_modes:
+            # Q38 (user proposal 2026-08-07): fully ORTHOGONAL group action for the
+            # fast-weight address space. The projective/SE(3) transforms are affine,
+            # not orthogonal, so they distort address norms -- and the whole TTT
+            # stack (q/k L2-norm, Muon orthogonalisation, per-column weight-norm)
+            # lives on spheres. Here the per-view matrix is block-diagonal
+            # orthogonal: [R (exact c2w rotation, 3x3)] + [SO(2)(w_u t_x)] +
+            # [SO(2)(w_u t_y)] + [SO(2)(w_u t_z)] = one 9-dim unit, tiled
+            # head_dim//9 times (28 units = 252 of 256 dims, mirroring F21).
+            # Rotation enters EXACTLY (the unbounded, wrap-prone part at wide
+            # baselines); translation enters as phases, but scene normalisation
+            # bounds |t| <= 1, so with the ladder capped at pi/2 the phase
+            # difference |w (t_i - t_j)| <= pi NEVER wraps, by construction.
+            n_units = head_dim // 9
+            assert n_units >= 1
+            omega_t = torch.logspace(
+                math.log2(math.pi / 32), math.log2(math.pi / 2), n_units, base=2.0)
+            self.register_buffer("ogta_omega_t", omega_t, persistent=False)
 
         if "qk_rope_camimg" in self.cam_modes:
             # PRoPE-style split: half the rotary budget on the 6 Plucker coords
@@ -1462,6 +1481,38 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
 
         q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
         k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+
+        if "ogta" in modes:
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                c2w = info["view_c2w"].float()                    # [b, V, 4, 4]
+                Rm, tv = c2w[..., :3, :3], c2w[..., :3, 3]        # [b,V,3,3],[b,V,3]
+                V = Rm.shape[1]
+                nu = self.ogta_omega_t.numel(); used = nu * 9
+                # per-token view assignment, then to heads
+                Rh = to_heads(Rm.reshape(Rm.shape[0], V, 9), nh).reshape(-1, V, 3, 3)
+                th = to_heads(tv, nh)                              # [(b nh), V, 3]
+                vidx = torch.arange(q.shape[1], device=q.device) // tpv
+                Rt = Rh[:, vidx]                                   # [(b nh), L, 3, 3]
+                tt = th[:, vidx]                                   # [(b nh), L, 3]
+                ang = tt[..., None, :] * self.ogta_omega_t[None, None, :, None]
+                ca, sa = ang.cos(), ang.sin()                      # [(b nh), L, nu, 3]
+
+                def _ogta(t_in):
+                    t9 = t_in[..., :used].float().reshape(*t_in.shape[:-1], nu, 9)
+                    r = torch.einsum("blij,blukj->bluki", Rt, t9[..., :3][..., None, :]
+                                     ).squeeze(-2) if False else                         torch.einsum("blij,bluj->blui", Rt, t9[..., :3])
+                    outs = [r]
+                    for a in range(3):                             # SO(2) per axis
+                        x1 = t9[..., 3 + 2 * a]; x2 = t9[..., 4 + 2 * a]
+                        c = ca[..., a]; sn = sa[..., a]
+                        outs.append(torch.stack(
+                            [x1 * c - x2 * sn, x1 * sn + x2 * c], -1))
+                    y = torch.cat([outs[0], outs[1], outs[2], outs[3]], -1)
+                    y = y.reshape(*t_in.shape[:-1], used).to(t_in.dtype)
+                    return torch.cat([y, t_in[..., used:]], -1)                         if used < t_in.shape[-1] else y
+
+                q = _ogta(q)
+                k = _ogta(k)
 
         prope_raw_P_h = None
         prope_orig_state = None
