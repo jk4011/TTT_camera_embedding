@@ -1579,3 +1579,25 @@ our axis, not a counterexample.
 Also relevant: F34 found that in OUR stack most of the faithful PRoPE port's gain
 came from its image-coordinate ropes (+0.379) while the projective part alone lost
 (-0.294); their transformer may distribute this differently -- untested there.
+
+## Caveat on the PRoPE-Objaverse contrast (github.com/liruilong940607/prope/issues/12;
+## 2026-08-06): their Objaverse GEOMETRY IS UNVERIFIABLE
+The user flagged, and the record confirms:
+- The PRoPE authors RENDERED OBJAVERSE THEMSELVES and did not release the renders, the
+  render script, or any visualisation of the camera distribution (issue #12: "We
+  rendered objaverse ourselves ... not very convenient for us to share").
+- The paper's Appendix A.1.1 gives model details only and defers the rest to "the
+  original LVSM implementation"; the Objaverse TRAINING VIEW COUNT is stated nowhere.
+  LVSM itself follows GS-LRM's recipe (32 random views per object; LVSM trains object
+  level with 4 input views), but whether PRoPE sampled its context views nearby or
+  across the sphere is unknown -- that choice alone moves the pairwise angle anywhere
+  from ~10 deg to ~90+.
+CONSEQUENCE: the apparent PRoPE-vs-F51 contradiction on "Objaverse" compares our
+MEASURED geometry (gObjaverse, ~91 deg median through our own loader) against an
+UNMEASURABLE one, so it cannot be adjudicated from their paper. Two live hypotheses:
+(a) their group-action encoding is wrap-free and survives wide baselines where our
+sinusoidal ladder aliases; (b) their renders/view-sampling are simply narrower than
+ours. Q36 (prope_orig + gta at the TTT site on OUR gObjaverse renders) tests (a) on
+geometry we can measure; (b) cannot be tested without their renders. For the paper:
+one more reason to publish loader-measured angles with every dataset -- it is a
+reproducibility contrast in our favour.
