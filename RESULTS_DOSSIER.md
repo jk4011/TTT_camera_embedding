@@ -1289,6 +1289,56 @@ Paired delta vs base (t):
 
 Figure regenerated at paper_overleaf/fig1_input_scale.pdf with both panels complete.
 
+## F50: Q32 LaCT-LVSM on DL3DV — changing ONLY the data flips `both` from the best
+## arm to a harmful one (seed 95, 2026-08-06)
+Same LaCT-LVSM, same configs, same 30k/bs16/lr1e-4/8+8/256x256/LPIPS-from-5k protocol
+as the RE10K table; DL3DV instead of RE10K. This is the lever F45 could not isolate:
+tttLRM differed in backbone (24L vs 6), head (Gaussians+depth vs RGB), ladder AND data
+at once. Here only the data moves. Eval on the SAME 140-scene DL3DV test split F45 used,
+8 uniform inputs / 4 midpoint targets. Paired per scene, n=140.
+
+| arm | PSNR | LPIPS | dPSNR vs base | t | improved | dLPIPS (t) |
+|---|---|---|---|---|---|---|
+| base (NoPE) | 16.398 | 0.4772 | — | — | — | — |
+| input | 16.408 | 0.4776 | **+0.010** | 0.55 | 68/140 | +0.0004 (0.6) |
+| **hidden** | **16.537** | **0.4746** | **+0.139** | 7.81 | 104/140 | **-0.0026 (-4.3)** |
+| both | 16.389 | 0.4837 | **-0.009** | -0.41 | 61/140 | +0.0065 (9.2) |
+
+**THE NUMBER: both - max(input, hidden) = -0.148 dB, t = -9.74, both wins 27/140.**
+
+1. **`both` FAILS TO COMPOSE ON DL3DV, with the tttLRM-side confounds removed.** On
+   RE10K at this protocol `both` is the BEST arm (+0.971 vs base, and +0.073 over
+   hidden, F47). Here it is -0.009 vs base and -0.148 BELOW hidden. Same backbone, same
+   head, same ladder, same optimizer, same budget — only the dataset changed. The
+   pre-registered reading is therefore the first one: **data geometry is the lever**,
+   and "when do the two sites compose" is a claim about camera baseline, not about
+   tttLRM's architecture.
+2. **The INPUT site dies at wide baseline.** +0.508 on RE10K -> **+0.010 (t=0.55)** here,
+   a clean null. The hidden site survives at +0.139 (t=7.81) and takes the only LPIPS
+   improvement. hidden - input = +0.129 (t=9.28, 113/140). Contrast F45, where on
+   tttLRM/DL3DV the two single sites were statistically indistinguishable (+0.451 vs
+   +0.433) — so backbone still shapes WHICH single site wins, even though it is not what
+   decides composition.
+3. Consistent with the wrap account: at RE10K's ~7 deg between-view angle ~38% of the
+   ladder wraps between views vs ~50% at DL3DV's, and a second site doubles that dose
+   without adding information. Directional support, not proof — this grid has one
+   geometry contrast, not a dose-response curve. Q33 (gObjaverse, ~91 deg) is running to
+   add the third point.
+
+PROTOCOL NOTES, all shared by the four arms, none comparable outside this grid:
+- 10,125 train scenes vs RE10K's 66k -> ~47 epochs over 30k steps vs ~7.
+- Images stored pre-sized to cover 256 (one extra resample vs RE10K's native 640x360).
+- Absolute PSNR (16.4) is NOT comparable to the RE10K table (21.8) or to F45's tttLRM
+  numbers (15.2); the four numbers here are comparable only to each other.
+- Eval-window geometry measured through the actual loader, as the angle between camera
+  forward axes over the 12 views served: median 34.5 deg, mean 49.0 (RE10K ~7 at the
+  same protocol). A different convention in the launch brief reports 20.6 deg for the
+  same data; both say the geometry contrast survives the 128-frame window, which is the
+  load-bearing part.
+- Throughput note: DL3DV and RE10K train at the SAME speed once matched by phase
+  (~11.3 it/s before LPIPS, ~4.9 after, both datasets). An earlier read of ~2.3x was an
+  artifact of comparing DL3DV's pre-LPIPS rate to RE10K's post-LPIPS rate.
+
 ## F49: Q31 NoPE repair diverged again, worse — the instability IS the result
 `q31_attnnope_nope_s43b` (data_seed 43, init seed 44) ended at **ppl 526.0** against
 the first attempt's 30.4 and its siblings' 19.4-19.7. Per the rule written down before
