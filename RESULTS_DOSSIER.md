@@ -1404,3 +1404,40 @@ wide = F64/F256 (100%/100%, 4.1x/16.5x).
    **ladder width scales HOW BADLY** they interfere once they do not (-0.097 vs
    -0.247); and the unrotated-dimension hypothesis is dead (nf16 leaves 75%/91.8%
    unrotated and still fails).
+
+## F53 (eval-only half): view DENSITY alone restores composition on LVSM/DL3DV --
+## and the crossing sits where the nearest-neighbour angle passes RE10K's (2026-08-06)
+The F50 checkpoints (trained at 8 views) re-evaluated at 4-32 input views, same 140
+scenes, evaluation only. both - best single site, paired per scene:
+
+| v | 4 | 8 (=F50) | 16 | 24 | 32 |
+|---|---|---|---|---|---|
+| both - best | -0.147 | -0.148 | -0.010 | +0.013 | **+0.092** |
+| t | -7.57 | -9.74 | -0.62 | +0.79 | **+5.55** |
+| NN angle | ~18 deg | 12.8 | 8.0 | ~5.8 | 4.7 |
+
+(median pairwise angle stays ~39-45 deg throughout; only the nearest-neighbour
+angle moves. v=8 row is F50 itself.)
+
+1. **The composition failure REVERSES with evaluation-time view density alone** --
+   no retraining. The user's hypothesis (more views -> overlapping poses -> camera
+   addressing matters more) is supported on LVSM, and the phases learned at 8 views
+   already suffice; what was missing at 8 views was the geometry, not the training.
+2. **The sign flips where the nearest-neighbour angle crosses ~7-8 deg** -- i.e.
+   RE10K's regime (7.2 deg). Deficit is flat (~-0.15) while NN >= 13 deg, zero at
+   NN = 8.0, positive at NN <= 5.8. So the geometry statistic that governs
+   composition appears to be the NEAREST-NEIGHBOUR baseline, not the median pair:
+   composition needs some near-duplicate views to anchor, and the wide typical pair
+   does not preclude it.
+3. **Backbone flips the direction of the view-count response**: the same eval-only
+   manipulation on tttLRM (F48) made `both` monotonically WORSE toward 32 views.
+   LVSM recovers, tttLRM does not. Which single site wins AND how view density acts
+   are backbone properties; whether composition is possible at all tracks geometry.
+4. Single seed today. Seeds 137/211 for all four arms (plus their v32 evals) are
+   training now; node2's Q34 (TRAINED at 32 views) completes the 2x2 and tests
+   whether training at density adds anything on top of evaluating at density.
+
+Consequence for the pending paper revision: state the geometry claim in terms of the
+nearest-neighbour baseline, not the median pairwise angle. RE10K-vs-DL3DV at 8 views
+differs in BOTH statistics, so F50 alone could not separate them; this sweep can,
+because v moves only the NN statistic and the sign follows it.
