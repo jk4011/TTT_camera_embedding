@@ -2070,3 +2070,19 @@ arms (7.9k-8.8k), so within-grid comparability is preserved; absolute training
 dynamics have a world-size seam at ~8k that any per-step log analysis must remember.
 ETA improves from ~Aug 11 to ~Aug 9. The step-10000 interim eval watcher stands
 (evals co-reside via ALLOW_SHARED_GPU).
+
+## Q35 interim (step 10000, mid-anneal, 32-view eval, n=140): the paper-view regime
+## REORDERS the sites -- input leads, hidden goes null, both nearly composes
+| arm | PSNR | d vs base | t |
+|---|---|---|---|
+| base | 16.347 | -- | -- |
+| **in** | **16.583** | **+0.236** | +9.6 |
+| h | 16.306 | -0.040 | -1.2 (null) |
+| both | 16.519 | +0.172 | +6.4 |
+both - best single (in): -0.064 (t=-3.0).
+
+Read against F45 (8-view training, final): there in/h tied (+0.45/+0.43) and both
+trailed by -0.16; here at 16-64-view training the HIDDEN site is null at the 32-view
+eval, the INPUT site carries everything, and both's deficit narrows to -0.064.
+Mid-anneal snapshot -- ordering can still move by 30k. The v8 (out-of-range) eval is
+running; final verdict Aug 9.
