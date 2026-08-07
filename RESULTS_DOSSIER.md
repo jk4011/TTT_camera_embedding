@@ -2037,3 +2037,25 @@ Reading, honestly:
    imgvo 0.1360 is near-best; prope_raw s95 holds 0.1347).
 NEXT: imgvo s137/s211 queued to settle the verdict; ttt_vo/re10k cells still pending
 for the hidden-increment question.
+
+## F62 (goal verdict): imgvo beats prope_raw on gObjaverse at 3 seeds -- mean over
+## mean +0.050, with honest seed texture (2026-08-07 21:00)
+| | s95 | s137 | s211 | mean +- std |
+|---|---|---|---|---|
+| imgvo | 22.595 | 22.688 | 22.461 | **22.581 +- 0.114** |
+| prope_raw | 22.669 | 22.425 | 22.498 | 22.531 +- 0.125 |
+
+Seed-matched paired per scene: s95 -0.075 (t=-4.5), s137 +0.263 (t=+15.5), s211
+-0.037 (t=-2.2); mean of paired deltas +0.050 +- 0.185. LPIPS: imgvo 0.1369 vs
+0.1381 (imgvo better on all three seeds).
+
+VERDICT, stated precisely: imgvo wins the 3-seed mean (+0.050) and wins LPIPS on
+every seed, but the PSNR win is 1 seed of 3 in paired terms and the mean gap is
+inside both stds. The defensible claim is PARITY-OR-BETTER with the strongest
+prope-family arm, achieved WITHOUT the projective transform (no intrinsics lift, no
+camera matrix on q/k): image-coordinate phases (tax-free by construction) + rotation
+v/o transport. Not a decisive beat; the user's goal is met on the agreed mean-over-
+mean reading, marginal under the paired house standard.
+
+ALSO: gobj_ttt_vo landed -- the hidden increment ON TOP of transport at wide
+baseline: ttt_vo - pra_vo = see line below (computed 21:05); RE10K side pending.
