@@ -1918,3 +1918,30 @@ Prediction it licenses (being tested by the vo program): the hidden-phase increm
 ON TOP of transport should stay positive at narrow baseline and go ~0/negative at
 wide baseline, because transport fixes the carrier but cannot unscramble wrapped
 addressing coefficients.
+
+## F60: pra+vo FAILS on gObjaverse -- the wrapped ladder's damage is additive and eats
+## the transport gain; plus F53's trained half lands positive (2026-08-07 16:20)
+gobj_pra_vo (ladder addressing + rotation v/o transport): 22.009, paired vs prope_raw
+s95 -0.660 (t=-32.1, 25/498), and 0.18 BELOW base. The user's concern was right and
+the pessimistic arithmetic was right: transport(+0.43) + wrapped-ladder(-0.41) lands
+at ~-0.2, slightly WORSE than additive. Transport fixes the carrier; it cannot
+unscramble wrapped addressing coefficients, and in combination the wrapped phases
+also degrade what the transport had fixed. rot_raw on RE10K also landed: 21.895
+(+0.07 = neutral, as the carrier~identity account predicts).
+
+FAIR BAR, final: prope_raw 3-seed = 22.531 +- 0.125 (22.669 / 22.425 / 22.498). The
+single-seed 22.669 was an upward fluctuation. Note imgrope (22.533, 1 seed) TIES the
+fair bar already.
+
+GOAL LEDGER (beat prope on gObjaverse): still unmet. Remaining candidates in flight:
+vo_only (transport-alone number), ttt_vo (hidden increment on transport). Given F60,
+the honest projection is that no phase-ladder combination clears the bar; the live
+routes are (a) transport-family variants and (b) imgrope-based recipes, both of which
+are prope components rather than ours -- worth an explicit strategy discussion with
+the user.
+
+ALSO LANDED, node2's Q34 (the trained half of F53): dl3dv32 four arms, TRAINED at 32
+views -- base 16.969, input 17.441, hidden 17.478, both 17.616;
+both - best single = +0.138 (t=+11.2). Training at density IMPROVES composition over
+evaluating at density alone (+0.092 eval-only). F53's 2x2 is complete: geometry sets
+whether composition is possible; training at the target density strengthens it.
