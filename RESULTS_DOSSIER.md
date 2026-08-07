@@ -1847,3 +1847,33 @@ the user anticipated: W1 stores h (x) (P^-1 v), so anisotropic P inflates stored
 norms and skews the memory budget -- ORTHOGONAL transport (rot_raw) preserves them,
 the theoretically cleanest choice. rot_raw's number directly tests whether that
 cleanliness pays.
+
+## F59: the transport cut is confirmed BOTH ways, and rotation alone nearly matches
+## projective (gObjaverse, seed 95, 2026-08-07 afternoon)
+| cell | matrix | transport | PSNR | d vs base 22.192 |
+|---|---|---|---|---|
+| prope_raw | projective | yes | 22.669 | +0.48 |
+| **rot_raw** | **rotation only** | **yes** | **22.621** | **+0.43** |
+| prope_orig | projective+img | yes | 22.513 | +0.32 |
+| prope75 | projective 75/img 25 | yes | 22.347 | +0.15 |
+| prope_in | projective | **no** | 22.086 | -0.11 |
+| gta_in | rigid | no | 22.044 | -0.15 |
+| ogta | orthogonal | no | 22.099 | -0.09 |
+| h-GA | projective @ hidden | (hidden) | 22.016 | -0.18 |
+
+1. **Transport is the ingredient, confirmed from both directions**: same projective
+   matrix loses without transport (+0.48 -> -0.11), and adding transport to the
+   rotation-only transform rescues it (-0.15 rigid/no-transport -> +0.43).
+2. **Rotation transport ~= projective transport** (+0.43 vs +0.48, inside seed noise
+   pending the multi-seed bar): the intrinsics lift and translation contribute little
+   here (shared intrinsics; normalized |t|<=1). ROTATION-FRAME alignment of the
+   stored values is the mechanism. Also vindicates the theory note's norm argument:
+   the orthogonal carrier gives up almost nothing.
+3. h-GA's failure slots in: at the hidden site the 'transport' acts on h, not v --
+   the readout algebra there relativizes the coefficient, not the carrier.
+4. Fair bar update: prope_raw s137 = 22.425 (base s137 22.298, d +0.13); s211
+   training. The 22.669 bar is looking like an upward seed fluctuation.
+NEXT (user direction): pra + v/o = `qk_rope_cam+vo_rel` (existing tested mode,
+RE10K pra_vo +0.427 ~= pra_hi) launched on gObjaverse (gpu4) with a same-commit
+RE10K rerun (gpu7). If ladder addressing and rotation transport occupy the slots the
+theory says, the combination should hold BOTH regimes with one recipe.
