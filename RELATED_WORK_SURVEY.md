@@ -179,3 +179,50 @@ Transferable facts from the FSM stage-0 work, useful for ANY host in this family
   that FSM ships NO fixed eval split (index_plan is unused, so view sampling is seed-dependent).
 - Licence pattern to expect in this family: permissive core + a noncommercial (Adobe Research /
   Gaussian-Splatting) path. Check per-file provenance, not the HF card's blanket tag.
+
+
+## Content-tax lineage: prior analyses of RoPE interfering with content-based
+## retrieval in TRANSFORMERS (searched 2026-08-07; user asked after the F57/F60
+## content-tax account emerged)
+
+The user's account -- rotary phases multiply content similarity by a cos(dtheta)
+modulation, taxing long-range/content-based retrieval -- has a substantial
+transformer-side literature. Closest five:
+
+1. **Barbero et al., "Round and Round We Go!" (ICLR 2025, arXiv:2410.06205)** --
+   the closest analysis. In trained LLMs the LOW frequencies serve semantic
+   (content) heads because their rotations barely move the dot product, while HIGH
+   frequencies build positional patterns; and over long contexts rotations are
+   dense, so "there exists a relative distance at which attention is erroneously
+   large" -- their version of our wrap/scramble. They propose truncating frequencies
+   (p-RoPE), the transformer cousin of our band placement (F57).
+2. **Chiang & Yogatama (ACL Findings 2025, arXiv:2502.11276)** -- "RoPE may cause
+   dimension inefficiency for long-distance retrieval": wide rotation ranges make
+   high-frequency dims unusable for retrieval; pruning them does not hurt and can
+   HELP long-range QA. Transformer-side evidence that rotated dims tax retrieval.
+3. **Yang et al. (Cohere), "RoPE to NoPE and Back Again" (arXiv:2501.18795)** --
+   production-scale confirmation by architecture: interleaved RoPE/NoPE layers
+   spontaneously divide labor, NoPE layers doing long-range CONTENT retrieval,
+   RoPE layers local/positional. (Same family: Llama-4-style iRoPE.) The fix is
+   structural: give content retrieval a rope-free channel.
+4. **DeepSeek MLA decoupled RoPE (V2/V3; analysis in arXiv:2607.23054)** -- keys
+   split into a rope-free CONTENT part and a small rotary POSITION part; the
+   bottleneck provably learns near-pure content. The deployed version of "keep a
+   content-pure subspace" (= our partial-coverage / video2_ttt_frac arm).
+5. **Ke et al., TUPE (ICLR 2021, arXiv:2006.15595)** -- pre-RoPE ancestor: mixing
+   position and content in one dot product creates noisy cross-correlations; untie
+   them. The oldest statement of the interference.
+
+WHAT IS ACTUALLY NEW IN OURS, stated against this lineage: (a) the transformer
+literature measures the tax on softmax attention, where heads/layers/dims can
+SPECIALIZE around it (low-freq heads, NoPE layers, decoupled dims) -- in a
+fast-weight memory the sum-of-outer-products readout has no head/layer routing to
+hide in, so the tax lands on the ONE retrieval channel, which is why our wide-
+baseline failures are so much starker; (b) our geometry axis gives the tax an
+external, physically measurable dial (camera baseline / NN angle), where LLM work
+only has token distance; (c) the v/o transport result shows a second, tax-free
+slot (the carrier) exists in fast weights that has no direct attention analogue
+acting on stored state. Positioning: our F57 band curves are the fast-weight
+mirror of Barbero's frequency analysis; our partial-coverage designs mirror
+DeepSeek's decoupling; RNoPE's layer division of labor mirrors our narrow/wide
+recipe split.
