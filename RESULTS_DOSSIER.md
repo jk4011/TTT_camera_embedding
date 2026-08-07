@@ -1877,3 +1877,44 @@ NEXT (user direction): pra + v/o = `qk_rope_cam+vo_rel` (existing tested mode,
 RE10K pra_vo +0.427 ~= pra_hi) launched on gObjaverse (gpu4) with a same-commit
 RE10K rerun (gpu7). If ladder addressing and rotation transport occupy the slots the
 theory says, the combination should hold BOTH regimes with one recipe.
+
+## Analysis note: WHY the main gain is hidden-addressing at narrow baseline but v/o
+## transport at wide baseline (2026-08-07)
+Everything hangs off the one readout equation:
+  o_j ~= sum_i lr_i  <h~_j, h~_i>  (P_j P_i^-1)  v_i
+                     [addressing]   [carrier]
+Each slot has an error term, and GEOMETRY decides which error dominates.
+
+1. NARROW (RE10K, 7 deg): the carrier is already right -- P_j P_i^-1 ~= I, so
+   transport has nothing to fix (measured: pra_vo 22.375 ~= pra_hi 22.333). The
+   residual error is in WHICH note gets retrieved: overlapping views' corresponding
+   patches are near-duplicates in content, and the parallax signal that NVS needs
+   lives in tiny pose differences. Only a fine positional code separates them, and
+   resolving small dc needs HIGH frequencies -- which is exactly F57's RE10K curve
+   rising monotonically toward the top band, and why the hidden site (the dominant
+   value-retrieval channel's address) carries the gain (+0.95 vs input +0.60).
+2. WIDE (gObjaverse, 91 deg): the addressing error is comparatively benign but the
+   carrier error is catastrophic. Views' notes are stored in frames up to 180 deg
+   apart; the fast weight SUMS them into one W1, so any retrieval inevitably blends
+   notes across views -- and unaligned blending averages geometrically incompatible
+   quantities. Transport makes the inevitable blending harmless (everything lives in
+   one canonical frame): +0.43 rotation-only. Meanwhile phases cannot even address
+   well here, for a structural reason:
+     PHASES have a resolution-range tradeoff: cos(w dc) needs large w to be
+     sensitive, but large w wraps at large dc; small w does not wrap but cannot
+     discriminate. At 91 deg there is NO good operating point -- F57's gobj curve is
+     monotone down with the best band at +0.04 noise. MATRRIX carriers have no such
+     tradeoff: R_j R_i^T is injective up to 180 deg with no frequency to choose.
+3. A supporting measurement (crude, stated as such): median cross-view raw-pixel
+   similarity is HIGHER on gObjaverse (0.64; white background dominates) than RE10K
+   (0.44) despite 13x wider geometry. Superficial similarity does not track frame
+   compatibility -- on gObjaverse, notes that look alike are geometrically
+   incompatible, the worst case for untransported values and a reason content
+   matching alone cannot substitute for pose there.
+4. This also retro-explains h-GA: it put a matrix in the ADDRESSING slot (the
+   coefficient becomes h^T (M_a^T M_u) h), fixing an error that was not the
+   bottleneck and distorting address norms in the process (-0.18).
+Prediction it licenses (being tested by the vo program): the hidden-phase increment
+ON TOP of transport should stay positive at narrow baseline and go ~0/negative at
+wide baseline, because transport fixes the carrier but cannot unscramble wrapped
+addressing coefficients.
