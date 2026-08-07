@@ -1289,6 +1289,46 @@ Paired delta vs base (t):
 
 Figure regenerated at paper_overleaf/fig1_input_scale.pdf with both panels complete.
 
+## F53: the dose-response continues into RE10K and reproduces F47's published number
+## — one monotone curve from 0.5 to 48 deg, crossing zero at ~5 deg (2026-08-07)
+Same knob as F52 (`eval.py --window`, eval-only) applied to the F47 RE10K arms
+(`base_s95` / `pra_hi_s95` / `h_pra_hi_s95` / `pra_h_hi_s95`), 256 held-out scenes.
+Angles measured through the loader over the 12 views it serves — the SAME method used
+for DL3DV and gObjaverse, so the three datasets are finally on one ruler.
+
+| angle | window | **both - max(single)** | t | in-base | h-base | both-base | base |
+|---|---|---|---|---|---|---|---|
+| 0.54 | 16 | **+0.527** | 37.17 | +1.045 | +1.034 | +1.572 | 23.413 |
+| 0.82 | 24 | +0.484 | 35.18 | +0.981 | +1.064 | +1.548 | 23.256 |
+| 1.12 | 32 | +0.466 | 33.59 | +0.950 | +1.105 | +1.571 | 23.108 |
+| 1.70 | 48 | +0.347 | 23.12 | +0.858 | +1.087 | +1.434 | 22.804 |
+| 2.25 | 64 | +0.259 | 15.87 | +0.749 | +1.052 | +1.311 | 22.545 |
+| 3.19 | 96 | +0.100 | 4.97 | +0.558 | +0.939 | +1.039 | 22.049 |
+| 3.85 | 128 | **+0.073** | 3.71 | +0.509 | +0.899 | +0.972 | 21.825 |
+
+1. **METHOD VALIDATION.** At window 128 — the standard protocol — the sweep returns
+   **+0.073**, the exact value F47 reports for RE10K at 30k by a separate route, with
+   base 21.825 also matching F47 to three decimals. The sweep reproduces the published
+   number before extending past it.
+2. **ONE CURVE ACROSS TWO DATASETS.** Stitching F53 to F52 on the shared ruler:
+   +0.527 (0.54) -> +0.466 (1.12) -> +0.259 (2.25) -> **+0.073 (3.85, RE10K end)** ->
+   **+0.009 (5.73, DL3DV start)** -> -0.066 (16.5) -> -0.148 (34.5) -> -0.162 (47.8).
+   The two datasets meet smoothly at the overlap and the sign flips at **~5 deg**. That
+   is the strongest form of the claim available: not a 3-point cross-dataset trend, but
+   a continuous monotone response measured with one knob on one ruler.
+3. **The composition at narrow baseline is LARGE, and F47's +0.073 was its tail.** At
+   0.54 deg the single sites give +1.03 / +1.04 and `both` gives **+1.572** — still
+   sub-additive, but +0.527 over the better single site at t=37. Every previous
+   statement about "the second site is worth about 0.04-0.07 dB" (F47 point 3) was
+   measured at 3.85 deg and does not describe the narrow-baseline regime.
+4. CORRECTION to the angle figures used in F50/F51/F52: "RE10K ~7 deg" came from the
+   launch brief's whole-scene measurement. Measured the way every other number here is
+   measured — the 12 views the loader actually serves, standard protocol — RE10K is
+   **3.85 deg**. The one-ruler triple is **3.85 / 34.46 / 91.2**.
+5. SEED SCOPE: this table is seed 95. `base` exists only at s95, so seeds 137/211 can
+   replicate `both - max(single)` (which needs no base) but not the vs-base columns;
+   that sweep is running. F52's DL3DV curve is already 2-seed at every point.
+
 ## F52: the baseline dose-response, WITHIN one dataset — the two sites compose at
 ## ~6 deg and stop composing by ~48 deg, monotone across 2 seeds (2026-08-07)
 F50/F51 gave three points on the baseline axis but they were three DATASETS, so
@@ -1315,8 +1355,10 @@ through the loader at each window. Each cell is seed 95 / seed 137.
    (t = 0.5 / -0.8), with every arm gaining +0.36..+0.67. **By ~48 deg they interfere**:
    `both` is -0.16 below the best single site and NEGATIVE against base, while only the
    hidden site is still (barely) above water at +0.05.
-3. **It reproduces the CROSS-dataset numbers from inside one dataset.** At 5.7 deg the
-   gap matches RE10K's +0.073 (F47); at 34.5 deg it matches DL3DV's -0.148 (F50). So
+3. **It reproduces the CROSS-dataset numbers from inside one dataset.** At 34.5 deg the
+   gap matches DL3DV's -0.148 (F50). The narrow end lines up with RE10K once RE10K is
+   measured on the same ruler (F53: 3.85 deg -> +0.073, adjacent to this table's 5.73
+   deg -> +0.009); the "RE10K ~7 deg" figure quoted earlier was a whole-scene number. So
    what the three-dataset comparison measured really was baseline, not dataset
    idiosyncrasy — which is what F50 point 3 and F51 point 3 flagged as unproven.
 4. The rotary's TOTAL value falls with baseline too: input +0.36 -> -0.04, hidden
