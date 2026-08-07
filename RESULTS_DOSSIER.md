@@ -2059,3 +2059,14 @@ mean reading, marginal under the paired house standard.
 
 ALSO: gobj_ttt_vo landed -- the hidden increment ON TOP of transport at wide
 baseline: ttt_vo - pra_vo = see line below (computed 21:05); RE10K side pending.
+
+## Protocol event: Q35 pv grid widened to 2 GPUs/cell mid-run (2026-08-07 22:30)
+The four pv cells ran single-GPU (goal work held gpus 4-7); at ~8k/30k the goal
+program drained, so all four were restarted on GPU PAIRS from their latest
+checkpoints (max 50 steps lost; checkpoint_every=50). grad_accum retuned so the
+EFFECTIVE BATCH STAYS 8 (base/in/h: bs4 x accum 2->1 x 2 ranks; both: bs2 x accum
+4->2 x 2 ranks). The transition happens at approximately the same step in all four
+arms (7.9k-8.8k), so within-grid comparability is preserved; absolute training
+dynamics have a world-size seam at ~8k that any per-step log analysis must remember.
+ETA improves from ~Aug 11 to ~Aug 9. The step-10000 interim eval watcher stands
+(evals co-reside via ALLOW_SHARED_GPU).
