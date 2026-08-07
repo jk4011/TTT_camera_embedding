@@ -1099,7 +1099,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
-        known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel", "ogta", "h_ga",
+        known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel", "ogta", "h_ga", "rot_raw",
                  "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
@@ -1679,22 +1679,34 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             v = _prope_apply(v, P_inv_h)
             prope_orig_state = (P_h, _prope_apply)
 
-        if modes & {"prope_in_raw", "prope_raw"}:
+        if modes & {"prope_in_raw", "prope_raw", "rot_raw"}:
             # Q15: as-is PRoPE port — projective P on the L2-NORMALIZED fast
             # q/k, no re-normalization afterward (original PRoPE order). The
             # score cancellation <P^T q, P^-1 k> = <q, k> is exact; the norm
             # distortion of the addresses flows into update strength.
             # prope_raw additionally carries the v/o transforms (full PRoPE).
-            P, P_inv = self._prope_mats(info)
-            # prope_raw follows the ORIGINAL PRoPE: tile over the FULL head
+            if "rot_raw" in modes:
+                # Q42 (user, 2026-08-07): decompose prope_raw's +0.48 further --
+                # ROTATION ONLY. P = [[R_w2c, 0],[0,1]]: no translation, no
+                # intrinsics lift. Orthogonal by construction (P_inv = P^T), so
+                # unlike the projective P it cannot distort address norms; and
+                # unlike ogta it keeps prope_raw's v transport + o inverse.
+                w2c = info["view_w2c"].float()
+                P = torch.zeros_like(w2c)
+                P[..., :3, :3] = w2c[..., :3, :3]
+                P[..., 3, 3] = 1.0
+                P_inv = P.transpose(-1, -2)
+            else:
+                P, P_inv = self._prope_mats(info)
+            # prope_raw/rot_raw follow the ORIGINAL PRoPE: tile over the FULL head
             # dim (all 4-dim blocks); prope_in_raw keeps the half-dim tiling
             # of the earlier port for comparability.
-            span = self.head_dim if "prope_raw" in modes else self.head_dim // 2
+            span = self.head_dim if modes & {"prope_raw", "rot_raw"} else self.head_dim // 2
             P_h = to_heads(P, nh)
             P_inv_h = to_heads(P_inv, nh)
             q = apply_tiled_mat4(q, P_h.transpose(-1, -2), tpv, span)
             k = apply_tiled_mat4(k, P_inv_h, tpv, span)
-            if "prope_raw" in modes:
+            if modes & {"prope_raw", "rot_raw"}:
                 v = apply_tiled_mat4(v, P_inv_h, tpv, span)
                 prope_raw_P_h = P_h
 
