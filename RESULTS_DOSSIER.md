@@ -1325,9 +1325,27 @@ for DL3DV and gObjaverse, so the three datasets are finally on one ruler.
    launch brief's whole-scene measurement. Measured the way every other number here is
    measured — the 12 views the loader actually serves, standard protocol — RE10K is
    **3.85 deg**. The one-ruler triple is **3.85 / 34.46 / 91.2**.
-5. SEED SCOPE: this table is seed 95. `base` exists only at s95, so seeds 137/211 can
-   replicate `both - max(single)` (which needs no base) but not the vs-base columns;
-   that sweep is running. F52's DL3DV curve is already 2-seed at every point.
+5. **3-SEED REPLICATION (s95/s137/s211).** `base` exists only at s95, so the vs-base
+   columns stay single-seed, but `both - max(single)` needs no base and replicates at
+   every point. All 21 cells positive, t = 2.6..42.2:
+
+| angle | s95 | s137 | s211 | mean |
+|---|---|---|---|---|
+| 0.54 | +0.527 | +0.357 | +0.493 | **+0.459** |
+| 0.82 | +0.484 | +0.413 | +0.454 | +0.450 |
+| 1.12 | +0.466 | +0.467 | +0.449 | +0.461 |
+| 1.70 | +0.347 | +0.482 | +0.326 | +0.385 |
+| 2.25 | +0.259 | +0.466 | +0.236 | +0.320 |
+| 3.19 | +0.100 | +0.279 | +0.095 | +0.158 |
+| 3.85 | +0.073 | +0.239 | +0.056 | **+0.123** |
+
+   The NARROW end is seed-robust (0.5-1.1 deg: +0.36..+0.53, tight); the TAIL is not
+   (3.85 deg: +0.056 / +0.073 / **+0.239**, s137 off by 3-4x). F47's long-quoted +0.073
+   is a single seed at the least stable point on the curve — the 3-seed value there is
+   **+0.123**. This does not weaken the finding, it relocates it: the composition
+   effect is large and stable where the baseline is narrow, and the "is the second site
+   worth only 0.07 dB?" question was being asked at the one place the curve is fragile.
+   F52's DL3DV curve is 2-seed at every point.
 
 ## F52: the baseline dose-response, WITHIN one dataset — the two sites compose at
 ## ~6 deg and stop composing by ~48 deg, monotone across 2 seeds (2026-08-07)
