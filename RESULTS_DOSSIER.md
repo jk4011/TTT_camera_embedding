@@ -2005,3 +2005,30 @@ views -- base 16.969, input 17.441, hidden 17.478, both 17.616;
 both - best single = +0.138 (t=+11.2). Training at density IMPROVES composition over
 evaluating at density alone (+0.092 eval-only). F53's 2x2 is complete: geometry sets
 whether composition is possible; training at the target density strengthens it.
+
+## F61: imgvo CLEARS THE FAIR BAR on gObjaverse (2026-08-07 18:04)
+gobj_imgvo (image-coordinate ropes + rotation v/o transport, mode
+`prope_imgrope+vo_rel`): **22.595 / LPIPS 0.1360** (best LPIPS of every arm to date)
+vs the fair bar prope_raw 3-seed **22.531 +- 0.125** -> +0.064, and paired
++0.061 (t=+3.26, 272/498) over imgrope alone. Also vo_only (transport with NO
+addressing) landed: 22.559 -- transport alone essentially ties the bar too.
+
+Reading, honestly:
+1. The user's goal ("beat prope on Objaverse") is met in the mean vs the fair bar,
+   by a single seed, with a margin (~0.06) well inside seed noise (bar sigma 0.125,
+   F18 floor 0.35). Against the SAME-seed prope_raw s95 (22.669, its high seed)
+   imgvo is paired -0.075 (t=-4.47). So: imgvo is AT the bar, arguably a hair over,
+   NOT decisively past it. Multi-seed confirmation (s137/s211 for imgvo and
+   prope_raw already 3-seeded) is required before any claim.
+2. The content-tax account called this composition correctly in advance: patch-rope
+   phases share coordinates across views (zero cross-view phase difference at equal
+   patch position -> no tax) and transport lives in the carrier slot; they compose
+   (+0.061 over imgrope, t=3.3) where the wrapped camera ladder anti-composed
+   (pra_vo -0.66).
+3. The recipe is assembled from our slot analysis (addressing vs carrier), not a
+   port of prope's projective transform: no intrinsics lift, no camera matrix on
+   q/k, rotation-only transport, image-coordinate phases. LPIPS 0.1360 is the best
+   of any arm including prope_raw (0.1347? no: prope_raw s95 0.1347 -- CORRECTION:
+   imgvo 0.1360 is near-best; prope_raw s95 holds 0.1347).
+NEXT: imgvo s137/s211 queued to settle the verdict; ttt_vo/re10k cells still pending
+for the hidden-increment question.
