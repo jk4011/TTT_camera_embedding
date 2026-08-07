@@ -1019,7 +1019,24 @@ class ARFastWeightSwiGLU(nn.Module):
                     self.register_buffer("h_inv_freq", ladder, persistent=False)
 
         #### PRA input site: camera rotary on fast q/k after l2 norm.
-        if ttt_input_rope:
+        if ttt_input_rope and cam_phase_mode == "none":
+            # Q43 (video rerun): input site fed by the (t, y, x) GRID carrier -- the
+            # plain-video analogue of the camera input rope. Same theta ladder family
+            # as the hidden grid carrier, sized to the fast head dim; phases are
+            # built per forward with the same rope_apply_ar carrier trick, so the
+            # token->(t,y,x) mapping is identical to the attention rope's.
+            in_theta = ttt_hrope_theta if ttt_hrope_theta is not None else 10000.0
+            self.in_rope_dim = 2 * ((fw_head_dim // 2) // 2)
+            ladder_in = 1.0 / torch.pow(
+                in_theta,
+                torch.arange(0, self.in_rope_dim, 2).float().div(self.in_rope_dim),
+            )
+            if ttt_learnable_freqs:
+                ladder_in = ladder_in * (1.0 + ttt_freq_tilt * torch.randn_like(ladder_in))
+                self.in_inv_freq = nn.Parameter(ladder_in)
+            else:
+                self.register_buffer("in_inv_freq", ladder_in, persistent=False)
+        elif ttt_input_rope:
             assert cam_phase_mode == "plucker", "ttt_input_rope requires camera phases"
             # 6 coords x nf freqs, leaving >= 2*6 dims untouched (768 -> 6x63 = 378 pairs)
             nf_in = (fw_head_dim - 2 * 6) // (2 * 6)
@@ -1303,7 +1320,36 @@ class ARFastWeightSwiGLU(nn.Module):
             cam_coords = cam_coords.float()
             assert cam_coords.shape[0] == b and cam_coords.shape[1] == s
 
-        if self.ttt_input_rope and cam_coords is not None:
+        if self.ttt_input_rope and self.cam_phase_mode == "none":
+            # grid-carrier input rope (Q43): phases via the same carrier trick as the
+            # hidden site, sized to the fast head dim.
+            with torch.autocast(device_type="cuda", enabled=False):
+                seq_l = fast_q.shape[1]
+                table_in = torch.polar(
+                    torch.ones(1024, self.in_rope_dim // 2, device=x.device),
+                    torch.outer(
+                        torch.arange(1024, device=x.device, dtype=torch.float32),
+                        self.in_inv_freq.float(),
+                    ),
+                )
+                carrier = torch.zeros(
+                    1, seq_l, 1, self.in_rope_dim, device=x.device, dtype=torch.float32
+                )
+                carrier[..., 0::2] = 1.0
+                if src_prefix_len > 0:
+                    roped = rope_apply_ar_src_prefix(
+                        carrier, grid_sizes, table_in, self.ar_window_f,
+                        self.n_latent_f, self.src_latent_f)
+                else:
+                    roped = rope_apply_ar(
+                        carrier, grid_sizes, table_in, self.ar_window_f, self.n_latent_f)
+                gcos = roped[0, :, 0, 0::2][None]      # [1, L, P]
+                gsin = roped[0, :, 0, 1::2][None]
+                gcos = gcos.repeat(fast_q.shape[0], 1, 1)
+                gsin = gsin.repeat(fast_q.shape[0], 1, 1)
+            fast_q = apply_rotary_pairs(fast_q, gcos, gsin)
+            fast_k = apply_rotary_pairs(fast_k, gcos, gsin)
+        elif self.ttt_input_rope and cam_coords is not None:
             with torch.autocast(device_type="cuda", enabled=False):
                 in_cos, in_sin = cam_phase_tables(cam_coords, self.cam_omega_in, self.cam_gain_in)
                 # [b, L, 6F] -> [(b n_fw_h), L, 6F] matching fast_q layout
