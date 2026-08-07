@@ -2011,7 +2011,12 @@ gobj_imgvo (image-coordinate ropes + rotation v/o transport, mode
 `prope_imgrope+vo_rel`): **22.595 / LPIPS 0.1360** (best LPIPS of every arm to date)
 vs the fair bar prope_raw 3-seed **22.531 +- 0.125** -> +0.064, and paired
 +0.061 (t=+3.26, 272/498) over imgrope alone. Also vo_only (transport with NO
-addressing) landed: 22.559 -- transport alone essentially ties the bar too.
+addressing) landed: **22.086 (-0.11 vs base)** -- CORRECTION over an earlier misread:
+transport ALONE does NOT beat base. vo_rel transports v/o by rotation but leaves q/k
+untransformed, so update-time addressing sees frame-misaligned keys; rot_raw (+0.43)
+transformed q/k AND v/o. Transport needs its matching q/k transform to pay -- and
+imgvo supplies tax-free addressing (patch phases) alongside it, which is exactly the
+slot pairing that wins.
 
 Reading, honestly:
 1. The user's goal ("beat prope on Objaverse") is met in the mean vs the fair bar,
