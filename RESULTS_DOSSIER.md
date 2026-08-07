@@ -1800,3 +1800,18 @@ Nothing of ours clears either yet.
 3. RE10K's s=1/2 (+0.505) matching s=1 (+0.51) says the top octave [8pi, 16pi]
    contributes nothing even at narrow baseline -- the working rungs live below 8pi.
    Mildly useful for ladder budgeting; not load-bearing.
+
+## F58: h-GA loses -- the matrix action wins at the INPUT site only (2026-08-07)
+gobj_hga_s95: 22.016 vs base 3-seed 22.192 = -0.18. The kernel is verified (identity
+bit-exact vs stock in eager, update rule matches autograd), so this is the site, not
+the implementation. The wide-baseline landscape at the TTT layer is now complete:
+
+| | input site | hidden site |
+|---|---|---|
+| phases (any band, F51/F57) | noise..harmful | harmful |
+| projective matrix | **+0.48 (the one winner)** | -0.18 |
+
+The exact mirror of RE10K, where the hidden site carried the gain. Goal ledger: still
+unmet; prope75 and prope_in pending; the bar itself is being 3-seeded
+(gobj_prope_raw_s137 launched, s211 queued for the next free GPU) since prope_orig
+dropped 22.51 -> 22.46 when its seeds filled in.
