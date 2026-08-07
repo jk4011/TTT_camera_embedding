@@ -1815,3 +1815,35 @@ The exact mirror of RE10K, where the hidden site carried the gain. Goal ledger: 
 unmet; prope75 and prope_in pending; the bar itself is being 3-seeded
 (gobj_prope_raw_s137 launched, s211 queued for the next free GPU) since prope_orig
 dropped 22.51 -> 22.46 when its seeds filled in.
+
+## Theory note: v/o transport has an EXACT derivation in the TTT readout -- one level
+## deeper than the addressing lemma (2026-08-07)
+The WRITING_BRIEF lemma decomposes the readout's dominant value-retrieval channel as
+  o_j ~= sum_i lr_i <h(q_j), h(k_i)> v_i.
+With v-transport on the update (store P_i^-1 v_i) and o-transport on the apply
+(emit P_j o_j), the w1 channel becomes
+  o_j = P_j h_j W1_0 + sum_i lr_i <h(q_j), h(k_i)> (P_j P_i^-1) v_i
+and this is EXACT for the w1 update, not linearized: dW1 = sum lr h^T v is literally
+the gradient, so the outer-product sum is the update, and the transported readout
+factors term by term (verified numerically to 1e-14; global-frame invariance of
+P_j P_i^-1 to 4e-15). Compare: the input/hidden ROTARY sites relativize the SCALAR
+COEFFICIENT <.,.> and need orthogonality for that; transport relativizes the CONTENT
+CARRIER and needs only invertibility -- any P gives exactly the relative transform
+P_j P_i^-1 on each retrieved value.
+
+One equation now carries the whole geometry story:
+  o_j ~= sum_i lr_i  <h~_j, h~_i>  (P_j P_i^-1)  v_i
+                     ^addressing    ^content transport
+Narrow baseline: the addressing coefficient is the bottleneck (phases win, F25).
+Wide baseline: content-frame alignment is the bottleneck (transport wins, F59's
+prope_in cut). The two mechanisms occupy DIFFERENT slots and thus compose in
+principle -- the concrete recipe (ladder addressing + transport) is buildable.
+
+Exactness caveats, same class as the lemma's: Muon orthogonalization and per-column
+weight-norm act on the accumulated gradient matrix, breaking term-by-term exactness;
+v also enters the w0/w2 (gate) updates through dhidden = (P^-1 v) W1^T, where the
+transport is applied consistently but the channel is nonlinear. And a norm argument
+the user anticipated: W1 stores h (x) (P^-1 v), so anisotropic P inflates stored-value
+norms and skews the memory budget -- ORTHOGONAL transport (rot_raw) preserves them,
+the theoretically cleanest choice. rot_raw's number directly tests whether that
+cleanliness pays.
