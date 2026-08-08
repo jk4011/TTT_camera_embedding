@@ -2104,3 +2104,48 @@ bonus (-0.39 vs TTT-RoPE) but beats every single-site camera arm; at wide baseli
 is the best number we have. Seeds 137/211 for the RE10K side launched (gobj side
 already 3-seeded); if they hold, this is the standing answer to the both-datasets
 goal, with TTT-RoPE remaining the narrow-baseline specialist.
+
+## F54: P5 — CCV site ablation, the input site carries the video gain (node2, 2026-08-08)
+
+The hole F30 left: every rotary cell there had BOTH sites on, so no input-vs-hidden
+decomposition was possible. These three cells isolate the site inside the **cam_encoder
+ON** family (matching the headline `ccv_base` vs `ccv_both` pair), with the **fixed**
+ladder per the user's 2026-08-05 decision, and `ttt_hrope_frac: 1.0` so the hidden site
+rotates 100% of its dims rather than the 0.5 default — otherwise an input-vs-hidden gap
+would be confounded with ladder width.
+
+Protocol identical across cells and to F30: cam_encoder ON, `cam_phase_mode: plucker`,
+`ttt_learnable_freqs: false`, seed 1, deterministic noise, index_seed 42, 20,000 steps.
+Eval = the F30 path at the SAME common step **13999**: held-out val loss, the fixed
+64-pair list disjoint from training, per-pair deterministic noise/timesteps, EMA weights.
+Paired per pair against the existing `ccv_base` run.
+
+| cell | cam_enc | input | hidden | ladder | mean loss | vs base (paired) |
+|---|---|---|---|---|---|---|
+| ccv_base (F30) | ON | — | — | — | 0.049974 | — |
+| **site_in** | ON | **on** | off | fixed | **0.047166** | **−5.6%, t=−13.24, 64/64** |
+| **site_hidden** | ON | off | **on** | fixed | **0.048174** | **−3.6%, t=−9.93, 62/64** |
+| **site_both** | ON | **on** | **on** | fixed | **0.046730** | **−6.5%, t=−9.42, 59/64** |
+| ccv_pra (F30) | off | on | on | learnable | 0.047422 | −5.1%, t=−12.62, 64/64 |
+| ccv_pra_fixed (F30) | off | on | on | fixed | 0.046327 | −7.3%, t=−12.92, 64/64 |
+| ccv_both (F30) | ON | on | on | learnable | 0.045624 | −8.7%, t=−11.28, 63/64 |
+
+Between the three new cells, paired per pair (negative = first is better):
+
+| contrast | Δ | t | win |
+|---|---|---|---|
+| both − input | −0.000437 | −2.59 | 34/64 |
+| both − hidden | −0.001444 | −8.27 | 53/64 |
+| **input − hidden** | **−0.001007** | **−12.78** | **63/64** |
+
+Every cell beats base. The ordering is input < both < hidden in loss: the **input site
+alone recovers most of the effect** (−5.6% of the −6.5% that both reaches), the hidden
+site alone recovers about half (−3.6%), and adding hidden on top of input buys a further
+−0.4 points that is significant but small (t=−2.59, and it wins only 34/64 pairs).
+input beats hidden 63/64 pairs.
+
+Caveat for anyone comparing down the column: these three are single-seed, and the F30
+rows are a different ladder/cam_encoder combination — the site contrast is only clean
+WITHIN the three new cells, which share everything but the two site flags.
+
+Numbers only — node2. Interpretation is node1's.
