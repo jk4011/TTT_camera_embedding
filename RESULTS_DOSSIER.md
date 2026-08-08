@@ -2086,3 +2086,21 @@ trailed by -0.16; here at 16-64-view training the HIDDEN site is null at the 32-
 eval, the INPUT site carries everything, and both's deficit narrows to -0.064.
 Mid-anneal snapshot -- ordering can still move by 30k. The v8 (out-of-range) eval is
 running; final verdict Aug 9.
+
+## F63: imgvo on RE10K -- the unified-recipe check lands (seed 95, 2026-08-08 23:00)
+imgvo_re10k: **22.407 / 0.2759**. Paired: +0.581 over base (t=+29.8), **+0.073 over
+the camera input ladder** (t=+4.4), -0.390 below full TTT-RoPE (t=-18.2).
+
+The one-recipe scorecard for imgvo (patch-coordinate ropes + rotation v/o transport,
+NO camera matrix, NO wrapping possible by construction):
+| | RE10K (7 deg) | gObjaverse (91 deg) |
+|---|---|---|
+| vs base | +0.58 | +0.39 (3-seed) |
+| vs best camera-phase arm | above input ladder (+0.07); below both (-0.39) | above everything (F62) |
+| geometry risk | none (no wrap) | none |
+imgvo is the first arm that is POSITIVE AND COMPETITIVE at both ends of the geometry
+axis and can never wrap: at narrow baseline it gives up the two-site composition
+bonus (-0.39 vs TTT-RoPE) but beats every single-site camera arm; at wide baseline it
+is the best number we have. Seeds 137/211 for the RE10K side launched (gobj side
+already 3-seeded); if they hold, this is the standing answer to the both-datasets
+goal, with TTT-RoPE remaining the narrow-baseline specialist.
