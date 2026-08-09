@@ -2149,3 +2149,26 @@ rows are a different ladder/cam_encoder combination — the site contrast is onl
 WITHIN the three new cells, which share everything but the two site flags.
 
 Numbers only — node2. Interpretation is node1's.
+
+## Q35 trajectory (steps 10k/15k/20k, 32-view eval, n=140): mid-training checkpoints
+## OSCILLATE -- the 15k composition flip did not hold at 20k; 30k endpoint decides
+## (2026-08-09)
+Same held-out DL3DV-140 eval of the pv grid at three mid-anneal checkpoints (all
+deltas paired vs base; both-best vs the better single arm, paired):
+
+| step | base | in | h | both | both - best single | t | improved |
+|---|---|---|---|---|---|---|---|
+| 10000 | 16.347 | +0.236 | -0.040 | +0.172 | -0.064 (in) | -2.96 | 57/140 |
+| 15000 | 16.598 | +0.096 | -0.002 | +0.227 | **+0.132** (in) | +5.04 | 97/140 |
+| 20000 | 16.837 | +0.135 | -0.108 | +0.086 | -0.050 (in) | -2.26 | 51/140 |
+
+1. NOT monotone. The 15k flip (+0.132, briefly read as "paper-view regime restores
+   composition on tttLRM") reversed at 20k. Mid-anneal checkpoints swing by ~0.2 dB
+   in the paired contrast; per-arm wobble (h: -0.002 -> -0.108) matches the train-PSNR
+   window dips. No trajectory point is citable; only the fully annealed 30k endpoint
+   (ETA 2026-08-10 night) decides Q35.
+2. Stable across all three points: input is the best single site (echoes F45/F54 --
+   the site ORDER is a backbone/regime property even while the composition sign is
+   noisy), and every arm beats base at 15k+ while h lags.
+3. v8 trajectory evals (15k/20k) running on gpu4 for the density contrast; 25k v32
+   watcher armed.
