@@ -2172,3 +2172,23 @@ deltas paired vs base; both-best vs the better single arm, paired):
    noisy), and every arm beats base at 15k+ while h lags.
 3. v8 trajectory evals (15k/20k) running on gpu4 for the density contrast; 25k v32
    watcher armed.
+
+## Q35 addendum (2026-08-10): v8 trajectory + 25k status after the third node reset
+v8 evals (n=32 scene cap, paired vs base) of the same pv checkpoints:
+| step | base | in | h | both |
+|---|---|---|---|---|
+| 10000 | 10.860 | +0.669 | -0.051 | -0.379 |
+| 15000 | 11.107 | -0.617 | -0.664 | -0.688 |
+| 20000 | 11.203 | -0.750 | -0.980 | -1.069 |
+By 15k every rotary arm is NEGATIVE at 8-view eval and keeps sinking. These models
+train at 16-64 views (sample_mixed_length), so v8 is out of distribution; as training
+progresses the rotary arms specialize toward the dense regime and lose more at sparse
+eval than base does. Mirror image of F45 (trained AT 8 views: in +0.45 at v8). The
+regime you train at is the regime the rotary earns in.
+
+Ops: node reset ~14:45 (5 -> 4 GPUs). All four cells relaunched from step25000.pt
+(in lost 2000 steps, others 70-1050; 5k checkpoint interval). 25k v32 eval: base
+complete (140) -- its "INVALID" warning was a script bug (base-exemption string
+matched "base", cells are named "pv_base"; fixed), in truncated at 86, h/both not
+started; completion will share a training GPU. 30k endpoint watcher re-armed
+(final.pt x4 -> v32 + v8 evals).
