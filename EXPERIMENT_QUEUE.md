@@ -437,3 +437,14 @@ Protocol: F19 recipe — 200M LaCT LM (768/12L), 3B tokens fineweb-edu streaming
 fixed data order (data_seed 42), bs 8 x 4096 -> ~91.5k steps, val ppl on the fixed
 2M-token cache. ~12h/run. Reading: does the hidden channel work WITHOUT the input
 channel in 1D (mirrors NVS F25 where hidden-only carries +0.96 of +1.08)?
+
+## 2026-08-11 queued: pv_h_f85 (Q35 coverage control, user-approved)
+- **What**: scratch_pv_h with num_freqs_h 42 -> 85 (hidden ladder 49% -> 99.6% of
+  d_h=1024; density 2.71x -> 5.48x). Everything else identical to pv_h.
+- **Why**: pv's h flip (h - base significantly negative at 20k/25k) is confounded --
+  the d256 shrink halved hidden coverage vs both F45 (100%) and NVS h_pra_hi (98.4%).
+  F85 restores full coverage at the cost of density, separating (view regime +
+  crowding) from (coverage) as the cause.
+- **How**: watch_launch_f85.sh auto-launches `run_scratch_pv.sh h_f85 1` when pv_in
+  writes final.pt (~05:30). 30k steps, ~1.3 days -> done ~Wed mid-day. Read against
+  pv_base AND pv_h at v32/140.
