@@ -2192,3 +2192,15 @@ complete (140) -- its "INVALID" warning was a script bug (base-exemption string
 matched "base", cells are named "pv_base"; fixed), in truncated at 86, h/both not
 started; completion will share a training GPU. 30k endpoint watcher re-armed
 (final.pt x4 -> v32 + v8 evals).
+
+## Q35 trajectory, 25k point (2026-08-10 21:30): the oscillation is damping toward zero
+| step | base | in | h | both | both - best single | t | improved |
+|---|---|---|---|---|---|---|---|
+| 25000 | 16.884 | +0.125 | -0.059 | +0.138 | +0.013 (in) | +0.62 | 72/140 |
+Amplitude series of both-best: -0.064 -> +0.132 -> -0.050 -> +0.013. As the cosine
+anneals the swing shrinks; at 25k both and in are statistically tied (t=0.6), h
+slightly negative. Provisional read for the 30k endpoint: paper-view training moves
+tttLRM from F45's composition DEFICIT (both -0.16 below best single at 8-view
+training) to PARITY with the best single site -- not (so far) to the positive
+composition LVSM shows at dl3dv32 (+0.138). Endpoint tomorrow decides parity vs
+positive.
