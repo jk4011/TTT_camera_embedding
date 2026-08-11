@@ -2204,3 +2204,34 @@ tttLRM from F45's composition DEFICIT (both -0.16 below best single at 8-view
 training) to PARITY with the best single site -- not (so far) to the positive
 composition LVSM shows at dl3dv32 (+0.138). Endpoint tomorrow decides parity vs
 positive.
+
+## F64 (Q35 VERDICT): paper-view training erases tttLRM's composition deficit --
+## to PARITY, not to positive composition (30k fully-annealed endpoint, v32, n=140,
+## 2026-08-11)
+| arm | PSNR | d vs base | t | improved |
+|---|---|---|---|---|
+| base | 16.915 | -- | -- | -- |
+| in | 17.018 | +0.102 | +3.85 | 86/140 |
+| h | 16.901 | -0.015 | -0.76 | 69/140 |
+| both | **17.039** | **+0.124** | +4.57 | 86/140 |
+
+both - best single (in): **+0.022 (t=+1.14, 75/140)** -- statistical parity.
+Trajectory closes: -0.064 -> +0.132 -> -0.050 -> +0.013 -> +0.022 (10k..30k); the
+mid-anneal oscillation damped to ~+0.02 exactly as the 25k read predicted.
+
+1. **The F45 composition deficit is a view-regime artifact, weakly.** Trained at the
+   paper's own 16-64 mixed views, `both` is the best arm (t=+4.57 vs base) and the
+   deficit vs best single (-0.16 at 8-view training, t=-9.7ish) is GONE. But unlike
+   LVSM/dl3dv32 (+0.138, t=+11.2), composition here reaches PARITY, not a positive
+   increment. Density is necessary; on this backbone it is not sufficient for a
+   positive second-site increment at these ladders.
+2. **h ends NULL, not negative** (-0.015, t=-0.76). The significant negatives at
+   20k/25k (-0.108/-0.059) were mid-anneal transients. Final read: hidden alone
+   contributes nothing here, and costs nothing inside `both` (both-in +0.022). The
+   pv_h_f85 coverage control (running) now separates "why null" between the 49%
+   hidden-coverage compromise and the regime itself.
+3. **v8 endpoint for h: -0.832 (t=-8.2, 0/32)** -- all three arms sink at OOD sparse
+   eval (in -0.98, both -1.00, h -0.83); the specialize-to-trained-regime story is
+   uniform across sites.
+4. Single seed, 140 scenes; the arm contrast is within-grid clean. Site order at pv:
+   in > h, matching F54 (CCV) and the 10k-30k trajectory throughout.
