@@ -448,3 +448,13 @@ channel in 1D (mirrors NVS F25 where hidden-only carries +0.96 of +1.08)?
 - **How**: watch_launch_f85.sh auto-launches `run_scratch_pv.sh h_f85 1` when pv_in
   writes final.pt (~05:30). 30k steps, ~1.3 days -> done ~Wed mid-day. Read against
   pv_base AND pv_h at v32/140.
+
+## 2026-08-12 queued: CCV sampled-metrics eval (user-approved)
+- **What**: for each F54 cell (ccv_base / site_in / site_hidden / site_both, EMA at
+  the common step), SAMPLE the same 64 held-out val pairs with fixed seeds and score
+  generated frames vs MultiCamVideo GT: PSNR / SSIM / LPIPS, paired per pair.
+  Fills the "evaluation metric" gap in the paper's CCV table (currently val loss only).
+- **When/where**: after pv_h_f85 completes (GPUs 2/3 free; GPUs 0/1 go to the
+  dl3dv32 GTA/PRoPE baselines). ~4-8 GPU-hours.
+- **Status**: pipeline recon in progress (checkpoint paths, 64-pair list, sampling
+  entry point); runner script to follow.
