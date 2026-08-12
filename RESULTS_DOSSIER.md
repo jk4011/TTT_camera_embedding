@@ -2235,3 +2235,25 @@ mid-anneal oscillation damped to ~+0.02 exactly as the 25k read predicted.
    uniform across sites.
 4. Single seed, 140 scenes; the arm contrast is within-grid clean. Site order at pv:
    in > h, matching F54 (CCV) and the 10k-30k trajectory throughout.
+
+## Table-1 completion batch (2026-08-12 evening): SSIM everywhere, NoPE trio
+## retrained, GTA/PRoPE at DL3DV-32v, chunk-16 eval constraint found
+1. **SSIM added to lact_nvs/eval.py** (standard 11x11 gaussian); re-evals reproduce
+   original PSNR/LPIPS to 1e-4 on every cell (eval_ssim.json alongside eval.json).
+2. **NoPE RE10K trio retrained** (s137/s211 checkpoints were lost in July):
+   21.825/21.610/21.646 -> 21.69 +- 0.12 / SSIM 0.627 +- 0.007 / LPIPS 0.293 +- 0.004.
+   Old row was 21.75 +- 0.20; Both-NoPE moves +1.07 -> +1.13 (rounded convention).
+3. **DL3DV-32v baselines** (same v32 recipe as Q34, seed 95, ~2.5 h/cell on B200):
+   gta_in 16.82 / 0.323 / 0.478 (BELOW base 16.97); prope_orig 17.01 / 0.326 / 0.471
+   (+0.04 over base). TTT-RoPE both = 17.62 (+0.65). At dense wide-FOV capture the
+   attention-style camera transforms nearly vanish while TTT-RoPE keeps its margin.
+4. **dl3dv32 view sweep complete** (v8/16/24/32/64, 140 scenes each): both leads at
+   every v >= 16 and keeps growing through the v64 extrapolation (17.75); at v8 all
+   arms cluster at base (16.2-16.3, no sparse collapse).
+5. **tttLRM eval chunking constraint SOLVED**: pv evals return 140 scenes only when
+   NIN+NTGT is a multiple of 16 (mixed-length chunk granularity): 64/80/112 pass,
+   56 (v8) and 72 (v24) silently drop to 32 scenes. eval_scratch_ladder.sh now takes
+   NTGT_OVERRIDE to pad targets; v8 needs t56, v24 needs t40. Verification cell
+   running. The earlier "v8 stops at 32" mystery (F64 note) is this, NOT a save cap.
+Paper: Table 1 fully populated and pushed (7a96e13). Fig.2 rebuild pending the
+v8/v24 padded re-evals + f85.

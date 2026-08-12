@@ -69,7 +69,28 @@ loader = DataLoader(dataset, batch_size=args.bs, shuffle=False, num_workers=8)
 
 lpips_model = lpips_lib.LPIPS(net="vgg").cuda().eval()
 
-all_psnr, all_lpips = [], []
+
+def ssim_fn(a, b):
+    """Standard SSIM (11x11 Gaussian window, sigma 1.5, K1/K2 = 0.01/0.03,
+    data_range 1), per-channel then averaged: the skimage/torchmetrics convention
+    the tttLRM numbers use. a, b: [N, C, H, W] in [0, 1]; returns [N]."""
+    coords = torch.arange(11, dtype=torch.float32, device=a.device) - 5
+    g = torch.exp(-(coords**2) / (2 * 1.5**2))
+    g = (g / g.sum()).outer(g / g.sum())
+    w = g.expand(a.size(1), 1, 11, 11)
+    mu_a = F.conv2d(a, w, groups=a.size(1))
+    mu_b = F.conv2d(b, w, groups=a.size(1))
+    var_a = F.conv2d(a * a, w, groups=a.size(1)) - mu_a**2
+    var_b = F.conv2d(b * b, w, groups=a.size(1)) - mu_b**2
+    cov = F.conv2d(a * b, w, groups=a.size(1)) - mu_a * mu_b
+    c1, c2 = 0.01**2, 0.03**2
+    s = ((2 * mu_a * mu_b + c1) * (2 * cov + c2)) / (
+        (mu_a**2 + mu_b**2 + c1) * (var_a + var_b + c2)
+    )
+    return s.flatten(1).mean(dim=1)
+
+
+all_psnr, all_lpips, all_ssim = [], [], []
 with torch.no_grad():
     for data_dict in loader:
         data_dict = {k: v.cuda() for k, v in data_dict.items()}
@@ -87,20 +108,26 @@ with torch.no_grad():
         lp = lpips_model(
             rendering.flatten(0, 1), target.flatten(0, 1), normalize=True
         ).reshape(rendering.size(0), -1).mean(dim=1)
+        ss = ssim_fn(
+            rendering.flatten(0, 1), target.flatten(0, 1)
+        ).reshape(rendering.size(0), -1).mean(dim=1)
 
         all_psnr.extend(psnr.cpu().tolist())
         all_lpips.extend(lp.cpu().tolist())
+        all_ssim.extend(ss.cpu().tolist())
 
 result = {
     "checkpoint": args.load,
     "num_scenes": len(all_psnr),
     "psnr": float(np.mean(all_psnr)),
     "lpips": float(np.mean(all_lpips)),
+    "ssim": float(np.mean(all_ssim)),
     "psnr_std_err": float(np.std(all_psnr) / np.sqrt(len(all_psnr))),
     "per_scene_psnr": all_psnr,
     "per_scene_lpips": all_lpips,
+    "per_scene_ssim": all_ssim,
 }
-print(f"PSNR: {result['psnr']:.3f} +- {result['psnr_std_err']:.3f}  LPIPS: {result['lpips']:.4f}  ({result['num_scenes']} scenes)")
+print(f"PSNR: {result['psnr']:.3f} +- {result['psnr_std_err']:.3f}  SSIM: {result['ssim']:.4f}  LPIPS: {result['lpips']:.4f}  ({result['num_scenes']} scenes)")
 
 out_path = args.out or os.path.join(os.path.dirname(args.load), "eval.json")
 with open(out_path, "w") as f:
