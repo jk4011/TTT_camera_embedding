@@ -458,3 +458,21 @@ channel in 1D (mirrors NVS F25 where hidden-only carries +0.96 of +1.08)?
   dl3dv32 GTA/PRoPE baselines). ~4-8 GPU-hours.
 - **Status**: pipeline recon in progress (checkpoint paths, 64-pair list, sampling
   entry point); runner script to follow.
+
+## 2026-08-12 queued: Q44 -- can parameterization rescue ray-rotary at wide baselines?
+User hypothesis (after RayRoPE arXiv 2601.15275 Table 1: RoPE-on-rays ~ group actions
+on 2-view Objaverse): our wide-baseline rotary failures may be parameterization, not
+physics. Two stages:
+- **Q44a (attribution, transformer)**: Q37 plucker_rope (gobj 13.9 vs GTA/PRoPE 20.7)
+  rerun with ONE lever each: `plucker_rope_rel` (first-view-identity norm),
+  `plucker_rope_tail` (p-RoPE half coverage, lowest rungs + content tail),
+  `plucker_rope_gentle` (band x 1/8). Implemented in prope_run/nvs/lvsm.py; runner
+  run_prope_repro.sh takes the new arm names. ~1 h/cell on B200. Which lever closes
+  the 7 dB gap = the prescription.
+- **Q44b (transfer, TTT)**: port the winning combo to qk_rope_cam on gObjaverse
+  (coverage flag + omega_scale exist; first-view-identity needs a pose-norm variant).
+  Success = input rope beats base (was -0.41); stretch = TTT-RoPE(+transport) beats
+  imgvo 22.58.
+Mechanism note: distance sets phase magnitude, but damage requires wrap x collisions;
+2-view windows have no collision partner (F53's NN-angle statistic, F57's monotone
+band curve are the internal evidence).
