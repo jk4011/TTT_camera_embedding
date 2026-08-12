@@ -476,3 +476,14 @@ physics. Two stages:
 Mechanism note: distance sets phase magnitude, but damage requires wrap x collisions;
 2-view windows have no collision partner (F53's NN-angle statistic, F57's monotone
 band curve are the internal evidence).
+
+## Q44a EXTENSION (2026-08-12 22:20, after reading RayRoPE's public code)
+Their Table-1 "RoPE on rays" baseline (pos_enc/rope_global_ray.py) is NOT q/k-only
+rotary: apply_fn_kv rotates V too and apply_fn_o counter-rotates the output --
+phase-form v/o TRANSPORT (our F59/F60 carrier ingredient), plus period-calibrated
+gentle bands (top omega ~1.5pi vs our 16pi), bounded coords (center+directions, no
+Plucker moment), first-view-identity norm, 100% coverage (tail is NOT their trick).
+Two cells added behind the first wave: `plucker_rope_vo` (transport only) and
+`plucker_rope_combo` (rel+gentle+vo = their baseline's analog on our coords).
+PRE-REGISTERED: the slot account predicts vo is the LARGEST single lever, tail the
+smallest; combo should approach GTA/PRoPE (20.7-20.8).
