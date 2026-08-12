@@ -2257,3 +2257,37 @@ mid-anneal oscillation damped to ~+0.02 exactly as the 25k read predicted.
    running. The earlier "v8 stops at 32" mystery (F64 note) is this, NOT a save cap.
 Paper: Table 1 fully populated and pushed (7a96e13). Fig.2 rebuild pending the
 v8/v24 padded re-evals + f85.
+
+## F65 (Q44a verdict): NO phase parameterization closes the 7 dB gap to matrix
+## actions on 8-view gObjaverse orbits -- including RayRoPE's own recipe, faithfully
+## ported (11 cells, prope-codebase transformer, 80k each; 2026-08-13)
+Train PSNR @80k (protocol = Q37; none 12.4, GTA 20.7, PRoPE 20.8):
+
+| cell | PSNR | | cell | PSNR |
+|---|---|---|---|---|
+| plucker_rope (hot ladder, q/k) | 13.9 | | vo (+phase transport) | 12.6 |
+| gentle (band x1/8) | 13.4 | | tv (tail+vo) | 12.6 |
+| rel (first-view-identity) | 16.0 | | rtv (rel+tail+vo) | 13.6 |
+| tail (p-RoPE half coverage) | 16.2 | | combo (rel+gentle+vo) | 14.9 |
+| rt (rel+tail) | 13.5 | | **raycal (RayRoPE port)** | **12.6** |
+
+1. **Single levers cap at +2.3** (tail 16.2, rel 16.0); gentle alone is null.
+2. **Every transport-bearing cell collapses to the ~12.6 degenerate basin** (= none):
+   phase transport through wrapped relative phases scrambles cross-view value
+   transfer, and the model retreats to within-view attention. F60's "wrapped ladder
+   eats the transport gain" reproduced at the attention site.
+3. **Combinations anti-compose** (rt 13.5 < min(rel, tail)).
+4. **The faithful RayRoPE-baseline port (raycal: center+direction coords,
+   per-coordinate calibrated 2-rung bands, first-view-identity, their v/o wiring)
+   lands at 12.6.** Their Table-1 Objaverse win does NOT transfer to 8-view orbit
+   windows; it lives in their 2-reference-view protocol (no collision partners,
+   one relative pose per window) and view sampling.
+5. Convergent statement, now with attention-site evidence: **at wide-baseline
+   multi-view windows the operative split is PHASES vs MATRICES on BOTH slots**
+   (F56 addressing, F59/F60 carrier): matrix group actions (GTA/PRoPE, rot_raw,
+   imgvo's rotation transport) are protocol-robust; sinusoid phase actions are
+   protocol-fragile (earn at 2-view/canonical or narrow-baseline regimes only).
+Q44b (port to TTT) is DEPRIORITIZED: the premise (recipe works in attention,
+transfer it) failed in attention. The wide-baseline TTT recipe remains imgvo
+(tax-free patch phases + rotation-MATRIX transport). Caveat: single seed per cell;
+train-window PSNR, not held-out (matches the Q37 ledger it extends).
