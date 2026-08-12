@@ -202,6 +202,10 @@ def main():
     parser.add_argument("--out", type=str, required=True,
                         help="output DIR (mp4s + metrics json)")
     parser.add_argument("--n_pairs", type=int, default=-1)
+    parser.add_argument("--start", type=int, default=0,
+                        help="global index of the first pair (shard offset). Seeds "
+                             "and record indices stay GLOBAL, so shards written to "
+                             "the same --out are bit-identical to one serial run.")
     parser.add_argument("--steps", type=int, default=40,
                         help="Euler denoising steps per chunk")
     parser.add_argument("--shift", type=float, default=-1.0,
@@ -220,9 +224,10 @@ def main():
 
     config = load_config(args.config)
     payload = load_or_build_pairs(args.pairs, config)
-    pairs = payload["pairs"]
-    if args.n_pairs > 0:
-        pairs = pairs[: args.n_pairs]
+    all_pairs = payload["pairs"]
+    end = len(all_pairs) if args.n_pairs <= 0 else min(len(all_pairs),
+                                                       args.start + args.n_pairs)
+    pairs = all_pairs[args.start:end]
 
     model = load_model(config, args.ckpt, device=args.device)
     caption = config.dataset_train.params.caption
@@ -241,18 +246,30 @@ def main():
     ds = make_pair_dataset(config, pairs)
     os.makedirs(args.out, exist_ok=True)
 
+    # crash-resume: reload any pairs this shard already finished (per-pair flush
+    # below); indices are GLOBAL so shards never collide
+    partial_path = os.path.join(args.out, f"metrics_partial_{args.start:03d}.json")
     results = []
-    for i in range(len(pairs)):
+    if os.path.isfile(partial_path):
+        results = json.load(open(partial_path))["per_pair"]
+        print(f"[generate] resuming: {len(results)} pairs already done in "
+              f"{partial_path}", flush=True)
+    done = {r["index"] for r in results}
+
+    for local_i in range(len(pairs)):
+        i = args.start + local_i  # GLOBAL index: fixes the seed and the record id
+        if i in done:
+            continue
         rec = {
             "index": i,
-            "relpath": pairs[i]["relpath"],
-            "src_cam": pairs[i]["src_cam"],
-            "tgt_cam": pairs[i]["tgt_cam"],
+            "relpath": pairs[local_i]["relpath"],
+            "src_cam": pairs[local_i]["src_cam"],
+            "tgt_cam": pairs[local_i]["tgt_cam"],
             "seed": GEN_SEED_BASE + i,
         }
-        print(f"[generate] pair {i}/{len(pairs)}: {rec['relpath']} "
-              f"cams({rec['src_cam']},{rec['tgt_cam']})", flush=True)
-        item = ds[i]
+        print(f"[generate] pair {i} ({local_i + 1}/{len(pairs)} of shard): "
+              f"{rec['relpath']} cams({rec['src_cam']},{rec['tgt_cam']})", flush=True)
+        item = ds[local_i]
         batch = pair_batch_to_gpu(item, args.device)
 
         tgt_latent, timing = generate_target_video(
@@ -276,6 +293,10 @@ def main():
         print(f"[generate]   PSNR {rec['psnr_mean']:.3f} dB  "
               f"SSIM {rec['ssim_mean']:.4f}  LPIPS {rec['lpips_mean']:.4f}  "
               f"({rec['gen_seconds']:.0f}s)", flush=True)
+        # flush after every pair: an 18-min/pair run must not lose hours to a reset
+        results.sort(key=lambda r: r["index"])
+        with open(partial_path, "w") as f:
+            json.dump({"n_pairs": len(results), "per_pair": results}, f, indent=1)
 
         if args.save_videos:
             tag = (f"pair{i:03d}_{rec['relpath'].replace(os.sep, '_')}"
@@ -302,7 +323,11 @@ def main():
         "lpips_mean": sum(r["lpips_mean"] for r in results) / len(results),
         "per_pair": results,
     }
-    out_json = os.path.join(args.out, "metrics.json")
+    # a shard must not clobber the whole-run metrics.json; the merge step
+    # (aggregate over metrics_partial_*.json) owns that file when sharded
+    whole = args.start == 0 and len(results) == len(all_pairs)
+    out_json = os.path.join(
+        args.out, "metrics.json" if whole else f"metrics_shard_{args.start:03d}.json")
     with open(out_json, "w") as f:
         json.dump(summary, f, indent=1)
     print(f"[generate] SUMMARY over {len(results)} pairs: "
