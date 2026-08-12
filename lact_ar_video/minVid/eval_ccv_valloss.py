@@ -45,6 +45,13 @@ def main():
                         help="output json path")
     parser.add_argument("--n_pairs", type=int, default=-1,
                         help="evaluate only the first N pairs of the list")
+    parser.add_argument("--src_chunks", type=int, default=-1,
+                        help="truncate the SOURCE video to this many AR chunks "
+                             "(3 latent frames each; -1 = full 7 chunks). The "
+                             "input-scale axis for the robustness figure: fewer "
+                             "chunks = less material written into the fast "
+                             "weights. Tail-truncated, so frame-0-relative "
+                             "target poses are unchanged.")
     parser.add_argument("--device", type=str, default="cuda")
     args = parser.parse_args()
 
@@ -59,6 +66,41 @@ def main():
         pairs = pairs[: args.n_pairs]
 
     model = load_model(config, args.ckpt, device=args.device)
+    if args.src_chunks > 0:
+        lat_trunc = 3 * args.src_chunks
+        # every AR block carries its own src_latent_f (rope src-prefix math),
+        # not just the top-level assert -- set them all
+        model.src_latent_f = lat_trunc
+        for _m in model.modules():
+            if hasattr(_m, "src_latent_f"):
+                _m.src_latent_f = lat_trunc
+        # SRC truncation must NOT change the target conditioning: TGT poses are
+        # gauged per-frame against the SAME-INDEX source pose. So the video is
+        # sliced (below) while the cam builder gets the FULL source poses for
+        # the relative gauge and the truncated length for the SRC-side blocks.
+        import models.video_latent_flow_matching_ar as _vlfm
+        from models.blocks.cam_phase_builder import (
+            tgt_interleave_frame_order as _order_fn,
+            plucker_per_token as _pl_fn,
+        )
+
+        def _bcc_trunc(c2w_src, c2w_tgt, K, latent_hw=(30, 52),
+                       n_latent_f=21, ar_window_f=3):
+            c2w_src_tr = c2w_src[:lat_trunc]
+            order = _order_fn(n_latent_f, ar_window_f)
+            pl_src = _pl_fn(c2w_src_tr, K, latent_hw)
+            pl_tgt = _pl_fn(c2w_tgt, K, latent_hw)
+            coords6 = torch.cat(
+                [pl_src.reshape(-1, 6), pl_tgt[order].reshape(-1, 6)], dim=0)
+            rel = torch.inverse(c2w_src.float()) @ c2w_tgt.float()
+            rel12 = rel[:, :3, :4].reshape(rel.shape[0], 12)
+            eye12 = torch.eye(4, device=rel.device,
+                              dtype=torch.float32)[:3, :4].reshape(1, 12)
+            cam12 = torch.cat(
+                [eye12.expand(c2w_src_tr.shape[0], 12), rel12[order]], dim=0)
+            return cam12, coords6
+
+        _vlfm.build_ccv_cam_inputs = _bcc_trunc
     caption = config.dataset_train.params.caption
     model = cache_and_free_text_encoder(model, [caption], device=args.device)
     model.eval()
@@ -70,6 +112,10 @@ def main():
         tic = time.time()
         item = ds[i]
         batch = pair_batch_to_gpu(item, args.device)
+        if args.src_chunks > 0:
+            lat = 3 * args.src_chunks
+            px = 4 * (lat - 1) + 1
+            batch["video_rgb_src"] = batch["video_rgb_src"][:, :px]  # [B, F, C, H, W]
 
         # per-pair deterministic noise + timesteps (fixed by list position)
         torch.manual_seed(PAIR_SEED_BASE + i)

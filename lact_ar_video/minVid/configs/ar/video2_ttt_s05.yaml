@@ -51,14 +51,14 @@ model:
           use_moun: false
           num_moun_iters: 5
           weight_norm: true
-          ttt_scale: 1.0
-          learnable_ttt_scale: true
+          ttt_scale: 0.5
+          learnable_ttt_scale: false
           ar_window_f: 3 # number of latent frames per AR chunk (for rope)
           batch_size: 1 # must match batch_size_per_gpu
           n_latent_f: 21
           ttt_hidden_rope: true
           ttt_input_rope: true
-          ttt_hrope_frac: 0.5
+          ttt_hrope_frac: 0.98
           # Q9 hidden-rotary genes (optional; defaults reproduce this run exactly):
           # ttt_hrope_frac: 0.5         # fraction of hidden dims rotated
           # ttt_hrope_gain: 1.0         # global multiplier on the hidden freq ladder
@@ -78,7 +78,7 @@ model:
   sample_timestep_shift: 3.0
 
 # training related
-exp_name: video2_ttt_frac
+exp_name: video2_ttt_s05
 output_path: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_ar_video/outputs
 
 seed: 1

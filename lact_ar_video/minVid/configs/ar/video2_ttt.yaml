@@ -78,8 +78,8 @@ model:
   sample_timestep_shift: 3.0
 
 # training related
-exp_name: ablation_small
-output_path: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embedding/lact_ar_video/outputs
+exp_name: video2_ttt
+output_path: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_ar_video/outputs
 
 seed: 1
 deterministic: false
@@ -108,9 +108,9 @@ grad_clip_norm: 1.0
 
 # wandb fully disabled (see minVid/utils/dist_utils.py init_logging_folder)
 wandb_mode: disabled
-wandb_save_dir: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embedding/lact_ar_video/outputs/wandb
+wandb_save_dir: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_ar_video/outputs/wandb
 wandb_host: "https://api.wandb.ai" # unused when wandb_mode: disabled
-api_key_path: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/TTT_camera_embedding/lact_ar_video/minVid/api_keys.yaml
+api_key_path: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_ar_video/minVid/api_keys.yaml
 wandb_entity: none
 wandb_project: lact_ar_ablation
 wandb_log_every: 10
@@ -149,7 +149,7 @@ train:
 dataset_train:
   target: minVid.data.simple_video_dataset.SimpleVideoDataModule
   params:
-    data_root: /NHNHOME/WORKSPACE/26msit001_T_B/POSTECH-CGLAB/dataset/MultiCamVideo-Dataset/train
+    data_root: /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/datasets/MultiCamVideo-Dataset/train
     num_clips: 2000
     index_seed: 42
     num_frames: 81

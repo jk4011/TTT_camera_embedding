@@ -1,1 +1,5 @@
-wandb: <your-token-here>
+# Placeholder only. train.py asserts this file exists and carries a `wandb` key
+# even when wandb_mode is "disabled", in which case dist_utils.init_logging_folder
+# calls wandb.init(mode="disabled") -- no login, no network, the value is never read.
+# Do NOT put a real key here; if you ever enable wandb, supply it out of band.
+wandb: disabled-placeholder-not-a-real-key

@@ -2291,3 +2291,18 @@ Q44b (port to TTT) is DEPRIORITIZED: the premise (recipe works in attention,
 transfer it) failed in attention. The wide-baseline TTT recipe remains imgvo
 (tax-free patch phases + rotation-MATRIX transport). Caveat: single seed per cell;
 train-window PSNR, not held-out (matches the Q37 ledger it extends).
+
+## CCV source-length sweep (Fig.2 right panel; 64 pairs, deterministic protocol,
+## c=7 reproduces F54 exactly; 2026-08-13)
+| src chunks (frames) | base x1e-2 | in | h | both |
+|---|---|---|---|---|
+| 1 (9f) | 5.182 | -6.6% (t=-14.0) | -5.4% (t=-12.9) | -3.5% (t=-3.1) |
+| 3 (33f) | 5.018 | -5.8% (t=-13.8) | -3.9% (t=-11.1) | -6.6% (t=-9.6) |
+| 5 (57f) | 4.998 | -5.6% (t=-13.2) | -3.6% (t=-10.0) | -6.5% (t=-9.4) |
+| 7 (81f) | 4.997 | -5.6% (t=-13.2) | -3.6% (t=-9.9) | -6.5% (t=-9.4) |
+Eval-only source truncation (video sliced; target conditioning gauge kept at the
+full per-frame relative poses, so only the memory's cargo shrinks). Every rotary
+arm beats base at every length. At the shortest source the single sites GROW
+(in -6.6, its best point) while composition weakens (both -3.5, its worst):
+with one chunk in memory there is little for the second site to disambiguate.
+From 3 chunks up the picture is flat and both leads or ties (-6.5%).
