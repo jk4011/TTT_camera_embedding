@@ -487,3 +487,16 @@ Two cells added behind the first wave: `plucker_rope_vo` (transport only) and
 `plucker_rope_combo` (rel+gentle+vo = their baseline's analog on our coords).
 PRE-REGISTERED: the slot account predicts vo is the LARGEST single lever, tail the
 smallest; combo should approach GTA/PRoPE (20.7-20.8).
+
+## Q44a waves 2-4 ledger (2026-08-13 morning)
+Wave 2-3 results (train PSNR @80k; plain plucker_rope 13.9, GTA/PRoPE 20.7-20.8):
+vo 12.6 / tv 12.6 / rtv 13.6 / combo 14.9 -- EVERY transport-bearing cell is worse
+than its transport-free twin (tail 16.2 -> tail+vo 12.6). Phase transport through
+the HOT ladder scrambles the carrier: F60's "wrapped ladder eats the transport
+gain" reproduced at the attention site. Pre-registered "vo largest lever" is
+REFUTED for the hot-ladder parameterization; rel(+2.0)/tail(+2.3) stand.
+Wave 4 (launched): `rt` = rel+tail (best transport-free combo), `raycal` =
+faithful RayRoPE-baseline port (center+direction coords, per-coordinate calibrated
+2-rung bands tiled to 48 dims, first-view-identity, their v/o wiring). raycal
+closing to ~20 = recipe transfers (calibration+coords+transport was the whole
+story); raycal stalling = their Objaverse gain needs their 2-view protocol/data.
