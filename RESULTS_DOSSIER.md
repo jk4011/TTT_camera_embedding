@@ -2397,3 +2397,48 @@ pairs moves it less than improving bad ones. Any of these can reorder two cells 
 Which evaluation the paper should lead with is node1's call.
 
 Numbers only — node2. 8 jobs (4 cells x 2 shards) on 4 GPUs, ~19 h, no OOM or crash.
+
+## F66 (f85 verdict): full hidden-ladder coverage HURTS at the paper-view regime --
+## a monotone dose-response IN COVERAGE refutes the ladder-compromise excuse
+## (30k, v32, n=140, paired; 2026-08-13 18:11 evals)
+| hidden rotation coverage | PSNR | vs base |
+|---|---|---|
+| 0% (pv_base) | 16.915 | -- |
+| 49% (pv_h, F42) | 16.901 | -0.015 (t=-0.76) |
+| 100% (pv_h_f85, F85 ladder) | 16.804 | **-0.111 (t=-4.26)** |
+f85 - h(49%) = -0.096 (t=-3.94). The F64 caveat ("maybe h is null because we gave
+it half a ladder") is CLOSED in the opposite direction: MORE hidden rotation is
+MONOTONICALLY worse at 16-64 mixed views on tttLRM. Matches the storage-
+fragmentation account (rotating more of the hidden storage basis fragments more of
+the pooled near-duplicate content). The train-window lead f85 showed (+0.1-0.26)
+did not survive held-out: train PSNR was a misleading signal here. Site order at
+this regime stands: input (+0.10) > hidden (null-to-negative); both = input parity.
+
+## CCV sampled-metrics FINAL (node2, all four cells 64/64; 2026-08-13)
+| arm | PSNR | SSIM | LPIPS |
+|---|---|---|---|
+| base | 12.939 | 0.4509 | 0.6298 |
+| in | 13.016 (+0.08, t=+0.6) | 0.4566 (+0.006, t=+1.1) | 0.5946 (-0.035, t=-6.7) |
+| h | 13.348 (+0.41, t=+4.5) | 0.4664 (+0.016, t=+4.9) | 0.5946 (-0.035, t=-7.4) |
+| both | 13.297 (+0.36, t=+3.7) | 0.4646 (+0.014, t=+4.2) | **0.5817 (-0.048, t=-9.7)** |
+Paired per pair vs base, fixed seeds, 40 Euler steps. 10/64 pairs have some arm
+below 10 PSNR (hard pairs, all arms fail together; kept in the average). NOTE the
+metric-dependent site order: on val loss in > h (F54); on generation PSNR/SSIM
+h > in; on LPIPS both leads. All three rotary arms improve LPIPS decisively.
+
+## F67 (Q44 FINAL): the phase channel does not BOOTSTRAP on our renders -- 13-cell
+## attribution complete, last lever eliminated (2026-08-13 evening)
+raycal5 (camray + first-view-identity + per-coordinate calibrated bands, NO
+transport) lands at 12.613 -- the same constant-output basin as every other
+phase cell. So the collapse is not the transport, not the ladder, not the coords,
+not the frame, not the input encoding: on OUR fixed-focal fixed-radius orbit
+renders, 2-view LVSM training never engages ANY phase-based camera encoding,
+while matrix actions train robustly under identical conditions (GTA 20.7, PRoPE
+20.8, PRoPE-camray 19.8). The ONLY variable never equalized with RayRoPE's
+Table 1 is their render distribution: per-camera randomized FOV and DISTANCE
+(their objv_render_vary_intrinsics.py). Their sampling yields nested same-angle
+pairs (pure scale changes) and per-view lens variation -- plausible bootstrap
+material the phase channel needs and our renders lack. Reproducing their number
+therefore requires re-rendering with their script (blender + objaverse assets),
+not a recipe change. raycal6 (transport warmup) crashed at startup; moot given
+raycal5. Single-seed cells, train-window PSNR ledger.
