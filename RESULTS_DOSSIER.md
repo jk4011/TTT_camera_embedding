@@ -2306,3 +2306,55 @@ arm beats base at every length. At the shortest source the single sites GROW
 (in -6.6, its best point) while composition weakens (both -3.5, its worst):
 with one chunk in memory there is little for the second site to disambiguate.
 From 3 chunks up the picture is flat and both leads or ties (-6.5%).
+
+## F65: CCV sampled generation metrics for the F54 site cells (node2, 2026-08-13)
+
+The CCV table reported held-out val loss only (F54). This adds generation quality: each
+F54 cell SAMPLES the same 64 held-out pairs with fixed seeds (teacher-forcing Euler,
+40 steps, EMA weights at the common step 013999 — the same checkpoints the F54 val-loss
+row used) and scores the generated video against MultiCamVideo ground truth. Paired per
+pair; pair identity matches across cells by global index.
+
+### Per-cell means (n=64 pairs)
+
+| cell | PSNR | SSIM | LPIPS |
+|---|---|---|---|
+| ccv_base | 12.9393 | 0.4509 | 0.6298 |
+| ccv_site_in | 13.0156 | 0.4566 | 0.5946 |
+| ccv_site_h | **13.3477** | **0.4664** | 0.5946 |
+| ccv_site_both | 13.2974 | 0.4646 | **0.5817** |
+
+### Paired vs ccv_base (per-pair, n=64; win = pairs where the cell is better)
+
+| cell | ΔPSNR | t | win | ΔSSIM | t | win | ΔLPIPS | t | win |
+|---|---|---|---|---|---|---|---|---|---|
+| ccv_site_in | +0.076 | +0.57 | 39/64 | +0.0058 | +1.06 | 42/64 | −0.0352 | −6.65 | 54/64 |
+| ccv_site_h | +0.408 | +4.48 | 48/64 | +0.0155 | +4.87 | 48/64 | −0.0352 | −7.44 | 55/64 |
+| ccv_site_both | +0.358 | +3.74 | 44/64 | +0.0137 | +4.22 | 48/64 | −0.0481 | −9.68 | 56/64 |
+
+### Between the three rotary cells (paired)
+
+| contrast | ΔPSNR (t) | ΔSSIM (t) | ΔLPIPS (t) |
+|---|---|---|---|
+| both − in | +0.282 (+2.16) | +0.0079 (+1.75) | −0.0129 (−2.24) |
+| both − h | −0.050 (−0.58) | −0.0018 (−0.48) | −0.0129 (−2.96) |
+| in − h | −0.332 (−2.63) | −0.0097 (−1.75) | +0.0000 (+0.00) |
+
+### Low-PSNR pairs, reported rather than silently averaged in
+
+24 cell-pair generations scored PSNR < 10. They concentrate on the SAME pairs in every
+cell — indices **1, 29, 34, 61** are below 10 in all four cells, and 37, 38 in two —
+so these are hard/failing pairs of the eval set, not a per-cell failure. ccv_base has 8
+such pairs, site_in 5, site_h 6, site_both 4. Because they recur across cells, the
+paired deltas above are unaffected in sign; means for every cell are dragged down alike.
+Full list is in the per-pair JSONs under `outputs/eval_site/gen_ccv_*_013999/`.
+
+### Note on the direction vs F54
+
+On sampled metrics the ordering is **hidden ≥ both > input**, whereas F54's held-out
+val loss ordered them **input < both < hidden** (input best). LPIPS is the one metric
+where `both` leads outright (−0.0481 vs base; beats each single site at t≈−2.2/−3.0).
+Sampled generation and the training objective rank these cells differently; both are
+reported here without reconciling them, which is node1's call.
+
+Numbers only — node2. 8 jobs (4 cells x 2 shards) on 4 GPUs, ~19 h, no OOM or crash.
