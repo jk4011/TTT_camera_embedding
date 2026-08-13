@@ -2138,11 +2138,16 @@ Between the three new cells, paired per pair (negative = first is better):
 | both − hidden | −0.001444 | −8.27 | 53/64 |
 | **input − hidden** | **−0.001007** | **−12.78** | **63/64** |
 
-Every cell beats base. The ordering is input < both < hidden in loss: the **input site
-alone recovers most of the effect** (−5.6% of the −6.5% that both reaches), the hidden
-site alone recovers about half (−3.6%), and adding hidden on top of input buys a further
-−0.4 points that is significant but small (t=−2.59, and it wins only 34/64 pairs).
-input beats hidden 63/64 pairs.
+Every cell beats base. Ordering by loss (lower is better) is **both (0.046730) < input
+(0.047166) < hidden (0.048174)**, i.e. **both is best**. The **input site alone recovers
+most of the effect** (−5.6% of the −6.5% both reaches), the hidden site alone recovers
+about half (−3.6%), and adding hidden on top of input buys a further −0.4 points that is
+significant but small (t=−2.59, and it wins only 34/64 pairs). input beats hidden 63/64
+pairs.
+
+(CORRECTED 2026-08-13: this paragraph originally read "the ordering is input < both <
+hidden in loss", which states the wrong order — both has the lowest loss. The table
+above and the per-cell percentages were always right; only that clause was wrong.)
 
 Caveat for anyone comparing down the column: these three are single-seed, and the F30
 rows are a different ladder/cam_encoder combination — the site contrast is only clean
@@ -2351,10 +2356,33 @@ Full list is in the per-pair JSONs under `outputs/eval_site/gen_ccv_*_013999/`.
 
 ### Note on the direction vs F54
 
-On sampled metrics the ordering is **hidden ≥ both > input**, whereas F54's held-out
-val loss ordered them **input < both < hidden** (input best). LPIPS is the one metric
-where `both` leads outright (−0.0481 vs base; beats each single site at t≈−2.2/−3.0).
-Sampled generation and the training objective rank these cells differently; both are
-reported here without reconciling them, which is node1's call.
+Point ranks differ between the two evaluations, so here is what survives significance.
+
+| contrast | val loss (F54) | sampled PSNR | sampled LPIPS |
+|---|---|---|---|
+| both − hidden | −0.001444 (t=−8.27) **both better** | −0.050 (t=−0.58) **n.s.** | −0.0129 (t=−2.96) **both better** |
+| both − input | −0.000437 (t=−2.59) **both better** | +0.282 (t=+2.16) **both better** | −0.0129 (t=−2.24) **both better** |
+| input − hidden | −0.001007 (t=−12.78) **input better** | −0.332 (t=−2.63) **hidden better** | +0.0000 (t=0.00) tie |
+
+Two things follow:
+
+1. **`both` does not change rank.** It is best or tied-best on every metric: significantly
+   better than input on all three, significantly better than hidden on val loss and LPIPS,
+   and statistically indistinguishable from hidden on PSNR (t=−0.58). The apparent
+   "hidden beats both on PSNR" in the mean column is 0.05 dB and not significant.
+2. **The genuine rank inversion is input vs hidden.** Input is clearly better on val loss
+   (t=−12.78, 63/64 pairs) and hidden is clearly better on sampled PSNR (t=−2.63), with
+   LPIPS exactly tied. That pair really does swap.
+
+Why two L2-flavoured numbers can disagree: they are not the same L2. The val loss is
+flow-matching MSE in **VAE latent** space on **noised** targets, at random timesteps with
+logit-normal weighting — a one-step velocity error averaged over noise levels. PSNR is
+pixel-space MSE after the **full 40-step Euler trajectory** and a **nonlinear VAE decode**,
+so per-step errors are integrated rather than averaged, and the decoder is not
+norm-preserving. PSNR is also a log of MSE averaged per pair, so improving already-good
+pairs moves it less than improving bad ones. Any of these can reorder two cells that sit
+0.001 apart in latent MSE.
+
+Which evaluation the paper should lead with is node1's call.
 
 Numbers only — node2. 8 jobs (4 cells x 2 shards) on 4 GPUs, ~19 h, no OOM or crash.
