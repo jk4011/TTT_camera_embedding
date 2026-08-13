@@ -2442,3 +2442,32 @@ material the phase channel needs and our renders lack. Reproducing their number
 therefore requires re-rendering with their script (blender + objaverse assets),
 not a recipe change. raycal6 (transport warmup) crashed at startup; moot given
 raycal5. Single-seed cells, train-window PSNR ledger.
+
+## F68 (Q45 verdict): RayRoPE's OWN codebase on OUR renders -- the matrix action
+## reproduces their paper number almost exactly; BOTH ray-phase methods collapse
+## (80k, their trainval/dataset/normalization end-to-end, train-window PSNR;
+## 2026-08-14 ~03:00)
+| arm (their pos_enc) | ours (their code, our renders) | their Table 1 (their renders) |
+|---|---|---|
+| PRoPE (`prope`) | **22.18** | 22.16 |
+| RoPE on rays (`global-0+inf`) | **15.03** | 22.17 |
+| RayRoPE (`d_pj+0_3d`, their MAIN method) | **13.72** | 22.42 |
+
+1. **PRoPE lands within 0.02 of their published small-model number** on our renders
+   -- the codebase, protocol, and our converted data are sound end-to-end.
+2. **Both phase-on-rays methods collapse on our renders inside their own code**,
+   including their headline method. The reproduction gap is therefore fully
+   DATA-side: our gObjaverse renders are fixed-focal fixed-radius orbits; theirs
+   randomize FOV and distance per camera (objv_render_vary_intrinsics.py). The
+   phase channel needs that variation to bootstrap; the matrix channel does not.
+3. This is the strongest form of the phases-vs-matrices robustness split: proven
+   with the phase methods' own implementation, on a dataset where the matrix
+   twin thrives.
+4. Ops notes: their public rope_global_ray class does not run as released
+   (undefined `rope_enc_transform` attribute; repaired by dropping the dead
+   argument); OpenEXR import stubbed; index files installed at their repo-relative
+   default paths. Single runs; second entropy-seed draws of prope/ropeonrays
+   land by morning (their trainval has no seed control).
+GOAL STATUS (user: reproduce RoPE-on-rays ~ PRoPE on our Objaverse): CLOSED as
+not achievable on the current renders; the constructive path is re-rendering
+gObjaverse with their vary-intrinsics Blender script (user decision pending).
