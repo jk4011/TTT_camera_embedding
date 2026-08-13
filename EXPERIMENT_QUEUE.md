@@ -514,3 +514,19 @@ leaving PE and input raymaps in different frames), (b) port fidelity (3 rays/pat
 - `raycal3` (gpu6): rich PE + PE-side rel only (no data canon) -- isolates (a) vs (b).
 Read: raycal2 ~ 20 and raycal3 low => frame CONSISTENCY was the missing piece.
 Both low => their number needs their render distribution (random FOV/distance).
+
+## Q44a wave 6 (2026-08-13, after auditing RayRoPE's TRAINING pipeline)
+Two pipeline-level discoveries (RayRoPE/nvs):
+1. **ray_encoding=camray is their default**: input raymaps are computed with
+   IDENTITY extrinsics (intrinsics-only, camera-frame) -- ZERO pose in the input
+   tokens. Pose flows exclusively through the attention encoding. Their Table 1
+   is "pose-in-tokens (Plucker raymap row, worst) vs pose-in-attention (all other
+   rows)". Every cell of ours so far kept world-frame pose raymaps in the tokens
+   and ADDED phases on top: a different experiment (redundant + frame-mismatched
+   pose channels).
+2. **objaverse_dataset.py normalizes at data level**: normalize_view1_to_identity
+   + max-radius scale.
+Wave 6 cells: `raycal4` (gpu7) = camray input + data canon + rich calibrated PE +
+transport = their architecture end-to-end on our renders; `prope -camray` (gpu4) =
+the matched PRoPE bar under the same input encoding. Target: raycal4 within ~0.5
+of prope-camray = reproduction achieved.
