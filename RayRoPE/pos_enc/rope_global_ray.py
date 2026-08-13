@@ -92,7 +92,6 @@ class RoPE_GlobalRay_DotProductAttention(torch.nn.Module):
             use_p0=self.use_p0,
             use_pd=self.use_pd,
             use_pinf=self.use_pinf,
-            rope_transform=self.rope_enc_transform,
             num_rays_per_patch=self.num_rays_per_patch,
             coord_dim=self.rope_coord_dim,
             freq_base=self.freq_base,
