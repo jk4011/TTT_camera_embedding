@@ -2345,7 +2345,7 @@ pair; pair identity matches across cells by global index.
 | both − h | −0.050 (−0.58) | −0.0018 (−0.48) | −0.0129 (−2.96) |
 | in − h | −0.332 (−2.63) | −0.0097 (−1.75) | +0.0000 (+0.00) |
 
-### Low-PSNR pairs, reported rather than silently averaged in
+### Low-PSNR pairs — INCLUDED in every mean above, and listed here
 
 24 cell-pair generations scored PSNR < 10. They concentrate on the SAME pairs in every
 cell — indices **1, 29, 34, 61** are below 10 in all four cells, and 37, 38 in two —
@@ -2353,6 +2353,17 @@ so these are hard/failing pairs of the eval set, not a per-cell failure. ccv_bas
 such pairs, site_in 5, site_h 6, site_both 4. Because they recur across cells, the
 paired deltas above are unaffected in sign; means for every cell are dragged down alike.
 Full list is in the per-pair JSONs under `outputs/eval_site/gen_ccv_*_013999/`.
+
+**Sensitivity check (2026-08-13):** 10 pair indices are involved (1, 11, 21, 29, 33, 34,
+37, 38, 41, 61). Dropping all 10 does NOT explain the input-vs-hidden inversion — it
+strengthens it. On the remaining 54 pairs, input still beats hidden on val loss 53/54
+(t=−10.98) while hidden's PSNR lead grows from +0.332 to +0.412 dB (t=−2.63 → −2.84).
+Restricting to just those 10 pairs, the PSNR gap vanishes (Δ=+0.097, t=+0.70) while the
+val-loss gap persists (t=−7.68), i.e. the hard pairs DILUTE the sampled signal rather
+than create it. Excluding them raises every cell's PSNR by ~0.66-0.70 dB alike
+(base 12.94→13.64, in 13.02→13.63, h 13.35→14.04, both 13.30→13.96), leaving the
+between-cell order unchanged. Both evaluations use the identical 64 pairs, so the
+disagreement is not a sample-selection artefact.
 
 ### Note on the direction vs F54
 
