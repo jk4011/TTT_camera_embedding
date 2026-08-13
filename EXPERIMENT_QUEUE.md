@@ -500,3 +500,17 @@ faithful RayRoPE-baseline port (center+direction coords, per-coordinate calibrat
 2-rung bands tiled to 48 dims, first-view-identity, their v/o wiring). raycal
 closing to ~20 = recipe transfers (calibration+coords+transport was the whole
 story); raycal stalling = their Objaverse gain needs their 2-view protocol/data.
+
+## Q44a wave 5 (user goal restated 2026-08-13: REPRODUCE RoPE-on-rays ~ PRoPE on our gObjaverse)
+Attribution correction: our prope testbed trains ref_views=2 (prope default), SAME
+view count as RayRoPE's protocol -- the earlier "2-view vs 8-view window" account
+is WRONG. Remaining suspects: (a) DATA-level first-view-identity canonicalization
+(theirs normalizes poses before raymaps AND PE; our gobj feeds raw world coords,
+|center|~1.7, pair angle median 105 deg; my rel lever canonicalized the PE only,
+leaving PE and input raymaps in different frames), (b) port fidelity (3 rays/patch,
+24 distinct calibrated phases vs my 12 tiled).
+- `raycal2` (gpu5): data-level canon at model entry (raymaps+PE consistent, t x0.5
+  to fit the p0 period-4 calibration) + rich PE + their transport.
+- `raycal3` (gpu6): rich PE + PE-side rel only (no data canon) -- isolates (a) vs (b).
+Read: raycal2 ~ 20 and raycal3 low => frame CONSISTENCY was the missing piece.
+Both low => their number needs their render distribution (random FOV/distance).
