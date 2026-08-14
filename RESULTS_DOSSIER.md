@@ -2479,3 +2479,39 @@ Re-render program launched: LGM-80K-filtered GLBs (their object list), their
 vary-intrinsics Blender script verbatim (CYCLES, fov 20-80, random distance,
 8 angles x 3 cams, 2.1 s/object on B200). Meshes + renders persist under
 ../objaverse/{glbs,renders}. Next: Q46 = their three arms on the NEW renders.
+
+## F69 (Q46 verdict, both branches): the vary-intrinsics re-render RESCUES the TTT
+## input ladder in 8-view windows but does NOT rescue 2-view phase attention --
+## the operative variable is near-duplicate pairs IN THE WINDOW, not FOV variation
+## per se (2026-08-15 morning)
+New data: 20,500 LGM-filtered objaverse objects re-rendered with RayRoPE's
+vary-intrinsics script verbatim (8 angle-sets x 3 nested cameras, fov 20-80,
+random distance). Same objects, same code, only the camera distribution changed.
+
+**Their codebase, 2-view contexts (train PSNR @80k):**
+| arm | old orbit renders | NEW vi renders | their paper |
+|---|---|---|---|
+| prope | 22.18 | 20.60 | 22.16 |
+| ropeonrays | 15.03 | **12.31 (still collapsed)** | 22.17 |
+| rayrope | 13.72 | **12.31 (still collapsed)** | 22.42 |
+
+**Our TTT stack, 8-view windows (held-out 500 scenes, paired vs base 21.98):**
+| arm | old orbit renders (F51) | NEW vi renders |
+|---|---|---|
+| input | -0.412 (t=-21) | **+0.206 (t=+10.9, 367/500)** |
+| hidden | -0.566 (t=-30) | -0.100 (t=-7.0) |
+| both | -0.888 (t=-36) | +0.101 (t=+4.4); both-best -0.105 (t=-7.5) |
+
+Reading:
+1. **The TTT input ladder FLIPS from strongly harmful to clearly positive** on the
+   new distribution -- F51 was a property of the fixed-focal orbit data, not of
+   the TTT rotary. Site order at object-level matches the pv/CCV regimes
+   (input > both > base > hidden).
+2. **The 2-view phase-attention collapse survives even their own render
+   distribution.** With random 2-of-24 contexts only ~9% of training pairs are
+   same-angle nested pairs; our 8-view windows contain ~2-3 nested near-pairs
+   per sample. Occam: the bootstrap ingredient is NEAR-DUPLICATE PAIRS IN THE
+   WINDOW (F53's NN-angle statistic, now at training time), which their paper's
+   curated context index may have supplied and our seeded-random index does not.
+3. Remaining reproduction lever (queued): rebuild the train index with
+   SAME-ANGLE context pairs (nested near-duplicates) and rerun ropeonrays.
