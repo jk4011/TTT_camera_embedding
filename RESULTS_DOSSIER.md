@@ -2471,3 +2471,11 @@ raycal5. Single-seed cells, train-window PSNR ledger.
 GOAL STATUS (user: reproduce RoPE-on-rays ~ PRoPE on our Objaverse): CLOSED as
 not achievable on the current renders; the constructive path is re-rendering
 gObjaverse with their vary-intrinsics Blender script (user decision pending).
+
+## F68 addendum: second entropy draws confirm (2026-08-14 morning)
+prope-s2 21.99 (first 22.18); ropeonrays-s2 11.52 (first 15.03). The matrix action
+is reproducible across draws on our renders; the phase method collapses in both.
+Re-render program launched: LGM-80K-filtered GLBs (their object list), their
+vary-intrinsics Blender script verbatim (CYCLES, fov 20-80, random distance,
+8 angles x 3 cams, 2.1 s/object on B200). Meshes + renders persist under
+../objaverse/{glbs,renders}. Next: Q46 = their three arms on the NEW renders.
