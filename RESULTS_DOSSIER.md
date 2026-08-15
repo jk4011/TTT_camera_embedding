@@ -2530,3 +2530,25 @@ collapses, the honest closure is: their released code + released recipe do not
 reproduce the phase rows of Table 1 on any data we can construct, while the
 phase mechanism itself is PROVEN to work in multi-view windows by our TTT grid
 (input +0.206 on the same renders).
+
+## F70 (reproduction program CLOSED): the phase rows of RayRoPE Table 1 do not
+## reproduce from the release, under any constructible condition (2026-08-15)
+Final tally -- 19 phase cells, every one at the ~12.3-16 constant-output basin:
+- 2 codebases (our prope-testbed port; their release verbatim)
+- 2 render distributions (fixed-focal orbits; their vary-intrinsics script
+  re-render of 20,500 LGM-filtered objects)
+- 2 context policies (seeded-random 2-view; nested same-angle near-duplicate)
+- every parameterization lever (band scale, p-RoPE coverage, first-view-identity
+  frame, ray vs Plucker coords, their v/o transport wiring, calibrated periods)
+- 2 precisions (fp16 per their script; bf16 probe 12.31)
+Against this, the MATRIX twin (PRoPE) trains in every matched condition and
+reproduces their published number on our orbit renders (22.18 vs 22.16).
+The unexplained residue is confined to what the release does not contain: their
+exact rendered data, their curated index files, or an internal code version
+(their public RoPE-on-rays class does not even run as released).
+CONSTRUCTIVE HALF (F69): the phase mechanism itself works in MULTI-VIEW windows
+-- on the same re-rendered data our TTT 8-view grid puts the input ladder at
++0.206 (t=+10.9). The failure is specific to 2-view phase attention as released.
+Paper implication (dossier-only, FREEZE intact): the phases-vs-matrices
+robustness split now has its strongest possible evidence base, and TTT-RoPE's
+input site has its first clean object-level win.
