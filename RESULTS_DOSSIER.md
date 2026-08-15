@@ -2515,3 +2515,18 @@ Reading:
    curated context index may have supplied and our seeded-random index does not.
 3. Remaining reproduction lever (queued): rebuild the train index with
    SAME-ANGLE context pairs (nested near-duplicates) and rerun ropeonrays.
+
+## F69 addendum: nested-context lever ALSO fails for 2-view phase attention
+## (2026-08-15)
+Train index rebuilt so every 2-view context is a SAME-ANGLE nested pair (pure
+fov/distance change, a guaranteed near-duplicate anchor): ropeonrays-nested
+12.22, rayrope-nested 12.22 (collapsed), prope-nested 18.65 (works; below
+random-context prope 20.60 as expected -- nested contexts carry less scene
+coverage). Running total: 18 phase cells collapsed across two codebases, two
+render distributions, two context policies, every parameterization lever; the
+matrix twin trains in every matched condition. Last cheap unknown in flight:
+amp dtype (their script says fp16; probing bf16 on ropeonrays-vi). If bf16 also
+collapses, the honest closure is: their released code + released recipe do not
+reproduce the phase rows of Table 1 on any data we can construct, while the
+phase mechanism itself is PROVEN to work in multi-view windows by our TTT grid
+(input +0.206 on the same renders).
