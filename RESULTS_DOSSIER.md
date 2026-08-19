@@ -2552,3 +2552,13 @@ CONSTRUCTIVE HALF (F69): the phase mechanism itself works in MULTI-VIEW windows
 Paper implication (dossier-only, FREEZE intact): the phases-vs-matrices
 robustness split now has its strongest possible evidence base, and TTT-RoPE's
 input site has its first clean object-level win.
+
+## Video rerun interim (video2, node3 first pass; computed 2026-08-15)
+video2_ttt (both sites, current recipe: frozen freqs, (t,y,x) grid, ~98% coverage)
+vs video2_base, paired per logged step (deterministic noise, 500 common points,
+steps 1-4100): all-steps +0.216% (t=+3.5, early-training transient); final-2.5k
+window +0.002% (t=+0.03) -- EXACTLY NEUTRAL, same boundary as F21/F22. The
+pre-registered "full coverage may be negative" prediction is not supported at
+this budget; the idle-memory neutrality account stands. video2_ttt_frac never
+ran (node3 froze at step 240). Paper tab:video filled with F22 hidden (20k) +
+this Both row; input-only video cell does not exist and the row was removed.
