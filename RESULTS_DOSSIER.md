@@ -2562,3 +2562,11 @@ pre-registered "full coverage may be negative" prediction is not supported at
 this budget; the idle-memory neutrality account stands. video2_ttt_frac never
 ran (node3 froze at step 240). Paper tab:video filled with F22 hidden (20k) +
 this Both row; input-only video cell does not exist and the row was removed.
+
+## Video rerun 4-arm correction (2026-08-19): video2_ttt_in and video2_ttt_h DID
+## complete the 4,100-step first pass -- full four-arm contrast computed
+Paired per logged step vs video2_base, final-2.5k window (n=251, base mean loss
+0.055487): input +0.022% (t=+0.43), hidden +0.017% (t=+0.36), both +0.002%
+(t=+0.03). ALL FOUR ARMS exactly neutral, closing the idle-memory boundary with
+the site-resolved grid the earlier interim note thought was missing (the _in/_h
+dirs were overlooked). Paper tab:video now carries this four-arm table.
