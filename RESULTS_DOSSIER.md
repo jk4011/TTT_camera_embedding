@@ -2621,3 +2621,60 @@ actually for (short-budget conversion). Single seed; caveat noted.
 Artifacts: outputs/video2_t5_*/seed_1/checkpoint_model_001499,
 outputs/eval_dev/valloss_video2_t5_*_1499{,_n256}.json, run_t5_grid.sh,
 run_t5_eval.sh, minVid/eval_video2_valloss.py.
+
+## F72: OpenVid T5 four-arm -- loss-vs-generation dissociation; the twin-leak
+## account is refuted as the driver; hidden rotary is genuinely worse in the
+## generation-like conditional (2026-08-28)
+
+Setup. The T5-conversion four-arm grid (F71 recipe unchanged) retrained on
+REAL data with per-clip captions: OpenVid-1M subset (parts 99/100/101,
+filtered to landscape / >=480p / >=5.3s / fps>=14 -> 4,647 clips; train =
+seeded 2,000, held-out = the rest). New loader minVid/data/openvid_dataset.py
+(val split has deterministic temporal crops). 1,500 steps, 4 arms, 1 GPU each.
+New eval stack: eval_video2_generate.py (full-sequence Euler sampler, teacher-
+forced and free-running modes; zero future slots contribute exactly zero
+gradient to the gathered update, so generation is causal), compute_fvd_video2
+(cd-fvd I3D), eval_video2_causal.py (twin-leak diagnostic).
+
+Results, all paired vs base:
+
+1. TRAIN-LIKE loss evals favor the rotary arms. Training loss final-500:
+   in -0.13% t=-2.8, h -0.19% t=-3.5, both -0.17% t=-2.9. Held-out val loss
+   (training forward, 256 clips): in -0.44% t=-0.61, h -0.75% t=-1.08,
+   both -0.39% t=-0.75 (large deltas, high clip variance).
+2. GENERATION reverses the sign. Teacher-forced continuation (24 clips,
+   24-step Euler, chunks 1-6, GT context): PSNR in -0.78 dB t=-2.30,
+   h -0.97 dB t=-2.23, both -1.27 dB t=-2.30; LPIPS +0.032/+0.051/+0.064,
+   t = +3.4..+3.5. Monotone: more rotary sites = worse generation.
+3. FVD (free-running, 64 videos vs 256 real): base 1479, in 1379, h 1542,
+   both 1495 -- non-separating at this n (noise +-~100), ordering inconsistent
+   with tf-PSNR; treat as "no distribution-level separation detectable".
+4. Twin-leak diagnostic (64 clips x chunks 1-6 x sigma {0.7, 0.3}; identical
+   noise; memory = causal [chunks < k] vs leaky [all clean chunks, twin
+   included]): the twin's benefit is TINY for every arm (causal minus leaky
+   +0.00006 base/in, +0.00011 h/both; within-arm t ~ +15..+19, i.e. real but
+   ~0.1% of loss) -- it cannot carry a 1 dB PSNR gap. Arm ordering is the SAME
+   in both memory conditions: hidden +2.2..+2.3% WORSE than base (t=+2.9),
+   input neutral, both intermediate. Refutes twin-leak as the main driver.
+5. What actually differs between the evals that favor rotary (1) and those
+   that do not (2,4): sequence POPULATION. The training forward runs with all
+   13 interleave slots populated; generation and the diagnostic run with most
+   slots zero. The key InstanceNorm computes statistics over the whole
+   sequence, so its normalization shifts between the two regimes, and the arm
+   ordering flips with it. Hypothesis for follow-up: masked IN (statistics
+   over populated slots only) as an inference-side fix; also possible
+   contributors: the t-distribution (fixed sigma pair vs logit-normal-shifted
+   draws) and chunk-0 inclusion.
+
+Reading. In the T5 video regime the rotary arms' loss-side advantage does not
+transfer to actual AR generation on real data; the hidden site is actively
+harmful there (-1 dB teacher-forced). F71's MultiCam "held-out gain" was
+measured with the SAME train-like forward and therefore carries the same
+caveat -- it should not be quoted as a generation-quality result. Single seed
+throughout.
+
+Artifacts: outputs/video2ov_t5_*/seed_1/checkpoint_model_001499,
+outputs/eval_dev/{valloss,gen,causal,fvd}_video2ov_t5_*,
+minVid/{eval_video2_generate,eval_video2_causal,compute_fvd_video2}.py,
+minVid/data/openvid_dataset.py, data_prep_openvid.py,
+datasets/OpenVid-1M (lustre).
