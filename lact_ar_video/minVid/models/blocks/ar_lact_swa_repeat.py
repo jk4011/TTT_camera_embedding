@@ -38,6 +38,7 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     mini_batch_size: int = -1,
     update_length: int = -1,
     update_every: int = -1,
+    single_chunk: bool = False,  # NVS-style: ONE update on all clean chunks, then apply to everything
     use_moun: bool = False,
     num_moun_iters: int = 3,
     weight_norm: bool = True,
@@ -148,6 +149,40 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     # for example, we want to have the next ar chunk, repeated with multiple noise levels.
     first_noise_chunk_size = update_every - mini_batch_size
     tgt_start = src_prefix_len
+    if single_chunk:
+        # gather every CLEAN chunk of the AR interleave into one update, then
+        # apply the post-update weights to the whole target range (NVS schedule)
+        starts = range(tgt_start + first_noise_chunk_size, update_length, update_every)
+        idx = torch.cat([torch.arange(st, min(st + mini_batch_size, update_length), device=k.device) for st in starts])
+        ki, vi = k[:, idx, :], v[:, idx, :]
+        lr0i, lr1i, lr2i = lr0[:, idx, :], lr1[:, idx, :], lr2[:, idx, :]
+        gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
+        hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
+        silu_gate = F.silu(gate_before_act, inplace=False)
+        hidden = silu_gate * hidden_before_mul
+        dhidden = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
+        dhidden_before_mul = dhidden * silu_gate
+        dgate = dhidden * hidden_before_mul
+        dgate_before_act = silu_backprop(dgate, gate_before_act)
+        dw1 = torch.bmm(vi.transpose(1, 2), hidden.transpose(1, 2) * lr1i * w_scale)
+        dw0 = torch.bmm(dgate_before_act, ki * lr0i * w_scale)
+        dw2 = torch.bmm(dhidden_before_mul, ki * lr2i * w_scale)
+        if use_moun:
+            dw1 = zeropower_via_newtonschulz5(dw1, num_moun_iters)
+            dw0 = zeropower_via_newtonschulz5(dw0, num_moun_iters)
+            dw2 = zeropower_via_newtonschulz5(dw2, num_moun_iters)
+        w1 = w1 + dw1
+        w0 = w0 + dw0
+        w2 = w2 + dw2
+        if weight_norm:
+            w0 = w0 / (w0.norm(dim=2, keepdim=True) + 1e-5) * w0_norm
+            w1 = w1 / (w1.norm(dim=2, keepdim=True) + 1e-5) * w1_norm
+            w2 = w2 / (w2.norm(dim=2, keepdim=True) + 1e-5) * w2_norm
+        qi = q[:, tgt_start:update_length, :]
+        h = torch.bmm(w2, qi.transpose(1, 2))
+        gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
+        output[:, tgt_start:update_length, :] = torch.bmm(w1, gate * h).transpose(1, 2)
+        return output, w0, w1, w2
     qi = q[:, tgt_start : tgt_start + first_noise_chunk_size, :]
     h = torch.bmm(w2, qi.transpose(1, 2))
     gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
@@ -298,6 +333,7 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
     mini_batch_size: int = -1,
     update_length: int = -1,
     update_every: int = -1,
+    single_chunk: bool = False,  # NVS-style: ONE update on all clean chunks, then apply to everything
     use_moun: bool = False,
     num_moun_iters: int = 3,
     weight_norm: bool = True,
@@ -397,6 +433,46 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
 
     first_noise_chunk_size = update_every - mini_batch_size
     tgt_start = src_prefix_len
+    if single_chunk:
+        starts = range(tgt_start + first_noise_chunk_size, update_length, update_every)
+        idx = torch.cat([torch.arange(st, min(st + mini_batch_size, update_length), device=k.device) for st in starts])
+        ki, vi = k[:, idx, :], v[:, idx, :]
+        lr0i, lr1i, lr2i = lr0[:, idx, :], lr1[:, idx, :], lr2[:, idx, :]
+        hci, hsi = hcos[:, idx], hsin[:, idx]
+        gate_before_act = torch.bmm(w0, ki.transpose(1, 2))
+        hidden_before_mul = torch.bmm(w2, ki.transpose(1, 2))
+        silu_gate = F.silu(gate_before_act, inplace=False)
+        hidden = silu_gate * hidden_before_mul
+        hidden_rot = apply_rotary_cols(hidden, hci, hsi)
+        dhidden_rot = torch.bmm(w1.transpose(1, 2), vi.transpose(1, 2))
+        dhidden = apply_rotary_cols(dhidden_rot, hci, hsi, inverse=True)
+        dhidden_before_mul = dhidden * silu_gate
+        dgate = dhidden * hidden_before_mul
+        dgate_before_act = silu_backprop(dgate, gate_before_act)
+        dw1 = torch.bmm(vi.transpose(1, 2), hidden_rot.transpose(1, 2) * lr1i * w_scale)
+        dw0 = torch.bmm(dgate_before_act, ki * lr0i * w_scale)
+        dw2 = torch.bmm(dhidden_before_mul, ki * lr2i * w_scale)
+        if use_moun:
+            dw1 = zeropower_via_newtonschulz5(dw1, num_moun_iters)
+            dw0 = zeropower_via_newtonschulz5(dw0, num_moun_iters)
+            dw2 = zeropower_via_newtonschulz5(dw2, num_moun_iters)
+        w1 = w1 + dw1
+        w0 = w0 + dw0
+        w2 = w2 + dw2
+        if weight_norm:
+            w0 = w0 / (w0.norm(dim=2, keepdim=True) + 1e-5) * w0_norm
+            w1 = w1 / (w1.norm(dim=2, keepdim=True) + 1e-5) * w1_norm
+            w2 = w2 / (w2.norm(dim=2, keepdim=True) + 1e-5) * w2_norm
+        qi = q[:, tgt_start:update_length, :]
+        h = torch.bmm(w2, qi.transpose(1, 2))
+        gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
+        hq = gate * h
+        hq_rot = apply_rotary_cols(hq, hcos[:, tgt_start:update_length], hsin[:, tgt_start:update_length])
+        if delta_only:
+            output[:, tgt_start:update_length, :] = (torch.bmm(w1_init, hq) + torch.bmm(w1 - w1_init, hq_rot)).transpose(1, 2)
+        else:
+            output[:, tgt_start:update_length, :] = torch.bmm(w1, hq_rot).transpose(1, 2)
+        return output, w0, w1, w2
     qi = q[:, tgt_start : tgt_start + first_noise_chunk_size, :]
     h = torch.bmm(w2, qi.transpose(1, 2))
     gate = F.silu(torch.bmm(w0, qi.transpose(1, 2)), inplace=True)
@@ -467,6 +543,71 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch_hidden_rope(
                 output[:, s_index:e_index, :] = torch.bmm(w1, hq_rot).transpose(1, 2)
 
     return output, w0, w1, w2
+
+
+@torch.compile()
+def ar_fast_weight_t5_2layer_single_chunk(
+    w1, w2, q, k, v,
+    mini_batch_size: int,
+    update_every: int,
+    src_prefix_len: int = 0,
+    hcos=None, hsin=None,
+):
+    """T5 conversion kernel (arXiv:2605.02772): per-attention-head 2-layer MLP
+    fast weights, one L2-reconstruction update gathered over ALL clean chunks,
+    then apply the updated weights to the whole target range. No Muon, no weight
+    norm, no per-token lr; error scaled (y - v) / d * d**-0.5 as in their code.
+    Optional hidden rotary rotates the hidden address s = silu(z) by per-token
+    phases on both the update and the apply pass (relative-phase addressing).
+
+    w1, w2: [b*nh, d, d]; q/k/v: [b*nh, L, d]; hcos/hsin: [P, L] or None.
+    """
+    L, d = k.shape[1], k.shape[2]
+    scale = 1.0 / (d ** 0.5)
+    tgt_start = src_prefix_len
+    first_noise_chunk_size = update_every - mini_batch_size
+
+    starts = range(tgt_start + first_noise_chunk_size, L, update_every)
+    idx = torch.cat([
+        torch.arange(st, min(st + mini_batch_size, L), device=k.device)
+        for st in starts
+    ])
+    ki, vi = k[:, idx, :], v[:, idx, :]
+
+    # update: forward through the 2-layer MLP, manual L2 backward
+    z = ki @ w1
+    sig = torch.sigmoid(z)
+    s = z * sig
+    if hcos is not None:
+        hci = hcos[:, idx].transpose(0, 1)  # [Li, P]
+        hsi = hsin[:, idx].transpose(0, 1)
+        s_addr = apply_rotary_pairs(s, hci, hsi)
+    else:
+        s_addr = s
+    y = s_addr @ w2
+    e = (y - vi) / float(d) * scale
+    ds_addr = e @ w2.transpose(-2, -1)
+    if hcos is not None:
+        ds = apply_rotary_pairs(ds_addr, hci, -hsi)  # transpose rotation
+    else:
+        ds = ds_addr
+    g1 = ki.transpose(-2, -1) @ (ds * (sig * (1.0 + z * (1.0 - sig))))
+    g2 = s_addr.transpose(-2, -1) @ e
+    w1u = w1 - g1
+    w2u = w2 - g2
+
+    # apply the post-update weights to the entire target range
+    qi = q[:, tgt_start:, :]
+    zq = qi @ w1u
+    sq = zq * torch.sigmoid(zq)
+    if hcos is not None:
+        sq = apply_rotary_pairs(
+            sq, hcos[:, tgt_start:].transpose(0, 1), hsin[:, tgt_start:].transpose(0, 1)
+        )
+    out = sq @ w2u
+    if tgt_start > 0:
+        out = torch.cat([torch.zeros_like(q[:, :tgt_start, :]), out], dim=1)
+    return out, w1u, w2u
 
 
 @torch.compile()
@@ -953,6 +1094,10 @@ class ARFastWeightSwiGLU(nn.Module):
                  ttt_input_rope: bool = False,   # PRA input site: rotary on fast q/k post-l2norm
                  cam_phase_mode: str = "none",   # none | plucker (camera phases for the rotary sites)
                  src_latent_f: int = 0,          # ccv: latent frames of the clean SRC prefix (0 = off)
+                 ttt_single_chunk: bool = False, # NVS-style single-chunk update schedule
+                 ttt_t5: bool = False,  # T5 conversion (arXiv:2605.02772): per-head
+                 # 2-layer MLP inner model, tiny init, key InstanceNorm, q/k
+                 # depthwise conv, one gathered update (single-chunk schedule)
                  ):
         assert dim % num_heads == 0
         super().__init__()
@@ -975,6 +1120,8 @@ class ARFastWeightSwiGLU(nn.Module):
         assert cam_phase_mode in ("none", "plucker")
         self.cam_phase_mode = cam_phase_mode
         self.ttt_input_rope = ttt_input_rope
+        self.ttt_single_chunk = ttt_single_chunk
+        self.ttt_t5 = ttt_t5
         self.src_latent_f = src_latent_f
         if src_latent_f > 0:
             assert src_latent_f % ar_window_f == 0
@@ -1123,6 +1270,25 @@ class ARFastWeightSwiGLU(nn.Module):
         self.d_h = d_h
         self.d_out = d_out
 
+        #### T5 conversion (arXiv:2605.02772). Reuses w0 as the t5 first-layer
+        #### weight and w1 as the second (both [nh, d, d] with inter_multi=1);
+        #### w2 (the SwiGLU gate) is unused on this path. Tiny init makes the
+        #### first update's K/V terms dominate, so the fast weights start out
+        #### attention-like (their structural-alignment argument).
+        if ttt_t5:
+            assert inter_multi == 1, "t5 inner model is d->d->d (set inter_multi: 1)"
+            assert fw_head_dim == self.head_dim, \
+                "t5 fast weights are per attention head (set fw_head_dim = head_dim)"
+            assert not use_moun and not weight_norm, \
+                "t5 path has no Muon / weight norm (disable both in the config)"
+            with torch.no_grad():
+                nn.init.trunc_normal_(self.w0, std=0.02)
+                nn.init.trunc_normal_(self.w1, std=0.02)
+            # depthwise conv locality on q/k (their DWC_QK), applied per latent
+            # frame over the (H, W) token grid, residual
+            self.q_dwc = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
+            self.k_dwc = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
+
         self.qk_l2_norm = qk_l2_norm
         self.use_moun = use_moun
         self.num_moun_iters = num_moun_iters
@@ -1175,6 +1341,19 @@ class ARFastWeightSwiGLU(nn.Module):
         q = q * qk_scale[:, :, :, :, 0] + qk_offset[:, :, :, :, 0]
         k = k * qk_scale[:, :, :, :, 1] + qk_offset[:, :, :, :, 1]
         return q, k
+
+    def _dwc(self, conv, t, H, W):
+        """T5 DWC_QK: depthwise 3x3 conv over each latent frame's (H, W) token
+        grid. t: [(b nh) s d] fast-path layout; returns the conv output (the
+        caller adds the residual)."""
+        nh = self.num_fw_heads
+        x2 = rearrange(t, '(b nh) s d -> b s (nh d)', nh=nh)
+        frames = x2.shape[1] // (H * W)
+        assert frames * H * W == x2.shape[1], "sequence not frame-divisible"
+        x2 = rearrange(x2, 'b (f h w) c -> (b f) c h w', h=H, w=W)
+        x2 = conv(x2)
+        x2 = rearrange(x2, '(b f) c h w -> b (f h w) c', f=frames)
+        return rearrange(x2, 'b s (nh d) -> (b nh) s d', nh=nh)
 
 
     def forward(self, x, seq_lens, grid_sizes, freqs, cam_coords6=None):
@@ -1304,6 +1483,19 @@ class ARFastWeightSwiGLU(nn.Module):
             fast_v = rearrange(fast_v, 'b s n_h d -> (b n_h) s d')
 
         # (b n_h) s d
+        #### T5 conversion: key InstanceNorm across the sequence (their
+        #### shift-invariance alignment, eps 1.0 as in their code), then
+        #### residual depthwise conv locality on q/k per latent frame.
+        if self.ttt_t5:
+            with torch.autocast(device_type="cuda", enabled=False):
+                fk = fast_k.float()
+                fast_k = ((fk - fk.mean(dim=1, keepdim=True))
+                          / torch.sqrt(fk.var(dim=1, unbiased=False, keepdim=True) + 1.0)
+                          ).to(fast_k.dtype)
+            H_g, W_g = int(grid_sizes[0, 1].item()), int(grid_sizes[0, 2].item())
+            fast_q = fast_q + self._dwc(self.q_dwc, fast_q, H_g, W_g)
+            fast_k = fast_k + self._dwc(self.k_dwc, fast_k, H_g, W_g)
+
         if self.qk_l2_norm:
             fast_q = l2_norm(fast_q)
             fast_k = l2_norm(fast_k)
@@ -1377,7 +1569,49 @@ class ARFastWeightSwiGLU(nn.Module):
             fw_w1 = self.w1.repeat(b, 1, 1) # [nh, d_out, d_h] -> [b*nh, d_out, d_h]
             fw_w2 = self.w2.repeat(b, 1, 1) # [nh, d_h, d_in] -> [b*nh, d_h, d_in]
 
-            if self.ttt_hidden_rope:
+            if self.ttt_t5:
+                assert self.update_every == self.mini_batch_size * 2, \
+                    "t5 kernel assumes num_repeat == 1"
+                hcos = hsin = None
+                if self.ttt_hidden_rope:
+                    # grid-carrier hidden phases, same builder as the hidden-rope
+                    # branch below (t5 hidden dim = head_dim)
+                    assert self.cam_phase_mode == "none", \
+                        "t5 hidden phases: grid carrier only"
+                    with torch.autocast(device_type="cuda", enabled=False):
+                        seq_l = fast_q.shape[1]
+                        table = torch.polar(
+                            torch.ones(1024, self.h_rope_dim // 2, device=x.device),
+                            torch.outer(
+                                torch.arange(1024, device=x.device, dtype=torch.float32),
+                                self.h_inv_freq.float(),
+                            ),
+                        )
+                        carrier = torch.zeros(
+                            1, seq_l, 1, self.h_rope_dim, device=x.device, dtype=torch.float32
+                        )
+                        carrier[..., 0::2] = 1.0
+                        if src_prefix_len > 0:
+                            roped = rope_apply_ar_src_prefix(
+                                carrier, grid_sizes, table, self.ar_window_f,
+                                self.n_latent_f, self.src_latent_f
+                            )
+                        else:
+                            roped = rope_apply_ar(
+                                carrier, grid_sizes, table, self.ar_window_f, self.n_latent_f
+                            )
+                        hcos = roped[0, :, 0, 0::2].transpose(0, 1).contiguous()  # [P, L]
+                        hsin = roped[0, :, 0, 1::2].transpose(0, 1).contiguous()
+                # w0 holds the t5 first-layer weight, w1 the second (see __init__)
+                fw_x, w1u, w2u = ar_fast_weight_t5_2layer_single_chunk(
+                    fw_w0, fw_w1, fast_q, fast_k, fast_v,
+                    mini_batch_size=self.mini_batch_size,
+                    update_every=self.update_every,
+                    src_prefix_len=src_prefix_len,
+                    hcos=hcos, hsin=hsin,
+                )
+                fw_w0, fw_w1, fw_w2 = w1u, w2u, w2u  # statistics bookkeeping only
+            elif self.ttt_hidden_rope:
                 assert self.update_every == self.mini_batch_size * 2, \
                     "hidden-rope carrier currently mirrors the no-repeat rope path"
                 if self.cam_phase_mode == "plucker" and cam_coords is not None:
@@ -1430,6 +1664,7 @@ class ARFastWeightSwiGLU(nn.Module):
                     num_moun_iters=self.num_moun_iters,
                     weight_norm=self.weight_norm,
                     src_prefix_len=src_prefix_len,
+                    single_chunk=self.ttt_single_chunk,
                     delta_only=self.ttt_hrope_delta_only,
                 )
             else:
@@ -1444,9 +1679,11 @@ class ARFastWeightSwiGLU(nn.Module):
                     num_moun_iters=self.num_moun_iters,
                     weight_norm=self.weight_norm,
                     src_prefix_len=src_prefix_len,
+                    single_chunk=self.ttt_single_chunk,
                 )
         else:
-            # inference only. 
+            # inference only.
+            assert not self.ttt_t5, "t5 inference path not implemented"
             # if self.cur_w0 is None:
             if self.cur_w0 is None or self.inference_frame_offset == 0 or self.cfg_w0 is None:
                 fw_w0 = self.w0.clone().repeat(b, 1, 1) # [nh, d_h, d_in] -> [b*nh, d_h, d_in]

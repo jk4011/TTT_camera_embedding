@@ -2570,3 +2570,54 @@ Paired per logged step vs video2_base, final-2.5k window (n=251, base mean loss
 (t=+0.03). ALL FOUR ARMS exactly neutral, closing the idle-memory boundary with
 the site-resolved grid the earlier interim note thought was missing (the _in/_h
 dirs were overlooked). Paper tab:video now carries this four-arm table.
+
+## F71: T5-conversion regime opens the video rotary gap -- hidden-site-driven,
+## first significant held-out video generation result (2026-08-27)
+
+Setup. The video2 (unconditional AR video, MultiCamVideo 2000-clip index) TTT
+block was rebuilt per T5 / "Linearizing Vision Transformer with TTT"
+(arXiv:2605.02772, their released code): per-attention-head 2-layer MLP fast
+weights (12 heads x 128x128, trunc_normal 0.02 tiny init), L2-reconstruction
+update with fixed lr (no Muon, no weight norm, no per-token lr), key
+InstanceNorm over the sequence (eps 1.0), residual 3x3 depthwise conv on fast
+q/k per latent frame, one gathered update over all clean chunks then apply to
+the whole range (their schedule == our single-chunk). SWA branch and zero-init
+learnable ttt_scale gate kept from minVid (all arms share). Kernel
+`ar_fast_weight_t5_2layer_single_chunk` + `ttt_t5` block flag; configs
+`video2_t5_{base,in,h,both}`. Four arms, 1 GPU each, 1500 steps (~2.6 h,
+mirroring the paper's short-conversion premise; their SD3.5 recipe is 3K).
+
+Training loss (paired same-step vs base). final-500 window: in +0.01% t=+0.1,
+h -0.10% t=-1.2, both -0.09% t=-1.0 (endpoint neutral). first-500 window:
+h -0.68% t=-4.7 (significant early acceleration; in -0.14% t=-0.9, both
+-0.19% t=-1.4). The LaCT regime showed nothing at either stage.
+
+Held-out eval (new `minVid/eval_video2_valloss.py`: 256 never-trained clips,
+seed-43 index minus the seed-42 training set; exact training objective,
+per-clip deterministic noise/timesteps -> fully paired per (clip, noise, t);
+EMA weights, checkpoint 1499). Base mean 0.054042.
+
+| arm    | paired delta   | %      | t     | win     |
+|--------|----------------|--------|-------|---------|
+| input  | -0.000007      | -0.01% | -0.41 | 149/256 |
+| hidden | -0.000052      | -0.10% | -2.78 | 167/256 |
+| both   | -0.000046      | -0.08% | -3.17 | 163/256 |
+
+both-vs-hidden directly: t=+0.35 (indistinguishable). The effect is carried by
+the HIDDEN site; the input site is neutral (fast q/k already carry the
+attention rope pre-InstanceNorm, so the extra input rotary is redundant here).
+The n=64 prefix gave both t=-2.35; n=256 confirmed and sharpened.
+
+Reading. Across every LaCT-regime video cell (sequential 4,100/20k, single
+chunk) all arms were neutral to +-0.02%. Converting the block to the
+T5 attention-aligned form -- simple MLP inner model, tiny init, key IN --
+is what lets phase addressing earn in video: hidden rotary (a) accelerates
+the conversion itself (t=-4.7 early) and (b) leaves a small but decisively
+significant held-out gain (t=-2.78). Effect size is ~0.1%, far from the NVS
+dB-scale wins, but it is the first video generation cell where any rotary arm
+separates from base at |t|>2, and it lands on the task the T5 recipe is
+actually for (short-budget conversion). Single seed; caveat noted.
+
+Artifacts: outputs/video2_t5_*/seed_1/checkpoint_model_001499,
+outputs/eval_dev/valloss_video2_t5_*_1499{,_n256}.json, run_t5_grid.sh,
+run_t5_eval.sh, minVid/eval_video2_valloss.py.
