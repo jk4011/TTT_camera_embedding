@@ -2678,3 +2678,37 @@ outputs/eval_dev/{valloss,gen,causal,fvd}_video2ov_t5_*,
 minVid/{eval_video2_generate,eval_video2_causal,compute_fvd_video2}.py,
 minVid/data/openvid_dataset.py, data_prep_openvid.py,
 datasets/OpenVid-1M (lustre).
+
+## F72 addendum: MultiCam T5 arms PASS the generation test -- the loss-to-
+## generation reversal is DATA-DEPENDENT, and the input site is the arm that
+## survives generation (2026-08-28)
+
+The F71 MultiCam T5 checkpoints (1499) were run through the same teacher-
+forced generation eval (24 clips, 24-step Euler, chunks 1-6, paired):
+
+| arm    | dPSNR (dB)      | dSSIM           | dLPIPS          |
+|--------|-----------------|-----------------|-----------------|
+| input  | +0.338  t=+3.50 | +0.0054 t=+2.40 | -0.0088 t=-3.18 |
+| hidden | +0.082  t=+0.69 | +0.0028 t=+0.81 | -0.0055 t=-1.06 |
+| both   | +0.069  t=+0.56 | +0.0007 t=+0.18 | -0.0027 t=-0.73 |
+
+Base PSNR 19.109 / SSIM 0.6707 / LPIPS 0.2626.
+
+Readings.
+1. On MultiCam there is NO generation reversal: no rotary arm degrades, and
+   the INPUT arm improves generation significantly on all three metrics. The
+   OpenVid reversal (F72) is therefore a property of that data regime
+   (heterogeneous real clips), not of the T5 conversion as such.
+2. Cross-eval pattern, both datasets: the hidden site's loss-side advantage
+   (F71 val loss t=-2.78; OpenVid train loss t=-3.5) does NOT transfer to
+   generation (neutral on MultiCam, harmful on OpenVid), while the input
+   site transfers cleanly on MultiCam. Consistent with the F72 population/
+   InstanceNorm account: the hidden address space sits deepest behind the
+   sequence-global key IN and is most sensitive to the train/generation
+   sequence-population shift; the input site is the robust one.
+3. Answer to "does RoPE help T5 video generation anywhere?": YES --
+   MultiCam, input site, +0.34 dB teacher-forced (t=+3.5), the first
+   significant GENERATION-metric win for a rotary arm in the video task.
+   Single seed; 24 clips.
+
+Artifacts: outputs/eval_dev/gen_video2_t5_*_tf/.
