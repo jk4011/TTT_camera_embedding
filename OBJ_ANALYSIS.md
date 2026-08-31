@@ -240,6 +240,9 @@ update가 스스로 상쇄. 90° 특유의 간섭 문제에 직접 대응하지�
 | 대조 attn_nope / attn_prope (node2) | +0.705 / **+1.437** | attention 상한; TTT+oracle(+2.08)이 attn+PRoPE를 +0.65 앞섬 |
 | H4 hrot_rotraw (node2) | +0.410, rot_raw 대비 −0.01 (t=−0.7) | 기각 (hidden 행렬 작용 무효) |
 | H10 imgvo_himg (node2) | +0.336, imgvo 대비 −0.06 (t=−3.4) | 기각 |
+| shell_vo (chord 입력 + 회전 v/o transport) | **+0.532 (t=+26)**, shell_in 대비 +0.155, imgvo 대비 +0.137 | **orbit PE-only 최고**; 주소·carrier 슬롯 합성 성립 |
+| shell_both (chord 입력+hidden) | +0.299, shell_in 대비 −0.078 (t=−6.1) | 두 사이트는 90°에서 비합성 (F52와 동일) |
+| oracle_in (입력 토큰만 GT) | +0.426, shell_in 대비 +0.05; oracle_both 대비 −1.66 | oracle 이득은 **타깃 토큰의 depth** 효과 |
 판정 트리 결과: H1 ≫ 0 → 갈래 (a)에 집중. 다음: shell_both, shell_vo(진행 중), anchor_*, oracle_in(타깃 depth가 병목인지), vi 데이터 재현.
 
 ## 5. 실험 계획

@@ -2812,3 +2812,38 @@ Readings:
    (H10 rejected). Together with F58 (h-GA -0.18) and F73's shell_h (+0.32), the only thing
    that has ever made the hidden site positive at wide baseline is a 3D-point coordinate.
 4. Single seed; node2 numbers (NODE2_RESULTS.md), node1 pairing.
+
+## F74: chord address + rotation carrier COMPOSE (+0.53, new PE-only best on the orbit set);
+## the two chord sites do NOT; and the oracle gain is a TARGET-token effect (2026-08-31 17:00)
+Same protocol/pairing as F73 (gObjaverse orbit, seed 95, 499 scenes, base eval_v2 22.193).
+
+| cell | PSNR | dPSNR vs base (t, win%) | LPIPS (d, t) | key contrast |
+|---|---|---|---|---|
+| **shell_vo** (chord input address + rotation v/o transport, `shell_sinc+vo_rel`) | **22.725** | **+0.532 (+26.0, 90%)** | 0.1344 (-0.0101, -34.1) | vs shell_in +0.155 (t=+9.6); vs imgvo +0.137 (t=+7.7, LPIPS -0.0016 t=-8.7); vs prope_raw +0.063 (t=+3.8); vs rot_raw +0.112 (t=+6.1) |
+| shell_both (chord at input AND hidden) | 22.492 | +0.299 (+16.5, 79%) | 0.1391 (-0.0054) | vs shell_in **-0.078 (t=-6.1)**; vs shell_h -0.025 (t=-1.7) |
+| oracle_in (GT depth for INPUT tokens only; targets use the chord) | 22.619 | +0.426 (+18.0, 82%) | 0.1371 (-0.0074) | vs shell_in +0.049 (t=+2.8); oracle_both - oracle_in = **+1.656 (t=+52.4, 99.4%)** |
+
+Readings:
+1. **Address slot and carrier slot compose once the address is right.** The Plucker ladder
+   + transport anti-composed (pra_vo -0.18, F60) because the ladder was harmful alone; the
+   chord address is positive alone and adds +0.155 on top of the rotation transport, giving
+   the best positional-embedding-only number on this dataset (22.725), above every prope-
+   family cell (prope_raw 22.662, imgvo 22.588) and rot_raw. Exactly the slot picture of the
+   2026-08-07 theory note: addressing coefficient and content carrier are different slots.
+2. **The two chord SITES do not compose at 90 deg**: both sites together sit below either
+   single site (-0.078 vs input, t=-6.1). This mirrors the Plucker-site dose-response
+   (F52/F53: composition of the two sites is positive only below ~6 deg between views) --
+   the coordinate fix does not change the crowding of two rotated address spaces at wide
+   baseline. Wide-baseline recipe: ONE chord site (input) + carrier.
+3. **The oracle gain is a query-side effect.** Giving GT depth to the stored (input) tokens
+   only is worth +0.05 over the depth-free chord; giving it to the TARGET tokens as well is
+   worth a further +1.66. The update side is already addressed well enough by the chord;
+   what the fast weight cannot do without help is know, for a novel ray, WHICH depth to
+   read. This bounds what any pose-only positional embedding can add: the target's depth
+   is not a function of the cameras. Under the PE-only scope, the remaining honest levers
+   are the address geometry itself (anchors, radius/band) and the carrier; recovering more
+   of the 1.66 dB needs information about the target ray's depth interval (e.g. a visual-
+   hull chord from the input silhouettes -- geometry derived from inputs, not a learned
+   layer; decision deferred to the user).
+4. Single seed, orbit renders; the same cells are running on the RayRoPE vary-intrinsics
+   re-renders (gobjvi_*), which is the paper-facing dataset per the user's 2026-08-31 decision.
