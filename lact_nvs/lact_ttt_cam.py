@@ -1286,9 +1286,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             # vo_coords "6d": the 6 coordinates ((d, m) or (o, d)); "d": the ray DIRECTION only
             # (3 coords, twice the rungs -> same 252-dim budget) -- the user's "camera ray only"
             # carrier, the phase analogue of the rotation-matrix transport (d transforms with R).
-            assert vo_coords in ("6d", "d")
+            assert vo_coords in ("6d", "d", "foot")
             self.vo_coords = vo_coords
-            n_c, F_vo = (6, num_freqs) if vo_coords == "6d" else (3, 2 * num_freqs)
+            n_c, F_vo = (6, num_freqs) if vo_coords == "6d" else (3, 2 * num_freqs)   # d/foot: 3 coords
             assert 2 * n_c * F_vo <= head_dim
             self.register_buffer("omega_vo", math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), F_vo, base=2.0) * omega_scale, persistent=False)
@@ -2146,7 +2146,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             v = apply_block_rot(v, R_tok, transpose=False)
         vo_rope_coeffs = None
         if "vo_rope" in modes:
-            if self.vo_coords == "d":
+            if self.vo_coords == "foot":
+                # phase carrier on the FOOT POINT: matched pairs have delta x_c ~ 0, so the
+                # carrier phase is near-identity exactly where it matters (unlike ray coords).
+                xc_tok = info["tok_o"] + info["tok_tc"].clamp_min(0.02) * info["tok_d"]
+                th = (xc_tok[..., None] * (self.omega_vo[None, None, None]
+                                           * self.gain_vo[None, None])).flatten(2)
+                vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)
+            elif self.vo_coords == "d":
                 th = (info["tok_d"][..., None] * (self.omega_vo[None, None, None]
                                                   * self.gain_vo[None, None])).flatten(2)
                 vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)

@@ -122,9 +122,9 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | N1-d | `gobjvi_vernier_both_s95` | `config/gobj_vernier_both.yaml` | (node1 체인) input 저주파(wrap 불가) chord × hidden 고주파 chord (Vernier) | [CHAINED node1 gpu3 after rot_shell] |
 | V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [DONE 22.276 (+0.295 vs base, +0.233 vs shell_h)] |
 | V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [DONE 22.317 (+0.336 vs base, +0.089 vs shell_in)] |
-| V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [RUNNING node2 gpu0 00:26] |
+| V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [DONE 22.365 (+0.384 vs base, -0.149 vs rot_raw)] |
 | V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [QUEUED node2 (다음 빈 GPU)] |
-| V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [QUEUED node2 (다음 빈 GPU)] |
+| V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [RUNNING node2 gpu0 02:05] |
 모두 `DATA=gobj_vi`, 기준 `gobjvi_base_s95/eval_v2.json`(21.981). orbit 백로그(아래)는 vi 큐가 빈 뒤에만.
 
 ### wave 4 — noisy-oracle 보정 (orbit, GT depth 필요: `DEPTH_DIR=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobj_depth_patch DATA=gobj`) — 2026-09-01 00:55, **V2-1…5보다 먼저**
@@ -135,6 +135,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 |---|---|---|---|---|
 | V3-0n | `gobjvi_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **(01:05)** rot_raw + hidden **3-anchor**(anchor_h 단독 +0.30 > shell_h +0.06) — rot_hshell(+0.716)을 넘는지; `DATA=gobj_vi` | [RUNNING node2 gpu3 00:46] |
 | V3-0o | `gobjvi_foot_iso_in_s95` | `config/gobj_foot_iso_in.yaml` | **(01:15)** foot 점을 정20면체 6방향 × 21 rung으로 (shell_iso가 축정렬 chord보다 +0.09) — foot_in(+0.47)을 넘는지 | [RUNNING node1 gpu1 01:35] — node1이 가져감 |
+| V3-0p | `gobjvi_foot_all_pvo_s95` | `config/gobj_foot_all_pvo.yaml` | **(사용자 질문 02:15)** foot_all의 carrier를 회전 행렬 대신 **foot 점 위상**으로 (`vo_rope`, `vo_coords: foot`) — "carrier는 행렬이어야 하나, 좌표가 문제였나" 최종 분리 | [PENDING] |
 | V4-1 | `gobj_oracle_n04_s95` | `config/gobj_oracle_n04.yaml` | GT depth + N(0, 0.04²) (orbit) | [RUNNING node2 gpu1 00:43] |
 | V4-2 | `gobj_oracle_n12_s95` | `config/gobj_oracle_n12.yaml` | GT depth + N(0, 0.12²) (orbit) | [RUNNING node1 gpu3 01:50] — node1이 가져감 |
 
@@ -159,6 +160,25 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+> ⚠⚠ **2026-09-01 01:28 — 중복 실행 발생, node2가 양보함. node1은 프로세스 확인 필요.**
+> `gobjvi_foot_iso_in_s95`를 **두 노드가 동시에 학습**했다. 타임라인:
+> - **00:56:46** node2 gpu2가 claim+시작(직전 foot_both 종료). 이때 node1 락에 이 이름은 없었다.
+> - **01:17:25** node1_gpu1 락에 같은 이름이 나타남(약 21분 뒤). 표 태그는 01:35에 `[RUNNING node1 gpu1]`로 바뀜.
+> 두 런이 같은 `outputs/gobjvi_foot_iso_in_s95/`에 쓰고 있었다(내 런이 iter 11200에서 `model_0010000.pth`를 이미 기록).
+> save 시점이 21분 어긋나 바이트 손상은 아니지만, **같은 셀을 두 번 돌려 B200 1시간을 버리는 상태**였다.
+> **조치(node2)**: 내가 양보했다 — 내 프로세스만 종료하고(11200/30000 폐기) **출력 디렉터리는 건드리지 않았다**
+> (node1 런이 그 디렉터리에 계속 쓰고 있으므로 이름 변경/삭제하면 node1 런이 깨진다). 내 claim도 해제했다.
+> gpu2는 1분 만에 `h_dpra`로 전환(01:27). node1 런은 그대로 진행 중이니 그 결과를 쓰면 된다.
+> **부탁**: 내 표의 셀을 가져갈 때 `outputs/.gpu_locks/node2_gpu*`를 먼저 확인해 달라. 나는 매번 `node1_gpu*`를
+> 확인하고 있고(그 덕에 rot_shell·od_*·oracle_n12는 자동으로 건너뛰었다), 반대 방향 확인만 있으면 이 사고는 안 난다.
+> 특히 **네가 나에게 큐로 지시한 셀**을 네가 직접 돌릴 때가 위험하다(foot_iso_in이 그 경우다 — 01:15에 나에게
+> 최우선으로 지시해 놓고 01:17에 직접 시작했다).
+> **추가(01:31)**: 네 런은 정상이다(Iter 6000, 4.65 it/s, 락 유지, 로그 계속 기록). 내 프로세스 종료가 네 학습에
+> 영향을 주지 않았음을 확인했다. 다만 **그 셀의 `train.log`는 신뢰하지 마라** — 두 런의 Iter 줄이 섞여 있고
+> (내 11200까지의 줄 뒤에 네 6000대 줄이 이어진다) 내 프로세스가 죽으며 남긴 torch.distributed Traceback도 들어 있다.
+> 학습 곡선·NaN 점검용으로는 못 쓴다. 체크포인트와 eval.json은 네 런이 단독으로 덮어쓰므로 정상일 것이다.
+> 내 쪽에는 60 s 주기 **중복 감지기**를 추가했다(양 노드 락에 같은 이름이 있으면 즉시 알림) — 다음엔 30분이 아니라 1분 안에 잡힌다.
 - 2026-08-31 14:14 (node2): 세션 시작. /tmp/gobj 리샤딩 완료(train 19500 / test 500, 7.1 G).
   wave-1 4셀 GPU 0–3 정상 기동(Iter 200+ 확인, it/s: attn_nope 11.8 / attn_prope 9.6 / hrot_rotraw 16.2 / imgvo_himg 15.7).
 - 2026-08-31 14:14 (node2, 질문/W2-5): `config/cam_h_dpra42.yaml`의 cam_mode는 `qk_rope_cam+h_dpra`로
@@ -354,6 +374,12 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   내 체인은 자동으로 다음 후보(oracle_n12)로 넘어간다. QUEUE.txt에서 지우지는 않았다 — node1 런이 실패해
   락이 풀리면 내가 이어받는 편이 낫기 때문이다(앞서 od_*와 같은 처리).
   참고: node1이 `gobj_oracle_n07`도 돌리고 있어 noisy-oracle은 n04(나)·n07(node1)·n12(내 큐)로 3점이 된다.
+- 2026-09-01 02:07 (node2): **V2-3 `rot_content` 22.365 = +0.384** (t=+25.2, 90%), `rot_raw`(22.514) 대비 **−0.149**(t=−12.3, 27%).
+  → H8-1(회전을 SwiGLU content 브랜치에만, gate는 plain q/k)은 양쪽 브랜치에 다 거는 rot_raw보다 못하다.
+  gate를 불변으로 두는 부분 등변화는 이 규모에서는 손해다.
+  gpu0은 마지막 잔여 셀 `camray_hrot`로 전환(02:05). **이걸로 내 큐가 비는데**, 완료 예정은 대략:
+  oracle_n04 02:40 / rot_hanchor 02:45 / h_dpra 03:25 / camray_hrot 04:05.
+  **다음 지시가 없으면 04:05 이후 4장 모두 유휴가 된다** — 그 전에 §3에 다음 셀을 넣어 주면 끊김 없이 이어간다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
@@ -361,6 +387,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
 - 2026-08-31 23:15 (답변): (o,d) 주소는 죽었지만 v/o 위상 transport 4셀(od_*_vo/vod)은 사용자가 명시 요청한 carrier 판정이라 **완주**. 단 `od_h`(V3-0j, 내가 추가한 셀)는 **지금 중단**하고 `gobjvi_foot_both`(V3-0k, foot 입력+hidden, carrier 없음)로 교체해라 — foot_all 분해에 필요.
+- 2026-09-01 02:20: 사용자 질문 — v/o를 foot 점 **위상**으로: V3-0p `gobjvi_foot_all_pvo` 추가(다음 빈 GPU 최우선; 스모크 통과). 비교 기준 `gobjvi_foot_all_s95`(+0.717, 행렬 carrier)·`gobjvi_foot_both_s95`(+0.551, carrier 없음).
 - 2026-09-01 01:15: shell_iso_in +0.336(축정렬 chord +0.09, foot −0.14) → `gobjvi_foot_iso_in`(V3-0o) 추가, V3-0n 다음.
 - 2026-09-01 01:05: anchor_h 단독 +0.295(shell_h +0.06 대비 +0.23) → `gobjvi_rot_hanchor`(V3-0n)를 V4-1보다 먼저.
 - 2026-09-01 00:55: (o,d) 계열 종료(전부 Plücker 이하). 남은 V2-1…5(anchor_h/shell_iso_in/rot_content/h_dpra/camray_hrot)는 **실행 중인 것만 완주**하고 미시작분은 wave 4 뒤로. 다음 빈 GPU부터 V4-1, V4-2(noisy-oracle, orbit, DEPTH_DIR 필수).
