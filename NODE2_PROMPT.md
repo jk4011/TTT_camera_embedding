@@ -5,7 +5,7 @@
 두 노드는 같은 lustre 트리(`/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope`)를 공유하므로
 파일 변경이 곧바로 보인다(`git pull` 불필요; 커밋/푸시는 node1이 한다).
 
-마지막 갱신: **2026-08-31 14:05 KST (node1)** — §3 작업표 참조.
+마지막 갱신: **2026-08-31 14:20 KST (node1)** — §3 W2-5 교체, §6 답변.
 
 ---
 
@@ -59,10 +59,10 @@ GT-depth 사이드 파일(oracle 셀용)은 lustre `dataset/gobj_depth_patch/{tr
 ### wave 1 — gObjaverse camera embedding (2026-08-31)
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| W1-1 | `gobj_attn_nope_s95` | `config/gobj_attn_nope.yaml` | 진단 상한: TTT 층을 LaCT 논문의 block-causal full attention으로 교체(같은 6L/d256, 같은 토큰), PE 없음 | [PENDING] |
-| W1-2 | `gobj_attn_prope_s95` | `config/gobj_attn_prope.yaml` | 진단 상한: 위 + faithful PRoPE(q/k/v/o) | [PENDING] |
-| W1-3 | `gobj_hrot_rotraw_s95` | `config/gobj_hrot_rotraw.yaml` | H4: rot_raw(+0.43) + hidden 주소공간에 직교 회전 작용 ("one matrix action per address space") | [PENDING] |
-| W1-4 | `gobj_imgvo_himg_s95` | `config/gobj_imgvo_himg.yaml` | H10: imgvo(+0.39, 현재 최고) + hidden 사이트 image-coordinate rotary | [PENDING] |
+| W1-1 | `gobj_attn_nope_s95` | `config/gobj_attn_nope.yaml` | 진단 상한: TTT 층을 LaCT 논문의 block-causal full attention으로 교체(같은 6L/d256, 같은 토큰), PE 없음 | [RUNNING node2 gpu0 14:12] |
+| W1-2 | `gobj_attn_prope_s95` | `config/gobj_attn_prope.yaml` | 진단 상한: 위 + faithful PRoPE(q/k/v/o) | [RUNNING node2 gpu1 14:12] |
+| W1-3 | `gobj_hrot_rotraw_s95` | `config/gobj_hrot_rotraw.yaml` | H4: rot_raw(+0.43) + hidden 주소공간에 직교 회전 작용 ("one matrix action per address space") | [RUNNING node2 gpu2 14:12] |
+| W1-4 | `gobj_imgvo_himg_s95` | `config/gobj_imgvo_himg.yaml` | H10: imgvo(+0.39, 현재 최고) + hidden 사이트 image-coordinate rotary | [RUNNING node2 gpu3 14:12] |
 
 W1-3은 `outputs/gobj_rot_raw_s95/eval_v2.json`, W1-4는 `outputs/gobj_imgvo_s95/eval_v2.json`을 추가 기준으로 붙인다.
 
@@ -73,7 +73,7 @@ W1-3은 `outputs/gobj_rot_raw_s95/eval_v2.json`, W1-4는 `outputs/gobj_imgvo_s95
 | W2-2 | `gobj_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만, gate는 plain q/k | [PENDING] |
 | W2-3 | `gobj_camray_properaw_s95` | `config/gobj_camray_properaw.yaml` | H7: pose-free 토큰 + projective(translation 포함) transport | [PENDING] |
 | W2-4 | `gobj_anchor_in_s95` | `config/gobj_anchor_in.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상(입력 사이트) | [PENDING] |
-| W2-5 | `gobj_h_dpra42_s95` | `config/cam_h_dpra42.yaml` | H5: hidden rotary를 update-유도 경로에만(초기 readout 비회전); `gobj_hidden_s95/eval_v2.json` 추가 기준 | [PENDING] |
+| W2-5 | `gobj_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: **hidden-only** 위상(F_h 42)을 update-유도 경로에만 적용(초기 readout 비회전). 정확한 짝은 `gobj_hidden_s95/eval_v2.json`(h_pra F_h 42, −0.57) | [PENDING] |
 | W2-6 | `gobj_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4: pose-free 토큰 + rot_raw + hidden 회전 작용 | [PENDING] |
 | W2-7 | `gobj_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [PENDING] |
 
@@ -88,7 +88,16 @@ W1-3은 `outputs/gobj_rot_raw_s95/eval_v2.json`, W1-4는 `outputs/gobj_imgvo_s95
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
-- (비어 있음)
+- 2026-08-31 14:14 (node2): 세션 시작. /tmp/gobj 리샤딩 완료(train 19500 / test 500, 7.1 G).
+  wave-1 4셀 GPU 0–3 정상 기동(Iter 200+ 확인, it/s: attn_nope 11.8 / attn_prope 9.6 / hrot_rotraw 16.2 / imgvo_himg 15.7).
+- 2026-08-31 14:14 (node2, 질문/W2-5): `config/cam_h_dpra42.yaml`의 cam_mode는 `qk_rope_cam+h_dpra`로
+  **input+hidden 양 사이트**다. 표에 적힌 추가 기준 `gobj_hidden_s95`는 hidden-only(h_pra)로 보이는데,
+  사이트가 어긋난 비교다. 양 사이트 대조군(TTT-RoPE both, −0.89 셀)의 eval_v2.json 경로를 알려주면
+  그것도 함께 붙이겠다. 답이 없으면 표에 적힌 대로 base + gobj_hidden_s95 두 기준만 쓴다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
+- 2026-08-31 14:20 (답변/W2-5): 지적이 맞다. `cam_h_dpra42.yaml`은 양 사이트(F16 입력 + delta-hidden 42)라 비교가
+  어긋난다. W2-5를 **hidden-only** 셀 `gobj_h_dpra_s95` / `config/gobj_h_dpra.yaml`(cam_mode `h_dpra`, F_h 42;
+  스모크 통과)로 교체했다 — 기준은 base + `gobj_hidden_s95/eval_v2.json`. 양 사이트 대조군은 `outputs/gobj_both_s95/eval_v2.json`
+  (21.305)에 있으니 필요하면 붙여도 된다. 기동 보고 고맙다; it/s 수치까지 좋다.
