@@ -1111,8 +1111,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "hnrot", "sharedf", "gate_rope", "content_rope",
                  # gObjaverse program (2026-08-31): 3D-point / object-shell addressing,
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
-                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in",
-                 "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_img", "h_rot",
+                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in",
+                 "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content"}
         unknown = self.cam_modes - known
         if unknown:
@@ -1156,13 +1156,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if "mlp2_rot2" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra",
-                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in"}
+                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
         matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
                        "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content"}
         assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
-        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in"}
-        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor"}
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in"}
+        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
         hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga"} | self.seg_h_modes
         assert len(hidden_fams & self.cam_modes) <= 1, "one hidden-site mechanism at a time"
@@ -1301,7 +1301,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             i = torch.arange(n, dtype=torch.float32) + 0.5
             th = torch.acos(1 - i / n); ph = math.pi * (1 + 5 ** 0.5) * i
             return torch.stack([th.sin() * ph.cos(), th.sin() * ph.sin(), th.cos()], -1)
-        if self.cam_modes & (self.seg_in_modes | self.seg_h_modes):
+        if self.cam_modes & ((self.seg_in_modes | self.seg_h_modes) - {"foot_in", "h_foot"}):
+            # (foot modes use no chord -> no radius; an unused parameter would trip DDP)
             self.shell_r_raw = nn.Parameter(torch.tensor(float(shell_r)))
         if self.cam_modes & self.seg_in_modes:
             nd = n_dirs if "shell_iso" in self.cam_modes else 3
@@ -1649,7 +1650,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
     def _point_site_coeffs(self, info, site):
         """cos/sin for the shell / oracle modes at the input ('in') or hidden ('h') site."""
         modes = self.cam_modes
-        t1, t2 = self._chord_t(info)
+        if modes & {"foot_in", "h_foot"}:
+            t1 = t2 = None
+        else:
+            t1, t2 = self._chord_t(info)
         oracle = {"pt_gt", "pt_gt_in"} if site == "in" else {"h_pt_gt", "h_pt_gt_in"}
         if modes & oracle:
             assert "tok_t_gt" in info, "oracle modes need --depth_dir (GT patch depth)"
@@ -1663,7 +1667,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             t2 = torch.where(use, tg, t2)
         dirs, om, gn = ((self.dirs_in, self.omega_seg3, self.gain_seg3) if site == "in"
                         else (self.dirs_h, self.omega_hseg, self.gain_hseg))
-        if modes & {"anchor_in", "h_anchor"}:
+        if modes & {"foot_in", "h_foot"}:
+            # Simplest 3D-point coordinate: the ray's closest-approach point to the focus
+            # point, x_c = o + t_c d (no integral, no radius; env = 1).
+            tc = info["tok_tc"].clamp_min(0.02)
+            c, sn = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
+        elif modes & {"anchor_in", "h_anchor"}:
             # H3b: K FIXED anchor points along the chord (plane-sweep phases, env = 1 each).
             cs, ss = [], []
             for kf in range(self.n_anchor):
