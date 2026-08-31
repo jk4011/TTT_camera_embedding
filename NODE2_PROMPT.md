@@ -103,7 +103,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-0c | `gobjvi_rot_hfoot_s95` | `config/gobj_rot_hfoot.yaml` | **(20:15)** rot_raw + hidden **foot** — rot_hshell(+0.716, vi 최고)의 foot 버전 | [RUNNING node2 gpu0 21:00] |
 | V3-0b | `gobjvi_foot_all_s95` | `config/gobj_foot_all.yaml` | **(19:40)** foot 입력 + foot hidden + 회전 v/o — shell_all(+0.63, vi 최고)의 foot 버전 | [RUNNING node2 gpu1 21:11] |
 | V3-0d | `gobjvi_od_in_s95` | `config/gobj_od_in.yaml` | 사용자 질문(21:10) 대조: Plücker (d, o×d) 대신 **(o, d)** 6D를 입력 rotary 좌표로 (F21) — "moment 때문인가, ray 좌표 자체 때문인가" | [RUNNING node2 gpu2 21:25] |
-| V3-0e | `gobjvi_od_both_s95` | `config/gobj_od_both.yaml` | **사용자 요청(21:20)**: (o,d) 6D를 입력+hidden rope에 (Plücker both의 (o,d) 버전) | [QUEUED node2 (다음 빈 GPU)] |
+| V3-0e | `gobjvi_od_both_s95` | `config/gobj_od_both.yaml` | **사용자 요청(21:20)**: (o,d) 6D를 입력+hidden rope에 (Plücker both의 (o,d) 버전) | [RUNNING node2 gpu3 21:28] |
 | V3-0f | `gobjvi_od_both_vo_s95` | `config/gobj_od_both_vo.yaml` | (o,d) 입력+hidden + **(o,d) 위상 transport on v/o** | [QUEUED node2 (다음 빈 GPU)] |
 | V3-0g | `gobjvi_od_both_vod_s95` | `config/gobj_od_both_vod.yaml` | (o,d) 입력+hidden + **ray 방향 d만 위상 transport on v/o** ("camera ray만") | [QUEUED node2 (다음 빈 GPU)] |
 | V3-0h | `gobjvi_od_in_vo_s95` | `config/gobj_od_in_vo.yaml` | (o,d) 입력 + (o,d) v/o 위상 transport | [QUEUED node2 (다음 빈 GPU)] |
@@ -112,7 +112,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [DONE 22.209 (+0.228 vs base, -0.018 vs shell_in)] |
 | V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [DONE 22.273 (+0.292 vs base, -0.217 vs shell_vo)] |
 | V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [DONE 22.213 (+0.232 vs base, -0.240 vs foot_in)] |
-| V3-4 | `gobjvi_asym_ak_qc_s95` | `config/gobj_asym_ak_qc.yaml` | 거울 대조: key=3 anchor, query=chord — "불확실성을 어느 쪽에 두어야 하나" | [RUNNING node2 gpu3 21:12] |
+| V3-4 | `gobjvi_asym_ak_qc_s95` | `config/gobj_asym_ak_qc.yaml` | 거울 대조: key=3 anchor, query=chord — "불확실성을 어느 쪽에 두어야 하나" | [SKIPPED — node1 21:35 지시, iter 6800에서 중단, eval 없음] |
 | N1-a | `gobjvi_gate_shell_rot_s95` | `config/gobj_gate_shell_rot.yaml` | (node1 체인) SwiGLU gate 브랜치=chord, content 브랜치=회전, v/o 회전 — 곱(AND) kernel | [CHAINED node1 gpu0 after anchor_both] |
 | N1-b | `gobjvi_rot_hfejer_s95` | `config/gobj_rot_hfejer.yaml` | (node1 체인) rot_raw + hidden chord with **Fejér**(비음) ladder | [CHAINED node1 gpu1 after rot_hshell] |
 | N1-c | `gobjvi_rot_hbump_s95` | `config/gobj_rot_hbump.yaml` | (node1 체인) rot_raw + hidden 뷰방향 bump(진폭) 코드 | [CHAINED node1 gpu2 after anchor_vo] |
@@ -252,6 +252,13 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   → V2-1 anchor_h → V2-2 → V2-3 → V2-4 → V2-5. 대기 체인 4개 교체 완료(실행 중 4셀 무영향).
   다만 (o,d) 7셀 + V2 5셀 = 12셀인데 GPU는 4장이라, 23:00부터 2 h마다 4셀씩 = **전부 소화에 6시간**(≈04:00 KST)이다.
   우선순위가 바뀌면 알려라. 지금 도는 4셀은 23:00~23:15에 끝난다.
+- 2026-08-31 21:30 (node2): 21:35 [SKIP] 지시 반영. **V3-4 asym_ak_qc는 이미 21:12부터 gpu3에서 돌고 있었다**(iter 6800).
+  중단하고 GPU를 회수했다: gpu3 체인 2개(실행·대기)를 먼저 죽이고 → `kill_exp.sh`로 학습 종료(잔여 프로세스 0 확인) →
+  부분 산출물은 `outputs/_SKIPPED_gobjvi_asym_ak_qc_s95_killed_at_6800/`로 이름을 바꿔 두었다(eval.json 없음,
+  체크포인트도 없음 — 나중에 완주한 런으로 착각하지 않도록).
+  대기 체인을 먼저 죽인 이유: 그 체인은 생기지 않을 eval.json을 영원히 기다렸을 것이고 gpu3이 놀았을 것이다.
+  gpu3은 3분 만에 **V3-0e od_both**로 전환(21:28). 현재 4/4: gpu0 rot_hfoot / gpu1 foot_all / gpu2 od_in(21:25) / gpu3 od_both.
+  V3-3까지의 비대칭 3셀: asym_ck_qa +0.228 / asym_ck_qa_vo +0.292 / asym_fk_qa +0.232 — 세 수치 모두 NODE2_RESULTS.md에 있다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
