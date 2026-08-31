@@ -95,10 +95,10 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-0a | `gobjvi_foot_in_s95` | `config/gobj_foot_in.yaml` | 사용자 질문(17:15): 가장 단순한 3D 점 = ray의 focus point 최근접점 `x_c = o + t_c d` (적분 없음, 파라미터 0) — sinc 적분이 필요한지 확인 | [RUNNING node2 gpu1 17:42] |
 | V2-0b | `gobjvi_shell_all_s95` | `config/gobj_shell_all.yaml` | 사용자 제안: chord 입력 + chord hidden + 회전 v/o 모두 (한 레시피 후보) | [RUNNING node2 gpu2 17:47] |
 | V2-0 | `gobjvi_shell_h_vo_s95` | `config/gobj_shell_h_vo.yaml` | F74 후속: hidden chord + 회전 v/o transport (orbit에서 shell_in+vo가 +0.53으로 최고 → hidden 쪽 합성 확인) | [RUNNING node2 gpu3 17:41] |
-| V2-0c | `gobjvi_rot_shell_s95` | `config/gobj_rot_shell.yaml` | F75 후속: rot_raw(행렬 주소 + carrier) **위에** chord 위상까지 (두 주소 변환 중첩; vi에서 chord가 rot_raw에 추가 이득을 주는지) | [PENDING] |
-| V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [PENDING] |
-| V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [PENDING] |
-| V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [PENDING] |
+| V2-0c | `gobjvi_rot_shell_s95` | `config/gobj_rot_shell.yaml` | F75 후속: rot_raw(행렬 주소 + carrier) **위에** chord 위상까지 (두 주소 변환 중첩; vi에서 chord가 rot_raw에 추가 이득을 주는지) | [QUEUED node2 gpu0 (V1-6 종료 후 자동)] |
+| V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [QUEUED node2 gpu3 (V2-0 종료 후 자동)] |
+| V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 gpu1 (V2-0a 종료 후 자동)] |
+| V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 gpu2 (V2-0b 종료 후 자동)] |
 | V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [PENDING] |
 | V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [PENDING] |
 모두 `DATA=gobj_vi`, 기준 `gobjvi_base_s95/eval_v2.json`(21.981). orbit 백로그(아래)는 vi 큐가 빈 뒤에만.
@@ -160,6 +160,12 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   config 확인: foot_in(`foot_in`, F_seg 42) / shell_all(`shell_sinc+h_shell+vo_rel`, F 42/84) 모두 L6/d256/p16,
   `foot_in`은 `lact_ttt_cam.py`의 known·seg_in_modes에 등록되어 있고 1304행에서 sinc 적분 경로를 명시적으로 제외한다(적분 없음 = 의도대로).
   V1-2 shell_h는 17:20경 30k 학습 완료, 현재 eval 중.
+- 2026-08-31 17:52 (node2): wave 1-vi 내 담당 4셀 완료(§4 형식으로 `NODE2_RESULTS.md`에 append):
+  shell_h 22.043 (+0.062) / shell_both 22.356 (+0.375) / shell_vo 22.490 (+0.509) / rot_raw 22.514 (+0.533). eval n=500.
+  17:55 지시(V2-0c) 반영. 현재 실행: gpu0 V1-6 imgvo(17:26) / gpu1 V2-0a foot_in(17:42) / gpu2 V2-0b shell_all(17:47) /
+  gpu3 V2-0 shell_h_vo(17:41). 다음 회차 선체인 완료: gpu0→V2-0c rot_shell, gpu3→V2-1 anchor_h,
+  gpu1→V2-2 shell_iso_in, gpu2→V2-3 rot_content (≈19:25부터 순차 시작). 남은 V2-4 h_dpra, V2-5 camray_hrot는 그다음.
+  ⚠ 앞으로 셀을 더 끼워 넣을 때: **19:20 KST 전**이면 대기 체인만 교체하면 되니 비용 0. 그 뒤엔 이미 뜬 셀을 죽여야 한다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
