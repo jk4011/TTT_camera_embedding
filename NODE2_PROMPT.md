@@ -101,14 +101,15 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-0f | `gobjvi_anchor_both_s95` | `config/gobj_anchor_both.yaml` | anchor 입력 + anchor hidden (vi에서 사이트 합성 확인용) | [RUNNING node1 gpu0 18:40] — node1 |
 | V3-0 | `gobjvi_foot_vo_s95` | `config/gobj_foot_vo.yaml` | **최우선(19:30)**: foot_in(+0.47, 주소 단독 최고·파라미터 0) + 회전 v/o carrier — rot_raw(+0.53)를 넘는지 | [DONE 22.577 (+0.595 vs base, +0.087 vs shell_vo)] |
 | V3-0c | `gobjvi_rot_hfoot_s95` | `config/gobj_rot_hfoot.yaml` | **(20:15)** rot_raw + hidden **foot** — rot_hshell(+0.716, vi 최고)의 foot 버전 | [DONE 22.615 (+0.634 vs base, -0.082 vs rot_hshell)] |
-| V3-0b | `gobjvi_foot_all_s95` | `config/gobj_foot_all.yaml` | **(19:40)** foot 입력 + foot hidden + 회전 v/o — shell_all(+0.63, vi 최고)의 foot 버전 | [RUNNING node2 gpu1 21:11] |
-| V3-0d | `gobjvi_od_in_s95` | `config/gobj_od_in.yaml` | 사용자 질문(21:10) 대조: Plücker (d, o×d) 대신 **(o, d)** 6D를 입력 rotary 좌표로 (F21) — "moment 때문인가, ray 좌표 자체 때문인가" | [RUNNING node2 gpu2 21:25] |
-| V3-0e | `gobjvi_od_both_s95` | `config/gobj_od_both.yaml` | **사용자 요청(21:20)**: (o,d) 6D를 입력+hidden rope에 (Plücker both의 (o,d) 버전) | [RUNNING node2 gpu3 21:28] |
+| V3-0b | `gobjvi_foot_all_s95` | `config/gobj_foot_all.yaml` | **(19:40)** foot 입력 + foot hidden + 회전 v/o — shell_all(+0.63, vi 최고)의 foot 버전 | [DONE 22.698 (+0.717 vs base, +0.087 vs shell_all, rot_hshell와 동률)] |
+| V3-0d | `gobjvi_od_in_s95` | `config/gobj_od_in.yaml` | 사용자 질문(21:10) 대조: Plücker (d, o×d) 대신 **(o, d)** 6D를 입력 rotary 좌표로 (F21) — "moment 때문인가, ray 좌표 자체 때문인가" | [DONE 21.959 (-0.022 vs base, -0.227 vs Plücker input)] |
+| V3-0e | `gobjvi_od_both_s95` | `config/gobj_od_both.yaml` | **사용자 요청(21:20)**: (o,d) 6D를 입력+hidden rope에 (Plücker both의 (o,d) 버전) | [DONE 21.889 (-0.092 vs base, -0.192 vs Plücker both)] |
 | V3-0f | `gobjvi_od_both_vo_s95` | `config/gobj_od_both_vo.yaml` | (o,d) 입력+hidden + **(o,d) 위상 transport on v/o** | [RUNNING node1 gpu2 22:35] — node1이 가져감 |
 | V3-0g | `gobjvi_od_both_vod_s95` | `config/gobj_od_both_vod.yaml` | (o,d) 입력+hidden + **ray 방향 d만 위상 transport on v/o** ("camera ray만") | [RUNNING node1 gpu3] — node1 락으로 확인(태그 누락분 node2가 보정) |
 | V3-0h | `gobjvi_od_in_vo_s95` | `config/gobj_od_in_vo.yaml` | (o,d) 입력 + (o,d) v/o 위상 transport | [RUNNING node2 gpu0 22:43] |
 | V3-0i | `gobjvi_od_in_vod_s95` | `config/gobj_od_in_vod.yaml` | (o,d) 입력 + d-only v/o 위상 transport | [RUNNING node1 gpu1 22:20] — node1이 가져감 |
-| V3-0j | `gobjvi_od_h_s95` | `config/gobj_od_h.yaml` | (o,d) hidden만 | [QUEUED node2 (다음 빈 GPU)] |
+| V3-0j | `gobjvi_od_h_s95` | `config/gobj_od_h.yaml` | (o,d) hidden만 | [SKIP 23:15 — od_h 중단, 아래 V3-0k로 교체] |
+| V3-0k | `gobjvi_foot_both_s95` | `config/gobj_foot_both.yaml` | foot 입력 + foot hidden (carrier 없음) — foot_all(+0.717) 분해의 빠진 항 | [PENDING] |
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [DONE 22.209 (+0.228 vs base, -0.018 vs shell_in)] |
 | V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [DONE 22.273 (+0.292 vs base, -0.217 vs shell_vo)] |
 | V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [DONE 22.213 (+0.232 vs base, -0.240 vs foot_in)] |
@@ -117,7 +118,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | N1-b | `gobjvi_rot_hfejer_s95` | `config/gobj_rot_hfejer.yaml` | (node1 체인) rot_raw + hidden chord with **Fejér**(비음) ladder | [CHAINED node1 gpu1 after rot_hshell] |
 | N1-c | `gobjvi_rot_hbump_s95` | `config/gobj_rot_hbump.yaml` | (node1 체인) rot_raw + hidden 뷰방향 bump(진폭) 코드 | [CHAINED node1 gpu2 after anchor_vo] |
 | N1-d | `gobjvi_vernier_both_s95` | `config/gobj_vernier_both.yaml` | (node1 체인) input 저주파(wrap 불가) chord × hidden 고주파 chord (Vernier) | [CHAINED node1 gpu3 after rot_shell] |
-| V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [QUEUED node2 (다음 빈 GPU)] |
+| V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [RUNNING node2 gpu1 23:02] |
 | V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [QUEUED node2 (다음 빈 GPU)] |
@@ -273,12 +274,31 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   즉 '단순 좌표가 항상 낫다'가 아니라 사이트마다 최적 좌표가 다르다 — 입력=foot, hidden=chord.
   현재 vi 최고는 여전히 네 `rot_hshell` +0.716이다.
   gpu0은 V3-0h `od_in_vo`로 전환(22:43). 남은 내 큐: od_h → anchor_h → shell_iso_in → rot_content → h_dpra → camray_hrot.
+- 2026-08-31 23:05 (node2): 두 셀 완료. **둘 다 결론에 직접 영향**이라 요약한다.
+  ① **V3-0b `foot_all` 22.698 = +0.717** (t=+41.1, 98%) — `shell_all`(22.611) 대비 +0.087(t=+7.8),
+     `foot_vo` 대비 +0.122, **`rot_hshell`(22.697) 대비 +0.001 (t=+0.1, 54%) = 통계적 동률**.
+     즉 PE만으로(회전 행렬 없이) foot 3슬롯이 네 vi 최고와 같은 자리에 있다. 두 레시피는 구성이 완전히 다르다
+     (foot_all = 입력 foot + hidden foot + 회전 v/o / rot_hshell = 입력 회전행렬 + hidden chord + carrier).
+  ② **V3-0d `od_in` 21.959 = −0.022** (t=−1.2, 49% — base와 동률), Plücker 입력 rope(22.187) 대비 **−0.227**(t=−18.9).
+     → 사용자 21:10 질문의 답: (o,d) 6D는 baseline 수준으로 죽는다. **moment(o×d) 항이 이득의 원인**이지
+     'ray 좌표를 넣는 것' 자체가 아니다. (o,d) 계열 나머지 셀들의 사전 확률이 낮아진 셈이니 우선순위 재검토를 권한다.
+  현재 4/4: gpu0 od_in_vo(22:43) / gpu1 anchor_h(23:02) / gpu2 od_h / gpu3 od_both.
+  ⚠ ②를 보면 gpu0 od_in_vo·gpu2 od_h·gpu3 od_both도 같은 (o,d) 좌표라 낮은 값이 예상된다.
+  중단하고 다른 셀로 돌릴지 지시해 주면 즉시 반영하겠다(지시 없으면 그대로 완주시킨다).
+- 2026-08-31 23:08 (node2): **V3-0e `od_both` 21.889 = −0.092** (t=−4.0, base와 동률/약간 아래),
+  Plücker both(`gobjvi_both_s95` 22.082) 대비 **−0.192**(t=−13.6). od_in −0.022와 같은 방향이다.
+  → (o,d) 좌표는 입력·hidden 어느 쪽에서도, 단독이든 양쪽이든 baseline 수준이다. **moment(o×d)가 이득의 원인**이라는
+  결론이 두 셀에서 독립적으로 재현됐다. 사용자 21:10 질문은 이 두 수치로 답이 된 것으로 본다.
+  남은 (o,d) 셀은 내 쪽 gpu0 `od_in_vo`(23:00 기준 8.8k)·gpu2 `od_h`(2.2k), node1 쪽 3개다.
+  v/o transport가 붙은 변형이라 결과가 다를 여지는 있지만, 주소가 죽은 상태에서 carrier만으로 뒤집힌 전례는 없다(E4).
+  중단 여부는 네 판단에 맡긴다 — 지시 없으면 완주시킨다. gpu3은 큐 순서대로 shell_iso_in으로 넘어간다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
 - 2026-08-31 15:20: wave-1 결과 요약(orbit): shell_in +0.377 (t=+21), shell_h +0.324 (t=+19), camray_rotraw +0.343
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
+- 2026-08-31 23:15 (답변): (o,d) 주소는 죽었지만 v/o 위상 transport 4셀(od_*_vo/vod)은 사용자가 명시 요청한 carrier 판정이라 **완주**. 단 `od_h`(V3-0j, 내가 추가한 셀)는 **지금 중단**하고 `gobjvi_foot_both`(V3-0k, foot 입력+hidden, carrier 없음)로 교체해라 — foot_all 분해에 필요.
 - 2026-08-31 23:20: foot_all = **+0.717** (rot_hshell과 동률, 가장 단순); od_in = −0.02 (Plücker보다 −0.23). orbit 교차 확인에 `gobj_foot_all` 추가(HOLD 목록 맨 앞).
 - 2026-08-31 21:35: asym_fk_qa +0.232 (foot_in 대비 −0.24) → 비대칭 계열 기각. **V3-4 (asym_ak_qc)는 건너뛰어라** [SKIP].
 - 2026-08-31 21:22: 사용자 요청 — (o,d) 6D를 입력+hidden rope에, 그리고 v/o에는 (o,d) 또는 **ray 방향 d만** 위상 transport(`vo_rope`, `vo_coords: d`). V3-0e…V3-0j를 V3-0d 다음, V3-3보다 먼저 올려라(모두 스모크 통과).
