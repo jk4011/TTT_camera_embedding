@@ -1103,6 +1103,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         asym_query: str = "anchor",
         asym_k: int = 3,
         omega_scale_h: float = 1.0,
+        vo_coords: str = "6d",
         fejer_h: bool = False,
         fejer_omega0: float = 0.5,
         bump_p: int = 96,
@@ -1122,7 +1123,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
                  "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot",
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
-                 "raygta", "rot_content", "od_coords"}
+                 "raygta", "rot_content", "od_coords", "vo_rope"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1268,6 +1269,26 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.register_buffer("omega_im", omega_im, persistent=False)
             self.gain_ci = _gain("gain_ci", 6, F_cam)
             self.gain_im = _gain("gain_im", 2, F_img)
+
+        if "vo_rope" in self.cam_modes:
+            # PHASE-FORM CARRIER TRANSPORT (user request 2026-08-31): rotate v by the KEY token's
+            # 6-coordinate phases on update and un-rotate o by the QUERY token's phases on apply,
+            # so the retrieved value carries e^{i(theta_i - theta_j)} -- RayRoPE's v/o wiring,
+            # with our coordinates ((d, o x d) or, with od_coords, (o, d)). Same ladder/budget as
+            # the input rotary (6 x num_freqs pairs on the 256-d value), learnable gains.
+            assert not (self.cam_modes & {"vo_rel", "prope_raw", "rot_raw", "prope_orig",
+                                          "prope_imgrope", "prope_ttt", "raygta", "rot_content",
+                                          "gate_shell_rot"}), "vo_rope excludes matrix carriers"
+            # vo_coords "6d": the 6 coordinates ((d, m) or (o, d)); "d": the ray DIRECTION only
+            # (3 coords, twice the rungs -> same 252-dim budget) -- the user's "camera ray only"
+            # carrier, the phase analogue of the rotation-matrix transport (d transforms with R).
+            assert vo_coords in ("6d", "d")
+            self.vo_coords = vo_coords
+            n_c, F_vo = (6, num_freqs) if vo_coords == "6d" else (3, 2 * num_freqs)
+            assert 2 * n_c * F_vo <= head_dim
+            self.register_buffer("omega_vo", math.pi * torch.logspace(
+                math.log2(0.5), math.log2(16.0), F_vo, base=2.0) * omega_scale, persistent=False)
+            self.gain_vo = _gain("gain_vo", n_c, F_vo)
 
         if "qk_rope_cam" in self.cam_modes:
             # 6 Plucker coords x num_freqs pairs.
@@ -2113,6 +2134,16 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             R_tok = info["view_rot"].repeat_interleave(tpv, dim=1)  # [b, L, 3, 3]
             R_tok = to_heads(R_tok, nh)
             v = apply_block_rot(v, R_tok, transpose=False)
+        vo_rope_coeffs = None
+        if "vo_rope" in modes:
+            if self.vo_coords == "d":
+                th = (info["tok_d"][..., None] * (self.omega_vo[None, None, None]
+                                                  * self.gain_vo[None, None])).flatten(2)
+                vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)
+            else:
+                vcos, vsin = self._rope_coeffs(info, self.omega_vo, self.gain_vo)
+            v = apply_rotary_pairs(v, vcos, vsin)
+            vo_rope_coeffs = (vcos, vsin)
 
         with torch.autocast(device_type="cuda", enabled=False):
             lr = self.lr_fc(x.float())  # [b, l, lr_dim]
@@ -2364,6 +2395,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             wts = torch.softmax(logits, dim=1)
             o_tgt = (wts[..., None] * cands.float()).sum(1).to(output.dtype)
             output = torch.cat([o_main[:, :n_in_], o_tgt], dim=1)
+        if vo_rope_coeffs is not None:
+            output = apply_rotary_pairs(output, vo_rope_coeffs[0], vo_rope_coeffs[1], inverse=True)
         if "vo_rel" in modes:
             output = apply_block_rot(output, R_tok, transpose=True)
         if "prope_ttt" in modes:
