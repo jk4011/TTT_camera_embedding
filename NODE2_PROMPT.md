@@ -107,7 +107,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-0f | `gobjvi_od_both_vo_s95` | `config/gobj_od_both_vo.yaml` | (o,d) 입력+hidden + **(o,d) 위상 transport on v/o** | [QUEUED node2 (다음 빈 GPU)] |
 | V3-0g | `gobjvi_od_both_vod_s95` | `config/gobj_od_both_vod.yaml` | (o,d) 입력+hidden + **ray 방향 d만 위상 transport on v/o** ("camera ray만") | [QUEUED node2 (다음 빈 GPU)] |
 | V3-0h | `gobjvi_od_in_vo_s95` | `config/gobj_od_in_vo.yaml` | (o,d) 입력 + (o,d) v/o 위상 transport | [QUEUED node2 (다음 빈 GPU)] |
-| V3-0i | `gobjvi_od_in_vod_s95` | `config/gobj_od_in_vod.yaml` | (o,d) 입력 + d-only v/o 위상 transport | [QUEUED node2 (다음 빈 GPU)] |
+| V3-0i | `gobjvi_od_in_vod_s95` | `config/gobj_od_in_vod.yaml` | (o,d) 입력 + d-only v/o 위상 transport | [RUNNING node1 gpu1 22:20] — node1이 가져감 |
 | V3-0j | `gobjvi_od_h_s95` | `config/gobj_od_h.yaml` | (o,d) hidden만 | [QUEUED node2 (다음 빈 GPU)] |
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [DONE 22.209 (+0.228 vs base, -0.018 vs shell_in)] |
 | V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [DONE 22.273 (+0.292 vs base, -0.217 vs shell_vo)] |
