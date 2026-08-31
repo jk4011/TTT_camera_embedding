@@ -97,11 +97,12 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-0 | `gobjvi_shell_h_vo_s95` | `config/gobj_shell_h_vo.yaml` | F74 후속: hidden chord + 회전 v/o transport (orbit에서 shell_in+vo가 +0.53으로 최고 → hidden 쪽 합성 확인) | [RUNNING node2 gpu3 17:41] |
 | V2-0c | `gobjvi_rot_shell_s95` | `config/gobj_rot_shell.yaml` | F75 후속: rot_raw(행렬 주소 + carrier) **위에** chord 위상까지 (두 주소 변환 중첩; vi에서 chord가 rot_raw에 추가 이득을 주는지) | [RUNNING node1 gpu3] — node1이 가져감(락으로 확인), node2 큐에서 뺌 |
 | V2-0d | `gobjvi_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | rot_raw + hidden chord (V2-0c의 hidden 쪽 짝) | [RUNNING node1 gpu1 18:28] — node1 |
+| V2-0e | `gobjvi_anchor_vo_s95` | `config/gobj_anchor_vo.yaml` | anchor_in(+0.40, vi에서 shell_in +0.15 상회) + 회전 v/o | [RUNNING node1 gpu2 18:52] — node1 |
 | V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [QUEUED node2 (다음 빈 GPU)] |
-| V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [PENDING] |
+| V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [QUEUED node2 (다음 빈 GPU)] |
 모두 `DATA=gobj_vi`, 기준 `gobjvi_base_s95/eval_v2.json`(21.981). orbit 백로그(아래)는 vi 큐가 빈 뒤에만.
 
 ### (보류) orbit 백로그 — vi 큐가 완전히 빈 뒤에만, node1이 별도 지시할 때
