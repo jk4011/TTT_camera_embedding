@@ -16,11 +16,10 @@ block_config:
       base_lr: 0.01
       muon_update_steps: 5
       cam_mode: foot_in+h_foot+vo_rope+iso
-      num_freqs: 21
-      num_freqs_seg: 42
-      num_freqs_hseg: 84
-      vo_coords: foot
+      num_freqs_seg: 21
+      num_freqs_hseg: 42
       n_dirs: 6
+      vo_coords: foot
   - type: model.MLP
     length_dim: vl
     params:
