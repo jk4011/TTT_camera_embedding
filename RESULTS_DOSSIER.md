@@ -2913,3 +2913,31 @@ Readings:
 4. The chord composes with the carrier (+0.26 over shell_in on vi) while the Plucker ladder does not
    (pra_vo below the ladder alone): the address must be geometrically right for the transported values
    to be blended coherently.
+
+## F76: on the vi re-renders the SIMPLEST 3D coordinate wins the address slot, and all three
+## slots compose -- foot point +0.47 (address only), input+hidden chord + rotation carrier
+## +0.63 (new best) (2026-08-31 19:40; node1 + node2, seed 95, 500 scenes, base 21.981)
+
+| cell | PSNR | dPSNR vs base (t, win%) | LPIPS (d, t) | contrasts |
+|---|---|---|---|---|
+| **shell_all** (chord input + chord hidden + rotation v/o) | **22.611** | **+0.630 (+36.3, 96%)** | 0.0918 (-0.0088, -37.8) | vs rot_raw +0.097 (t=+7.2); vs shell_vo +0.122 (t=+11.4); vs shell_both +0.255 (t=+19.7) |
+| **foot_in** (single closest-approach point x_c = o + t_c d; no integral, no radius, 0 params) | **22.453** | **+0.472 (+29.4, 92%)** | 0.0929 (-0.0076, -32.1) | vs anchor_in +0.071 (t=+5.5); vs shell_in +0.225 (t=+18.3); vs rot_raw -0.061 (t=-4.2, LPIPS tie) |
+| shell_h_vo (chord hidden + rotation v/o) | 22.310 | +0.329 (+21.8, 86%) | 0.0950 (-0.0055) | vs shell_h +0.267; vs shell_vo **-0.180 (t=-15.8)** |
+| imgvo (image ropes + v/o, the orbit-era best) | 22.240 | +0.259 (+17.5, 79%) | 0.0946 (-0.0060) | vs rot_raw **-0.275 (t=-18.1)** |
+| anchor_in (F75 add.) / rot_raw / shell_vo / shell_both / shell_in / shell_h | 22.382 / 22.514 / 22.490 / 22.356 / 22.228 / 22.043 | +0.40 / +0.53 / +0.51 / +0.375 / +0.25 / +0.06 | | |
+
+Readings:
+1. **Simplest is best at the address slot.** The single closest-approach point to the scene focus
+   (a per-token function of the camera poses alone, zero learnable parameters) beats three anchors
+   (+0.07) and the sinc-integrated chord (+0.23): the envelope of long chords kills the high rungs,
+   and spreading the budget over hypotheses costs resolution. The recipe sentence becomes: "use the
+   3D point on the ray nearest the scene focus, not the ray's Plucker line, as the rotary coordinate".
+2. **All three slots compose on vi** (input address, hidden address, carrier): shell_all is above
+   every two-slot combination (+0.10 over rot_raw, +0.12 over shell_vo, +0.26 over shell_both) --
+   the user's "use input + hidden + v/o together" suggestion is the current best. On the 91-deg
+   orbit set the two address sites did not compose (F74), so this is a vi/narrower-geometry result.
+3. The carrier's partner is the INPUT address, not the hidden one: hidden chord + carrier trails
+   input chord + carrier by 0.18. imgvo, which lacks the q/k rotation, falls to +0.26 here (was the
+   orbit best) -- on vi the matched q/k transform of rot_raw matters.
+4. Next: foot_vo (foot + carrier) and foot_all (foot at both sites + carrier), queued at the top;
+   expected to move the vi best above +0.63. Single seed throughout; paired on 500 objects.
