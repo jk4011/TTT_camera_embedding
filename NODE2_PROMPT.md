@@ -5,7 +5,7 @@
 두 노드는 같은 lustre 트리(`/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope`)를 공유하므로
 파일 변경이 곧바로 보인다(`git pull` 불필요; 커밋/푸시는 node1이 한다).
 
-마지막 갱신: **2026-08-31 17:55 KST (node1)** — V2-0c rot_shell 추가(V2-1보다 먼저). — V2-0a foot_in, V2-0b shell_all 추가(V2-0보다 먼저). — V2-0 `gobjvi_shell_h_vo` 추가(맨 앞). — 사용자 결정: **vi가 주축**. wave 1-vi 다음은 wave 2-vi(V2-1…5); orbit 백로그는 [HOLD]. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
+마지막 갱신: **2026-08-31 18:35 KST (node1)** — V2-0d rot_hshell(node1 실행) 추가; 18:30 충돌 보고에 답변. — V2-0c rot_shell 추가(V2-1보다 먼저). — V2-0a foot_in, V2-0b shell_all 추가(V2-0보다 먼저). — V2-0 `gobjvi_shell_h_vo` 추가(맨 앞). — 사용자 결정: **vi가 주축**. wave 1-vi 다음은 wave 2-vi(V2-1…5); orbit 백로그는 [HOLD]. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
 
 ---
 
@@ -95,11 +95,12 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-0a | `gobjvi_foot_in_s95` | `config/gobj_foot_in.yaml` | 사용자 질문(17:15): 가장 단순한 3D 점 = ray의 focus point 최근접점 `x_c = o + t_c d` (적분 없음, 파라미터 0) — sinc 적분이 필요한지 확인 | [RUNNING node2 gpu1 17:42] |
 | V2-0b | `gobjvi_shell_all_s95` | `config/gobj_shell_all.yaml` | 사용자 제안: chord 입력 + chord hidden + 회전 v/o 모두 (한 레시피 후보) | [RUNNING node2 gpu2 17:47] |
 | V2-0 | `gobjvi_shell_h_vo_s95` | `config/gobj_shell_h_vo.yaml` | F74 후속: hidden chord + 회전 v/o transport (orbit에서 shell_in+vo가 +0.53으로 최고 → hidden 쪽 합성 확인) | [RUNNING node2 gpu3 17:41] |
-| V2-0c | `gobjvi_rot_shell_s95` | `config/gobj_rot_shell.yaml` | F75 후속: rot_raw(행렬 주소 + carrier) **위에** chord 위상까지 (두 주소 변환 중첩; vi에서 chord가 rot_raw에 추가 이득을 주는지) | [QUEUED node2 gpu0 (V1-6 종료 후 자동)] |
-| V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [QUEUED node2 gpu3 (V2-0 종료 후 자동)] |
-| V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 gpu1 (V2-0a 종료 후 자동)] |
-| V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 gpu2 (V2-0b 종료 후 자동)] |
-| V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [PENDING] |
+| V2-0c | `gobjvi_rot_shell_s95` | `config/gobj_rot_shell.yaml` | F75 후속: rot_raw(행렬 주소 + carrier) **위에** chord 위상까지 (두 주소 변환 중첩; vi에서 chord가 rot_raw에 추가 이득을 주는지) | [RUNNING node1 gpu3] — node1이 가져감(락으로 확인), node2 큐에서 뺌 |
+| V2-0d | `gobjvi_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | rot_raw + hidden chord (V2-0c의 hidden 쪽 짝) | [RUNNING node1 gpu1 18:28] — node1 |
+| V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [QUEUED node2 (다음 빈 GPU)] |
+| V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 (다음 빈 GPU)] |
+| V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 (다음 빈 GPU)] |
+| V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [QUEUED node2 (다음 빈 GPU)] |
 | V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [PENDING] |
 모두 `DATA=gobj_vi`, 기준 `gobjvi_base_s95/eval_v2.json`(21.981). orbit 백로그(아래)는 vi 큐가 빈 뒤에만.
 
@@ -166,12 +167,25 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   gpu3 V2-0 shell_h_vo(17:41). 다음 회차 선체인 완료: gpu0→V2-0c rot_shell, gpu3→V2-1 anchor_h,
   gpu1→V2-2 shell_iso_in, gpu2→V2-3 rot_content (≈19:25부터 순차 시작). 남은 V2-4 h_dpra, V2-5 camray_hrot는 그다음.
   ⚠ 앞으로 셀을 더 끼워 넣을 때: **19:20 KST 전**이면 대기 체인만 교체하면 되니 비용 0. 그 뒤엔 이미 뜬 셀을 죽여야 한다.
+- 2026-08-31 18:30 (node2, ⚠ 충돌 보고): **V2-0c `gobjvi_rot_shell_s95`는 node1이 이미 돌리고 있다**
+  (`outputs/.gpu_locks/node1_gpu3` = gobjvi_rot_shell_s95, 18:23 시작, 현재 Iter 1000). 표에는 node2 담당으로
+  남아 있어서 내 gpu0 체인이 19:25경 **같은 outputs 디렉터리에 두 번째 학습을 시작할 뻔했다**(train.log/체크포인트
+  동시 기록 = node1 런 손상). 발견 즉시 해당 체인을 죽였고 실제 중복 실행은 없었다. 표에서 V2-0c는 node1로 표시.
+  재발 방지: 체인이 다음 셀을 고를 때 (a) `node1_gpu*` 락에 같은 이름이 있는지, (b) eval.json 존재, (c) 같은 이름의
+  train.py 프로세스, (d) node2 GPU 간 원자적 mkdir 클레임 — 넷을 검사하고 걸리면 다음 후보로 넘어간다.
+  **부탁**: 네가 node2 표의 셀을 가져갈 때 §3 상태 태그를 `[RUNNING node1 ...]`로 바꿔 주면 확실하다.
+  현재 node1 락: gpu0 pra_vo / gpu1 raygta / gpu2 anchor_in / gpu3 rot_shell — 이 넷은 내 후보에서 자동 제외된다.
+  node2 다음 순서(빈 GPU가 먼저 집는 방식): anchor_h → shell_iso_in → rot_content → h_dpra → camray_hrot.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
 - 2026-08-31 15:20: wave-1 결과 요약(orbit): shell_in +0.377 (t=+21), shell_h +0.324 (t=+19), camray_rotraw +0.343
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
+- 2026-08-31 18:35 (답변/충돌): 잘 잡았다, 고맙다. 앞으로 node1이 표의 셀을 가져갈 때는 **런치 전에** 태그를 `[RUNNING node1 …]`로
+  바꾸고, 표에 없는 새 셀을 node1이 돌릴 때도 즉시 행을 추가하겠다(방금 V2-0d `gobjvi_rot_hshell`이 그 예). 너의 4중 검사
+  (node1 락 / eval.json / 프로세스 / mkdir 클레임)는 그대로 유지해라. 참고: `gobjvi_raygta` +0.243(rot_raw 대비 −0.29, 기각),
+  `gobjvi_prope_raw` −0.008(projective carrier는 vi에서 무효; rot_raw +0.533).
 - 2026-08-31 17:55: F75 — vi에서 rot_raw +0.533 ≈ shell_vo +0.509(동률), shell_both +0.375(vi에서는 사이트 합성), shell_in +0.247. V2-0c `gobjvi_rot_shell` 추가.
 - 2026-08-31 17:20: V2-0a `gobjvi_foot_in`, V2-0b `gobjvi_shell_all` 추가 — V2-0 shell_h_vo보다 먼저 올릴 것 (둘 다 스모크 통과).
 - 2026-08-31 17:05: F74 — orbit에서 shell_vo(chord 입력 + v/o transport) **22.725 = +0.53**, PE-only 최고; shell_both는 비합성(−0.08 vs shell_in);
