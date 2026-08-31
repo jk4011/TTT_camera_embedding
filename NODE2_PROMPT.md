@@ -5,7 +5,7 @@
 두 노드는 같은 lustre 트리(`/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope`)를 공유하므로
 파일 변경이 곧바로 보인다(`git pull` 불필요; 커밋/푸시는 node1이 한다).
 
-마지막 갱신: **2026-08-31 19:30 KST (node1)** — V3-0 `gobjvi_foot_vo` 최우선 추가. — wave 3 (V3-1…4, 비대칭 store/read 코드)을 V2-1보다 앞에.  — V2-0d rot_hshell(node1 실행) 추가; 18:30 충돌 보고에 답변. — V2-0c rot_shell 추가(V2-1보다 먼저). — V2-0a foot_in, V2-0b shell_all 추가(V2-0보다 먼저). — V2-0 `gobjvi_shell_h_vo` 추가(맨 앞). — 사용자 결정: **vi가 주축**. wave 1-vi 다음은 wave 2-vi(V2-1…5); orbit 백로그는 [HOLD]. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
+마지막 갱신: **2026-08-31 19:40 KST (node1)** — V3-0b `gobjvi_foot_all` 추가(V3-0 다음). — V3-0 `gobjvi_foot_vo` 최우선 추가. — wave 3 (V3-1…4, 비대칭 store/read 코드)을 V2-1보다 앞에.  — V2-0d rot_hshell(node1 실행) 추가; 18:30 충돌 보고에 답변. — V2-0c rot_shell 추가(V2-1보다 먼저). — V2-0a foot_in, V2-0b shell_all 추가(V2-0보다 먼저). — V2-0 `gobjvi_shell_h_vo` 추가(맨 앞). — 사용자 결정: **vi가 주축**. wave 1-vi 다음은 wave 2-vi(V2-1…5); orbit 백로그는 [HOLD]. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
 
 ---
 
@@ -93,16 +93,17 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
 | V2-0a | `gobjvi_foot_in_s95` | `config/gobj_foot_in.yaml` | 사용자 질문(17:15): 가장 단순한 3D 점 = ray의 focus point 최근접점 `x_c = o + t_c d` (적분 없음, 파라미터 0) — sinc 적분이 필요한지 확인 | [DONE 22.453 (+0.472 vs base, +0.225 vs shell_in)] |
-| V2-0b | `gobjvi_shell_all_s95` | `config/gobj_shell_all.yaml` | 사용자 제안: chord 입력 + chord hidden + 회전 v/o 모두 (한 레시피 후보) | [RUNNING node2 gpu2 17:47] |
-| V2-0 | `gobjvi_shell_h_vo_s95` | `config/gobj_shell_h_vo.yaml` | F74 후속: hidden chord + 회전 v/o transport (orbit에서 shell_in+vo가 +0.53으로 최고 → hidden 쪽 합성 확인) | [RUNNING node2 gpu3 17:41] |
+| V2-0b | `gobjvi_shell_all_s95` | `config/gobj_shell_all.yaml` | 사용자 제안: chord 입력 + chord hidden + 회전 v/o 모두 (한 레시피 후보) | [DONE 22.611 (+0.630 vs base, +0.122 vs shell_vo)] |
+| V2-0 | `gobjvi_shell_h_vo_s95` | `config/gobj_shell_h_vo.yaml` | F74 후속: hidden chord + 회전 v/o transport (orbit에서 shell_in+vo가 +0.53으로 최고 → hidden 쪽 합성 확인) | [DONE 22.310 (+0.329 vs base, +0.267 vs shell_h)] |
 | V2-0c | `gobjvi_rot_shell_s95` | `config/gobj_rot_shell.yaml` | F75 후속: rot_raw(행렬 주소 + carrier) **위에** chord 위상까지 (두 주소 변환 중첩; vi에서 chord가 rot_raw에 추가 이득을 주는지) | [RUNNING node1 gpu3] — node1이 가져감(락으로 확인), node2 큐에서 뺌 |
 | V2-0d | `gobjvi_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | rot_raw + hidden chord (V2-0c의 hidden 쪽 짝) | [RUNNING node1 gpu1 18:28] — node1 |
 | V2-0e | `gobjvi_anchor_vo_s95` | `config/gobj_anchor_vo.yaml` | anchor_in(+0.40, vi에서 shell_in +0.15 상회) + 회전 v/o | [RUNNING node1 gpu2 18:52] — node1 |
 | V2-0f | `gobjvi_anchor_both_s95` | `config/gobj_anchor_both.yaml` | anchor 입력 + anchor hidden (vi에서 사이트 합성 확인용) | [RUNNING node1 gpu0 18:40] — node1 |
-| V3-0 | `gobjvi_foot_vo_s95` | `config/gobj_foot_vo.yaml` | **최우선(19:30)**: foot_in(+0.47, 주소 단독 최고·파라미터 0) + 회전 v/o carrier — rot_raw(+0.53)를 넘는지 | [PENDING] |
+| V3-0 | `gobjvi_foot_vo_s95` | `config/gobj_foot_vo.yaml` | **최우선(19:30)**: foot_in(+0.47, 주소 단독 최고·파라미터 0) + 회전 v/o carrier — rot_raw(+0.53)를 넘는지 | [RUNNING node2 gpu3 19:27] |
+| V3-0b | `gobjvi_foot_all_s95` | `config/gobj_foot_all.yaml` | **(19:40)** foot 입력 + foot hidden + 회전 v/o — shell_all(+0.63, vi 최고)의 foot 버전 | [PENDING] |
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [RUNNING node2 gpu0 19:16] |
 | V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [RUNNING node2 gpu1 19:20] |
-| V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [QUEUED node2 (다음 빈 GPU)] |
+| V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [RUNNING node2 gpu2 19:42] |
 | V3-4 | `gobjvi_asym_ak_qc_s95` | `config/gobj_asym_ak_qc.yaml` | 거울 대조: key=3 anchor, query=chord — "불확실성을 어느 쪽에 두어야 하나" | [QUEUED node2 (다음 빈 GPU)] |
 | N1-a | `gobjvi_gate_shell_rot_s95` | `config/gobj_gate_shell_rot.yaml` | (node1 체인) SwiGLU gate 브랜치=chord, content 브랜치=회전, v/o 회전 — 곱(AND) kernel | [CHAINED node1 gpu0 after anchor_both] |
 | N1-b | `gobjvi_rot_hfejer_s95` | `config/gobj_rot_hfejer.yaml` | (node1 체인) rot_raw + hidden chord with **Fejér**(비음) ladder | [CHAINED node1 gpu1 after rot_hshell] |
@@ -200,12 +201,24 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   (해석은 네 몫이지만 질문이 '적분이 필요한가'였으므로 세 비교를 함께 붙였다. 세 수치 모두 NODE2_RESULTS.md에 있다.)
   wave 3 진행: gpu0 V3-1 asym_ck_qa(19:16), gpu1 V3-2 asym_ck_qa_vo(19:20). 4중 가드가 실제로 작동했다
   (gpu1 로그에 `SKIP gobjvi_asym_ck_qa_s95 (already training)` 후 다음 후보 선택).
+- 2026-08-31 19:24 (node2): 19:30 지시(V3-0 최우선) 반영. **대기 중이던 gpu2·gpu3 체인만** 교체했다
+  (gpu0·gpu1 체인은 V3-1/V3-2를 실제로 돌리는 중이라 건드리지 않음 — 죽이면 학습이 죽는다).
+  새 후보 순서: **V3-0 foot_vo** → V3-3 asym_fk_qa → V3-4 asym_ak_qc → V2-1 anchor_h → V2-2 → V2-3 → V2-4 → V2-5.
+  `config/gobj_foot_vo.yaml` 확인: `foot_in+vo_rel`, F_seg 42, L6/d256/p16. gpu2(shell_all)·gpu3(shell_h_vo)가
+  20:00 전후로 비면 먼저 비는 쪽이 V3-0을 집는다(원자적 claim으로 중복 없음).
+- 2026-08-31 19:45 (node2): **V2-0b `shell_all` 22.611 = +0.630 (t=+36.3, 96%)** — 현재 node2 vi 최고.
+  `shell_vo`(22.490) 대비 +0.122 (t=+11.4), `rot_raw`(22.514) 대비 +0.097 (t=+7.2). 즉 chord 입력 + chord hidden +
+  회전 v/o 3자 조합이 각 구성요소를 모두 넘는다(vi에서는 사이트가 합성된다는 F75 관찰과 일치).
+  참고로 같은 3자 구조를 더 단순한 좌표로 바꾼 것이 지금 gpu3에서 도는 V3-0 `foot_vo`(foot+vo)다 —
+  foot_in(+0.472)이 shell_in(+0.247)을 이겼으므로 foot_vo가 shell_all을 넘을 가능성이 있다(21:30경 결과).
+  현재 4셀: gpu0 V3-1 asym_ck_qa / gpu1 V3-2 asym_ck_qa_vo / gpu2 V3-3 asym_fk_qa(19:42) / gpu3 V3-0 foot_vo(19:27).
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
 - 2026-08-31 15:20: wave-1 결과 요약(orbit): shell_in +0.377 (t=+21), shell_h +0.324 (t=+19), camray_rotraw +0.343
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
+- 2026-08-31 19:40: shell_all = **+0.630** (vi 최고; rot_raw +0.10, shell_vo +0.12) → 3슬롯 모두 합성. V3-0b `gobjvi_foot_all` 추가(V3-0 바로 다음).
 - 2026-08-31 19:30: foot_in = **+0.472** (anchor_in +0.07, shell_in +0.225 상회; rot_raw −0.06). 가장 단순한 좌표가 최고 → V3-0 `gobjvi_foot_vo`를 다음 빈 GPU에 **가장 먼저**.
 - 2026-08-31 18:50: **wave 3** — 50+ 아이디어 브레인스토밍 결과 1순위는 update/apply 비대칭 코드(`asym_in`). V3-1…V3-4를 V2-1보다 먼저 올려라(모두 스모크 통과, `DATA=gobj_vi`).
 - 2026-08-31 18:35 (답변/충돌): 잘 잡았다, 고맙다. 앞으로 node1이 표의 셀을 가져갈 때는 **런치 전에** 태그를 `[RUNNING node1 …]`로
