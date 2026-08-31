@@ -1124,7 +1124,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
                  "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot",
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
-                 "raygta", "rot_content", "od_coords", "vo_rope"}
+                 "raygta", "rot_content", "od_coords", "vo_rope", "iso"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1360,7 +1360,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             # (foot modes use no chord -> no radius; an unused parameter would trip DDP)
             self.shell_r_raw = nn.Parameter(torch.tensor(float(shell_r)))
         if self.cam_modes & self.seg_in_modes:
-            nd = n_dirs if "shell_iso" in self.cam_modes else 3
+            nd = n_dirs if (self.cam_modes & {"shell_iso", "iso"}) else 3   # 'iso' = icosahedral dirs for any seg mode
             mult = self.n_anchor if "anchor_in" in self.cam_modes else (asym_k if "asym_in" in self.cam_modes else 1)
             assert 2 * nd * num_freqs_seg * mult <= head_dim, (nd, num_freqs_seg, mult, head_dim)
             self.register_buffer("dirs_in", _dirs(nd), persistent=False)
@@ -1369,7 +1369,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 persistent=False)
             self.gain_seg3 = _gain("gain_seg3", nd, num_freqs_seg)
         if self.cam_modes & self.seg_h_modes:
-            nd = n_dirs if "h_shell_iso" in self.cam_modes else 3
+            nd = n_dirs if (self.cam_modes & {"h_shell_iso", "iso"}) else 3
             mult = self.n_anchor if "h_anchor" in self.cam_modes else 1
             if fejer_h:
                 # FEJER ladder (2026-08-31): harmonic rungs n*w0 (n = 0..N0-1) with triangular
