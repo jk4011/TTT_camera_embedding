@@ -2980,3 +2980,30 @@ Readings:
    amplitude code), gate_shell_rot (SwiGLU gate=chord x content=rotation product kernel),
    vernier_both (low-band input x high-band hidden). Single seed; the orbit cross-check of
    rot_hshell is queued behind the vi queue.
+
+## F77 addendum (wave 3, second half; vi, seed 95, base 21.981; 2026-08-31 22:45): every other
+## "TTT-specific" family from the brainstorm is neutral or harmful -- role assignment stands alone
+| cell | recipe | PSNR | dPSNR vs base | vs its natural reference |
+|---|---|---|---|---|
+| gate_shell_rot | SwiGLU gate branch = chord phases, content branch = rotation tiles, rotation v/o (product/AND kernel) | 22.489 | +0.508 | vs rot_raw -0.026 (t=-1.9); vs shell_vo -0.001 (parity) |
+| rot_hfejer | rot_raw + hidden chord on a FEJER (non-negative, harmonic) ladder | 22.463 | +0.482 | vs rot_hshell (log ladder) **-0.234 (t=-19.1)**; vs rot_raw -0.052 |
+| rot_hbump | rot_raw + hidden view-direction bump (vMF amplitude) code | 22.283 | +0.302 | vs rot_raw **-0.231 (t=-19.3)**; learned kappa 1.3-1.9 (did not collapse) |
+| asym_fk_qa | key = foot point, query = 3 anchor blocks (input site) | 22.213 | +0.232 | vs foot_in **-0.240 (t=-19.6)**; = asym_ck_qa (+0.228) |
+| vernier_both | input chord on a low, wrap-free band (x1/32) + hidden chord on the full band | 22.038 | +0.057 | vs shell_both **-0.318 (t=-23.9)** |
+
+Readings:
+1. **Role assignment is the only brainstorm family that pays** (rot_hshell +0.716, F77). The others:
+   the product kernel is exactly neutral (the two codes already compose additively across sites, and
+   the gate branch is not where the geometry needs to be); the non-negative Fejer ladder loses
+   resolution (max rung ~17 vs 50) and that costs more than the sign fix gains; the amplitude bump
+   partitions hidden units by viewing direction, which is the wrong quantity (the hidden site wants
+   3D position, not view proximity); the asymmetric store/read codes lose to a single sharp point at
+   both sites (dimension budget split over hypotheses costs more than the OR gains); the Vernier
+   split kills the input site's own gain (gentle bands are ~0, F57) without vetoing anything.
+2. Consistent picture across F73-F77: at the TTT site the winning ingredients are (i) a SHARP 3D
+   point coordinate (foot > anchors > chord) for phases, (ii) the rotation matrix at the input
+   address and on the carrier, (iii) DIFFERENT codes for the three slots. Everything that blurs
+   (envelopes, low bands, hypothesis splits) or repartitions (bumps, branch products) loses.
+3. Still pending: rot_hfoot (hidden foot instead of chord), foot_all, the (o,d)-coordinate family
+   (od_in/od_both/od_*_vo/vod) requested by the user, and the ORBIT cross-check of rot_hshell
+   (launched 22:45, node1 gpu0). Single seed throughout.
