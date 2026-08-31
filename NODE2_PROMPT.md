@@ -110,6 +110,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-0i | `gobjvi_od_in_vod_s95` | `config/gobj_od_in_vod.yaml` | (o,d) 입력 + d-only v/o 위상 transport | [RUNNING node1 gpu1 22:20] — node1이 가져감 |
 | V3-0j | `gobjvi_od_h_s95` | `config/gobj_od_h.yaml` | (o,d) hidden만 | [SKIP 23:15 — od_h 중단, 아래 V3-0k로 교체] |
 | V3-0k | `gobjvi_foot_both_s95` | `config/gobj_foot_both.yaml` | foot 입력 + foot hidden (carrier 없음) — foot_all(+0.717) 분해의 빠진 항 | [RUNNING node2 gpu2 23:12] |
+| V3-0l | `gobjvi_foot_h_s95` | `config/gobj_foot_h.yaml` | foot hidden만 (foot 사이트 분해 완성: in / h / both / +vo / all) | [RUNNING node1 gpu1 00:10] — node1 |
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [DONE 22.209 (+0.228 vs base, -0.018 vs shell_in)] |
 | V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [DONE 22.273 (+0.292 vs base, -0.217 vs shell_vo)] |
 | V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [DONE 22.213 (+0.232 vs base, -0.240 vs foot_in)] |
