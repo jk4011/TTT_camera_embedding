@@ -5,7 +5,7 @@
 두 노드는 같은 lustre 트리(`/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope`)를 공유하므로
 파일 변경이 곧바로 보인다(`git pull` 불필요; 커밋/푸시는 node1이 한다).
 
-마지막 갱신: **2026-08-31 18:35 KST (node1)** — V2-0d rot_hshell(node1 실행) 추가; 18:30 충돌 보고에 답변. — V2-0c rot_shell 추가(V2-1보다 먼저). — V2-0a foot_in, V2-0b shell_all 추가(V2-0보다 먼저). — V2-0 `gobjvi_shell_h_vo` 추가(맨 앞). — 사용자 결정: **vi가 주축**. wave 1-vi 다음은 wave 2-vi(V2-1…5); orbit 백로그는 [HOLD]. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
+마지막 갱신: **2026-08-31 18:50 KST (node1)** — wave 3 (V3-1…4, 비대칭 store/read 코드)을 V2-1보다 앞에.  — V2-0d rot_hshell(node1 실행) 추가; 18:30 충돌 보고에 답변. — V2-0c rot_shell 추가(V2-1보다 먼저). — V2-0a foot_in, V2-0b shell_all 추가(V2-0보다 먼저). — V2-0 `gobjvi_shell_h_vo` 추가(맨 앞). — 사용자 결정: **vi가 주축**. wave 1-vi 다음은 wave 2-vi(V2-1…5); orbit 백로그는 [HOLD]. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
 
 ---
 
@@ -99,6 +99,10 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-0d | `gobjvi_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | rot_raw + hidden chord (V2-0c의 hidden 쪽 짝) | [RUNNING node1 gpu1 18:28] — node1 |
 | V2-0e | `gobjvi_anchor_vo_s95` | `config/gobj_anchor_vo.yaml` | anchor_in(+0.40, vi에서 shell_in +0.15 상회) + 회전 v/o | [RUNNING node1 gpu2 18:52] — node1 |
 | V2-0f | `gobjvi_anchor_both_s95` | `config/gobj_anchor_both.yaml` | anchor 입력 + anchor hidden (vi에서 사이트 합성 확인용) | [RUNNING node1 gpu0 18:40] — node1 |
+| V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [PENDING] |
+| V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [PENDING] |
+| V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [PENDING] |
+| V3-4 | `gobjvi_asym_ak_qc_s95` | `config/gobj_asym_ak_qc.yaml` | 거울 대조: key=3 anchor, query=chord — "불확실성을 어느 쪽에 두어야 하나" | [PENDING] |
 | V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 (다음 빈 GPU)] |
@@ -184,6 +188,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 - 2026-08-31 15:20: wave-1 결과 요약(orbit): shell_in +0.377 (t=+21), shell_h +0.324 (t=+19), camray_rotraw +0.343
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
+- 2026-08-31 18:50: **wave 3** — 50+ 아이디어 브레인스토밍 결과 1순위는 update/apply 비대칭 코드(`asym_in`). V3-1…V3-4를 V2-1보다 먼저 올려라(모두 스모크 통과, `DATA=gobj_vi`).
 - 2026-08-31 18:35 (답변/충돌): 잘 잡았다, 고맙다. 앞으로 node1이 표의 셀을 가져갈 때는 **런치 전에** 태그를 `[RUNNING node1 …]`로
   바꾸고, 표에 없는 새 셀을 node1이 돌릴 때도 즉시 행을 추가하겠다(방금 V2-0d `gobjvi_rot_hshell`이 그 예). 너의 4중 검사
   (node1 락 / eval.json / 프로세스 / mkdir 클레임)는 그대로 유지해라. 참고: `gobjvi_raygta` +0.243(rot_raw 대비 −0.29, 기각),

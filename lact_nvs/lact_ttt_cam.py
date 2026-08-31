@@ -1099,6 +1099,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         n_dirs: int = 6,
         num_freqs_hseg: int = 84,
         sweep_k: int = 4,
+        asym_key: str = "chord",
+        asym_query: str = "anchor",
+        asym_k: int = 3,
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1112,7 +1115,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "hnrot", "sharedf", "gate_rope", "content_rope",
                  # gObjaverse program (2026-08-31): 3D-point / object-shell addressing,
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
-                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in",
+                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in",
                  "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content"}
         unknown = self.cam_modes - known
@@ -1157,12 +1160,33 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if "mlp2_rot2" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra",
-                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in"}
+                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
         matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
                        "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content"}
         assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
-        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in"}
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in"}
+        if "asym_in" in self.cam_modes:
+            # ASYMMETRIC store/read codes (TTT-native, 2026-08-31): the KEY (stored) and the
+            # QUERY (read) get DIFFERENT phase coordinates on the same K x 3 x F pair budget.
+            #   'chord'  : sinc-integrated chord (same coefficients in every block)
+            #   'foot'   : single closest-approach point (every block)
+            #   'anchor' : block b = point at chord fraction (b+0.5)/K
+            # e.g. key=chord, query=anchor => sum_b int_chord_i cos(w (p_{j,b} - x_i(t))) dt:
+            # "does any of the query's K depth hypotheses lie on the key's chord" -- the
+            # K-hypothesis read folded into the dimension budget, one apply, zero cost.
+            # Attention cannot do this (q and k must share one code under softmax); under
+            # the un-normalised Hebbian readout a broad/multi-point query INTEGRATES stored
+            # mass instead of acting as a temperature.
+            assert asym_key in ("chord", "foot", "anchor") and asym_query in ("chord", "foot", "anchor")
+            self.asym_key, self.asym_query, self.asym_k = asym_key, asym_query, asym_k
+        if "head_anchor" in self.cam_modes:
+            # LAYERED MEMORY (2026-08-31): with H fast-weight heads, head k addresses the
+            # 3D point at chord fraction (k+0.5)/H -- each head's fast weight becomes a
+            # test-time scene memory for ONE depth layer (an MPI-like stack); the slow
+            # weights after the layer (c_proj, next blocks) choose which depth to trust.
+            # Zero extra compute, no depth prediction anywhere.
+            assert self.num_heads >= 2, "head_anchor needs >= 2 fast-weight heads"
         self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
         hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga"} | self.seg_h_modes
@@ -1307,7 +1331,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.shell_r_raw = nn.Parameter(torch.tensor(float(shell_r)))
         if self.cam_modes & self.seg_in_modes:
             nd = n_dirs if "shell_iso" in self.cam_modes else 3
-            mult = self.n_anchor if "anchor_in" in self.cam_modes else 1
+            mult = self.n_anchor if "anchor_in" in self.cam_modes else (asym_k if "asym_in" in self.cam_modes else 1)
             assert 2 * nd * num_freqs_seg * mult <= head_dim, (nd, num_freqs_seg, mult, head_dim)
             self.register_buffer("dirs_in", _dirs(nd), persistent=False)
             self.register_buffer("omega_seg3", math.pi * torch.logspace(
@@ -1667,6 +1691,24 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         env = sinc((ph[..., None] * wg).flatten(2))
         return env * phase.cos(), env * phase.sin()
 
+    def _asym_coeffs(self, info, code, t1, t2):
+        """Coefficients [b, L, K*n*F] for one role of asym_in ('chord'/'foot'/'anchor')."""
+        dirs, om, gn = self.dirs_in, self.omega_seg3, self.gain_seg3
+        K = self.asym_k
+        if code == "anchor":
+            cs, ss = [], []
+            for kf in range(K):
+                ta = t1 + ((kf + 0.5) / K) * (t2 - t1)
+                c, sn = self._seg_dirs_coeffs(info, ta, ta, dirs, om, gn)
+                cs.append(c); ss.append(sn)
+            return torch.cat(cs, -1), torch.cat(ss, -1)
+        if code == "foot":
+            tc = info["tok_tc"].clamp_min(0.02)
+            c, sn = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
+        else:
+            c, sn = self._seg_dirs_coeffs(info, t1, t2, dirs, om, gn)
+        return c.repeat(1, 1, K), sn.repeat(1, 1, K)
+
     def _point_site_coeffs(self, info, site):
         """cos/sin for the shell / oracle modes at the input ('in') or hidden ('h') site."""
         modes = self.cam_modes
@@ -1687,6 +1729,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             t2 = torch.where(use, tg, t2)
         dirs, om, gn = ((self.dirs_in, self.omega_seg3, self.gain_seg3) if site == "in"
                         else (self.dirs_h, self.omega_hseg, self.gain_hseg))
+        if "head_anchor" in modes and site == "in":
+            # per-HEAD anchor: head k -> point at chord fraction (k+0.5)/H; layout (b h)
+            cs, ss = [], []
+            H = self.num_heads
+            for kf in range(H):
+                ta = t1 + ((kf + 0.5) / H) * (t2 - t1)
+                c, sn = self._seg_dirs_coeffs(info, ta, ta, dirs, om, gn)   # [b, L, nF]
+                cs.append(c); ss.append(sn)
+            c = torch.stack(cs, dim=1).flatten(0, 1)                        # [(b h), L, nF]
+            sn = torch.stack(ss, dim=1).flatten(0, 1)
+            return c, sn
         if modes & {"foot_in", "h_foot"}:
             # Simplest 3D-point coordinate: the ray's closest-approach point to the focus
             # point, x_c = o + t_c d (no integral, no radius; env = 1).
@@ -1960,6 +2013,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             ec, es = to_heads(ec, nh), to_heads(es, nh)
             q = apply_rotary_pairs(q, ec, es)
             k = apply_rotary_pairs(k, ec, es)
+        elif "asym_in" in modes:
+            t1, t2 = self._chord_t(info)
+            kc, ks = self._asym_coeffs(info, self.asym_key, t1, t2)
+            qc, qs = self._asym_coeffs(info, self.asym_query, t1, t2)
+            q = apply_rotary_pairs(q, to_heads(qc, nh), to_heads(qs, nh))
+            k = apply_rotary_pairs(k, to_heads(kc, nh), to_heads(ks, nh))
+            q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+            k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
         elif modes & self.seg_in_modes:
             ec, es = self._point_site_coeffs(info, "in")
             q_pre = q
