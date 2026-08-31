@@ -3070,3 +3070,38 @@ content tax); (2) transporting v/o by PHASES of the ray (6D or direction only) i
 harmful with two address sites -- the rotation MATRIX carrier (+0.53 alone) has no phase analogue. The
 user's question ("(o,d) instead of Plucker at input+hidden, and on v/o?") is answered negatively on
 every cell; the family is closed.
+
+## F80: the coordinate/site/carrier grid is COMPLETE on vi -- consistent codes win, hybrids lose,
+## and the two finalists are set (2026-09-01 01:45; seed 95, 500 scenes, base 21.981)
+Site decompositions (input alone / hidden alone) and compositions:
+
+| code at the site | input alone | hidden alone |
+|---|---|---|
+| Plucker ladder | +0.206 | -0.100 |
+| (o, d) ladder | -0.022 | (od_both -0.092) |
+| chord (axis) | +0.247 | +0.062 |
+| chord (icosahedral 6-dir) | +0.336 | -- |
+| 3 anchors | +0.401 | +0.295 |
+| **foot point** | **+0.472** | +0.276 |
+
+| composition | dPSNR | | composition | dPSNR |
+|---|---|---|---|---|
+| foot_in + h_foot (foot_both) | +0.551 | | + carrier (**foot_all**) | **+0.717** |
+| rot_raw (R + carrier) | +0.533 | | + h chord (**rot_hshell**) | **+0.716** |
+| foot_in + carrier (foot_vo) | +0.595 | | foot_in + h_chord + carrier (foot_hshell_vo) | +0.610 |
+| chord everywhere + carrier (shell_all) | +0.630 | | rot + h_foot (rot_hfoot) | +0.634 |
+
+ORBIT cross-checks (base 22.193): rot_hshell **+0.642** (F79) > foot_all +0.564 (t=-4.6) > shell_vo +0.532.
+
+Readings:
+1. **Two finalists.** rot_hshell (input rotation matrix + hidden chord + rotation carrier) wins or ties
+   on both geometries (vi +0.716 / orbit +0.642); foot_all (one foot coordinate at both sites + carrier)
+   ties on vi (+0.717) and trails by 0.08 on the orbit set -- the simplest recipe, one sentence long.
+2. **Consistency beats mixing.** The cross-hybrid foot input + chord hidden + carrier lands at +0.610,
+   0.11 BELOW both finalists: whatever code a recipe uses, using it coherently across sites beats
+   mixing coordinate types (matrix+chord being the exception in one direction only).
+3. Site tables: at both sites the sharp point wins among phase codes (foot > anchors > iso-chord >
+   axis-chord > Plucker > (o,d)); icosahedral directions beat axis-aligned for the integrated chord
+   (+0.089) -- the separable per-axis kernel was part of the chord's handicap.
+4. All slots pay in the foot decomposition: input +0.472 -> +hidden +0.079 -> +carrier +0.166.
+5. Single seed; seeds for the finalists await the user's decision. RE10K one-recipe check queued.
