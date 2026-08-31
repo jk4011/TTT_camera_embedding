@@ -5,7 +5,7 @@
 두 노드는 같은 lustre 트리(`/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope`)를 공유하므로
 파일 변경이 곧바로 보인다(`git pull` 불필요; 커밋/푸시는 node1이 한다).
 
-마지막 갱신: **2026-08-31 14:20 KST (node1)** — §3 W2-5 교체, §6 답변.
+마지막 갱신: **2026-08-31 15:20 KST (node1)** — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
 
 ---
 
@@ -51,6 +51,15 @@ $PY data_preprocess/reshard_gobjaverse.py --src $SRC --odir /tmp/gobj/train --in
 ls /tmp/gobj/train | wc -l   # 19500 기대 (test 500). 72코어에서 총 ≈2 분.
 ```
 GT-depth 사이드 파일(oracle 셀용)은 lustre `dataset/gobj_depth_patch/{train,test}`에 이미 있다.
+**두 번째 데이터 (2026-08-31 15:20 추가)** — RayRoPE의 vary-intrinsics 스크립트로 재렌더한 objaverse(`gobj_vi`,
+24 views/object, 뷰별 FOV·거리 무작위; F69의 데이터). 사용자 요청으로 이 데이터가 논문용 주축이 된다.
+```bash
+$PY data_preprocess/reshard_rayrope_renders.py      # 인자 없음, /tmp/gobj_vi/{train,test} + index, ≈3 분
+ls /tmp/gobj_vi/train | wc -l                        # 20000 기대 (test 500)
+```
+vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name>_s95 <config> 95 …` 로 띄운다
+(`DATA=gobj_vi`가 데이터 경로·min_frames 24·eval을 모두 바꾼다; exp 이름은 `gobjvi_` 접두). 기준은
+`outputs/gobjvi_base_s95/eval_v2.json`(node1이 15:30경 생성; F69 base 21.98, 500 scene).
 셀 실행 명령은 모두 `NODE=node2 setsid nohup ./run_gobj.sh <gpu> <exp> <config> 95 > outputs/<exp>.launch.log 2>&1 < /dev/null &`
 형태이며 30k step + eval ≈ 2 h/B200. 배경·가설 설명은 `OBJ_ANALYSIS.md` §0/§4/§5 (읽기 권장, 5분).
 
@@ -66,7 +75,20 @@ GT-depth 사이드 파일(oracle 셀용)은 lustre `dataset/gobj_depth_patch/{tr
 
 W1-3은 `outputs/gobj_rot_raw_s95/eval_v2.json`, W1-4는 `outputs/gobj_imgvo_s95/eval_v2.json`을 추가 기준으로 붙인다.
 
-### wave 2 백로그 — GPU가 비는 대로 순서대로 (node1이 wave-1 결과를 보고 순서를 바꿀 수 있음)
+### wave 1-vi — 같은 네 가지를 RayRoPE 재렌더 데이터에서 (wave 1이 끝나는 GPU부터 **이것을 먼저**; 2026-08-31 15:20)
+node1 wave-1 판정: chord-3D-point rotary(`shell_*`)가 orbit 데이터에서 입력 +0.38 / hidden +0.32로 Plücker
+ladder(−0.41/−0.57)를 뒤집었다. vi 데이터에서도 같은지가 논문의 핵심 표가 된다.
+| # | exp | config | 무엇인가 | 상태 |
+|---|---|---|---|---|
+| V1-1 | `gobjvi_shell_in_s95` | `config/gobj_shell_in.yaml` | H2 입력 사이트 chord rotary (`DATA=gobj_vi`) | [PENDING] |
+| V1-2 | `gobjvi_shell_h_s95` | `config/gobj_shell_h.yaml` | H2 hidden 사이트 | [PENDING] |
+| V1-3 | `gobjvi_shell_both_s95` | `config/gobj_shell_both.yaml` | 입력+hidden chord | [PENDING] |
+| V1-4 | `gobjvi_shell_vo_s95` | `config/gobj_shell_vo.yaml` | 입력 chord + 회전 v/o transport | [PENDING] |
+| V1-5 | `gobjvi_rot_raw_s95` | `config/cam_rot_raw.yaml` | 대조: orbit 최고 행렬 셀을 vi에서 | [PENDING] |
+| V1-6 | `gobjvi_imgvo_s95` | `config/cam_imgvo.yaml` | 대조: orbit 현 최고 imgvo를 vi에서 | [PENDING] |
+기준: `gobjvi_base_s95/eval_v2.json` + (V1-1/2/3은) `gobjvi_input_s95/eval_v2.json`, `gobjvi_hidden_s95/eval_v2.json`.
+
+### wave 2 백로그 (orbit 데이터) — wave 1-vi 다음에, GPU가 비는 대로 순서대로 (node1이 순서를 바꿀 수 있음)
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
 | W2-1 | `gobj_raygta_s95` | `config/gobj_raygta.yaml` | H6: 토큰별 ray-frame 회전을 q/k/v/o에 (image rope + 카메라 회전 transport의 행렬 융합) | [PENDING] |
@@ -97,6 +119,9 @@ W1-3은 `outputs/gobj_rot_raw_s95/eval_v2.json`, W1-4는 `outputs/gobj_imgvo_s95
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
+- 2026-08-31 15:20: wave-1 결과 요약(orbit): shell_in +0.377 (t=+21), shell_h +0.324 (t=+19), camray_rotraw +0.343
+  (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
+  §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
 - 2026-08-31 14:20 (답변/W2-5): 지적이 맞다. `cam_h_dpra42.yaml`은 양 사이트(F16 입력 + delta-hidden 42)라 비교가
   어긋난다. W2-5를 **hidden-only** 셀 `gobj_h_dpra_s95` / `config/gobj_h_dpra.yaml`(cam_mode `h_dpra`, F_h 42;
   스모크 통과)로 교체했다 — 기준은 base + `gobj_hidden_s95/eval_v2.json`. 양 사이트 대조군은 `outputs/gobj_both_s95/eval_v2.json`
