@@ -5,7 +5,7 @@
 두 노드는 같은 lustre 트리(`/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope`)를 공유하므로
 파일 변경이 곧바로 보인다(`git pull` 불필요; 커밋/푸시는 node1이 한다).
 
-마지막 갱신: **2026-08-31 15:55 KST (node1)** — F73 반영: orbit 백로그 맨 앞에 anchor 셀(W2-0a/b). ⚠ §6 15:42 항목(eval wrapper 오류 대처) 필독. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
+마지막 갱신: **2026-08-31 16:25 KST (node1)** — 사용자 결정: **vi가 주축**. wave 1-vi 다음은 wave 2-vi(V2-1…5); orbit 백로그는 [HOLD]. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
 
 ---
 
@@ -68,10 +68,10 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 ### wave 1 — gObjaverse camera embedding (2026-08-31)
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| W1-1 | `gobj_attn_nope_s95` | `config/gobj_attn_nope.yaml` | 진단 상한: TTT 층을 LaCT 논문의 block-causal full attention으로 교체(같은 6L/d256, 같은 토큰), PE 없음 | [RUNNING node2 gpu0 14:12] |
-| W1-2 | `gobj_attn_prope_s95` | `config/gobj_attn_prope.yaml` | 진단 상한: 위 + faithful PRoPE(q/k/v/o) | [RUNNING node2 gpu1 14:12] |
-| W1-3 | `gobj_hrot_rotraw_s95` | `config/gobj_hrot_rotraw.yaml` | H4: rot_raw(+0.43) + hidden 주소공간에 직교 회전 작용 ("one matrix action per address space") | [RUNNING node2 gpu2 14:12] |
-| W1-4 | `gobj_imgvo_himg_s95` | `config/gobj_imgvo_himg.yaml` | H10: imgvo(+0.39, 현재 최고) + hidden 사이트 image-coordinate rotary | [RUNNING node2 gpu3 14:12] |
+| W1-1 | `gobj_attn_nope_s95` | `config/gobj_attn_nope.yaml` | 진단 상한: TTT 층을 LaCT 논문의 block-causal full attention으로 교체(같은 6L/d256, 같은 토큰), PE 없음 | [DONE 22.898 (+0.705)] |
+| W1-2 | `gobj_attn_prope_s95` | `config/gobj_attn_prope.yaml` | 진단 상한: 위 + faithful PRoPE(q/k/v/o) | [DONE 23.630 (+1.437)] |
+| W1-3 | `gobj_hrot_rotraw_s95` | `config/gobj_hrot_rotraw.yaml` | H4: rot_raw(+0.43) + hidden 주소공간에 직교 회전 작용 ("one matrix action per address space") | [DONE 22.603 (+0.410 vs base, -0.010 vs rot_raw)] |
+| W1-4 | `gobj_imgvo_himg_s95` | `config/gobj_imgvo_himg.yaml` | H10: imgvo(+0.39, 현재 최고) + hidden 사이트 image-coordinate rotary | [DONE 22.529 (+0.336 vs base, -0.059 vs imgvo)] |
 
 W1-3은 `outputs/gobj_rot_raw_s95/eval_v2.json`, W1-4는 `outputs/gobj_imgvo_s95/eval_v2.json`을 추가 기준으로 붙인다.
 
@@ -81,26 +81,31 @@ ladder(−0.41/−0.57)를 뒤집었다. vi 데이터에서도 같은지가 논�
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
 | V1-1 | `gobjvi_shell_in_s95` | `config/gobj_shell_in.yaml` | H2 입력 사이트 chord rotary (`DATA=gobj_vi`) | [RUNNING node1 gpu0 15:40] — node1이 가져감, node2는 V1-2부터 |
-| V1-2 | `gobjvi_shell_h_s95` | `config/gobj_shell_h.yaml` | H2 hidden 사이트 | [QUEUED node2 gpu0 (wave-1 종료 후 자동)] |
-| V1-3 | `gobjvi_shell_both_s95` | `config/gobj_shell_both.yaml` | 입력+hidden chord | [QUEUED node2 gpu1 (wave-1 종료 후 자동)] |
-| V1-4 | `gobjvi_shell_vo_s95` | `config/gobj_shell_vo.yaml` | 입력 chord + 회전 v/o transport | [QUEUED node2 gpu2 (wave-1 종료 후 자동)] |
-| V1-5 | `gobjvi_rot_raw_s95` | `config/cam_rot_raw.yaml` | 대조: orbit 최고 행렬 셀을 vi에서 | [QUEUED node2 gpu3 (wave-1 종료 후 자동)] |
+| V1-2 | `gobjvi_shell_h_s95` | `config/gobj_shell_h.yaml` | H2 hidden 사이트 | [RUNNING node2 gpu0 15:47] |
+| V1-3 | `gobjvi_shell_both_s95` | `config/gobj_shell_both.yaml` | 입력+hidden chord | [RUNNING node2 gpu1 15:55] |
+| V1-4 | `gobjvi_shell_vo_s95` | `config/gobj_shell_vo.yaml` | 입력 chord + 회전 v/o transport | [RUNNING node2 gpu2 16:01] |
+| V1-5 | `gobjvi_rot_raw_s95` | `config/cam_rot_raw.yaml` | 대조: orbit 최고 행렬 셀을 vi에서 | [RUNNING node2 gpu3 16:05] |
 | V1-6 | `gobjvi_imgvo_s95` | `config/cam_imgvo.yaml` | 대조: orbit 현 최고 imgvo를 vi에서 | [PENDING] |
 기준: `gobjvi_base_s95/eval_v2.json` + (V1-1/2/3은) `gobjvi_input_s95/eval_v2.json`, `gobjvi_hidden_s95/eval_v2.json`.
 
-### wave 2 백로그 (orbit 데이터) — wave 1-vi 다음에, GPU가 비는 대로 순서대로 (node1이 순서를 바꿀 수 있음)
-F73(15:50): oracle 3D-point rotary가 orbit에서 **+2.08 dB** — 좌표(ray→3D 점)가 문제였다. 따라서 orbit 백로그의
-우선순위를 chord/anchor 계열로 올린다 (W2-0a/b가 먼저).
+### wave 2-vi — 가설 셀을 vi 데이터로 (wave 1-vi 다음; 2026-08-31 16:25, 사용자 결정: vi가 주축)
+node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjvi_prope_raw`를 맡는다(중복 금지). node2는 아래 순서.
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| W2-0a | `gobj_anchor_in_s95` | `config/gobj_anchor_in.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상(입력 사이트, orbit) | [PENDING] |
-| W2-0b | `gobj_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b hidden 사이트 (orbit) | [PENDING] |
-| W2-1 | `gobj_raygta_s95` | `config/gobj_raygta.yaml` | H6: 토큰별 ray-frame 회전을 q/k/v/o에 (image rope + 카메라 회전 transport의 행렬 융합) | [PENDING] |
-| W2-2 | `gobj_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만, gate는 plain q/k | [PENDING] |
-| W2-3 | `gobj_camray_properaw_s95` | `config/gobj_camray_properaw.yaml` | H7: pose-free 토큰 + projective(translation 포함) transport | [PENDING] |
-| W2-5 | `gobj_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: **hidden-only** 위상(F_h 42)을 update-유도 경로에만 적용(초기 readout 비회전). 정확한 짝은 `gobj_hidden_s95/eval_v2.json`(h_pra F_h 42, −0.57) | [PENDING] |
-| W2-6 | `gobj_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4: pose-free 토큰 + rot_raw + hidden 회전 작용 | [PENDING] |
-| W2-7 | `gobj_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [PENDING] |
+| V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [PENDING] |
+| V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [PENDING] |
+| V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [PENDING] |
+| V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [PENDING] |
+| V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [PENDING] |
+모두 `DATA=gobj_vi`, 기준 `gobjvi_base_s95/eval_v2.json`(21.981). orbit 백로그(아래)는 vi 큐가 빈 뒤에만.
+
+### (보류) orbit 백로그 — vi 큐가 완전히 빈 뒤에만, node1이 별도 지시할 때
+| # | exp | config | 무엇인가 | 상태 |
+|---|---|---|---|---|
+| W2-0a | `gobj_anchor_in_s95` | `config/gobj_anchor_in.yaml` | H3b 입력 (orbit) | [HOLD] |
+| W2-0b | `gobj_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b hidden (orbit) | [HOLD] |
+| W2-1 | `gobj_raygta_s95` | `config/gobj_raygta.yaml` | H6 (orbit) | [HOLD] |
+| W2-2 | `gobj_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1 (orbit) | [HOLD] |
 
 (node1이 돌리는 셀: `gobj_oracle_both_s95`, `gobj_shell_in_s95`, `gobj_shell_h_s95`, `gobj_camray_rotraw_s95` — 중복 실행 금지.)
 
@@ -129,12 +134,18 @@ F73(15:50): oracle 3D-point rotary가 orbit에서 **+2.08 dB** — 좌표(ray→
   락 파일이 아니라 체크포인트/프로세스로 판정하므로 죽은 wrapper가 락을 남겨도 안전하다.
   V1-1은 node1 것으로 두고 node2 배정: gpu0→V1-2 shell_h, gpu1→V1-3 shell_both, gpu2→V1-4 shell_vo,
   gpu3→V1-5 rot_raw. V1-6 imgvo는 다음으로 비는 GPU에 올린다.
+- 2026-08-31 16:06 (node2): **wave 1 완료**, 4행 모두 `NODE2_RESULTS.md`에 append.
+  attn_nope 22.898 (+0.705) / attn_prope 23.630 (+1.437) / hrot_rotraw 22.603 (+0.410 base, **−0.010 vs rot_raw**) /
+  imgvo_himg 22.529 (+0.336 base, **−0.059 vs imgvo**). 체인 복구 정상 작동(eval-only 재실행 4/4 성공, GPU 공백 1–3분).
+  현재 GPU 0–3 = V1-2 shell_h(15:47) / V1-3 shell_both(15:55) / V1-4 shell_vo(16:01) / V1-5 rot_raw(16:05), 모두 ~17 it/s로 기동 확인.
+  다음 대기열은 V1-6 → W2-0a → W2-0b …로 잡고 있다. vi 결과를 보고 순서를 바꾸려면 18:00 KST 전에 §3을 갱신해 두면 반영된다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
 - 2026-08-31 15:20: wave-1 결과 요약(orbit): shell_in +0.377 (t=+21), shell_h +0.324 (t=+19), camray_rotraw +0.343
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
+- 2026-08-31 16:25: 사용자 결정으로 **vi 데이터가 주축**. V1 다음에 V2-1…V2-5(vi)를 올리고, orbit 백로그(W2-*)는 [HOLD] — node1이 따로 풀기 전에는 돌리지 말 것.
 - 2026-08-31 15:55: F73 — oracle_both(GT depth 3D-point rotary) **24.274 = +2.08 dB (t=+49.8, 499/499 scene)**;
   shell_in +0.377 / shell_h +0.324. 위상 계열의 상한이 매우 높으므로 orbit 백로그 맨 앞에 anchor 셀을 넣었다(W2-0a/b).
 - 2026-08-31 15:42 ⚠ **중요**: node1이 15:15에 `run_gobj.sh`를 제자리 편집하는 바람에, 그 전에 시작된 wrapper
