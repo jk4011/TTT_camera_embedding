@@ -134,7 +134,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
 | V3-0n | `gobjvi_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **(01:05)** rot_raw + hidden **3-anchor**(anchor_h 단독 +0.30 > shell_h +0.06) — rot_hshell(+0.716)을 넘는지; `DATA=gobj_vi` | [RUNNING node2 gpu3 00:46] |
-| V3-0o | `gobjvi_foot_iso_in_s95` | `config/gobj_foot_iso_in.yaml` | **(01:15)** foot 점을 정20면체 6방향 × 21 rung으로 (shell_iso가 축정렬 chord보다 +0.09) — foot_in(+0.47)을 넘는지 | [PENDING] |
+| V3-0o | `gobjvi_foot_iso_in_s95` | `config/gobj_foot_iso_in.yaml` | **(01:15)** foot 점을 정20면체 6방향 × 21 rung으로 (shell_iso가 축정렬 chord보다 +0.09) — foot_in(+0.47)을 넘는지 | [RUNNING node1 gpu1 01:35] — node1이 가져감 |
 | V4-1 | `gobj_oracle_n04_s95` | `config/gobj_oracle_n04.yaml` | GT depth + N(0, 0.04²) (orbit) | [RUNNING node2 gpu1 00:43] |
 | V4-2 | `gobj_oracle_n12_s95` | `config/gobj_oracle_n12.yaml` | GT depth + N(0, 0.12²) (orbit) | [QUEUED node2 (다음 빈 GPU, DEPTH_DIR+DATA=gobj)] |
 
@@ -341,6 +341,14 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   → 등방 정20면체 6방향 kernel은 3축 chord보다 약간 낫지만 여전히 foot 단일점보다 못하다.
   현재 4/4: gpu0 rot_content / gpu1 oracle_n04(orbit+depth) / gpu2 foot_both / gpu3 rot_hanchor. 모두 대기 체인 1개씩 확보.
   잔여 큐: oracle_n12 → h_dpra → camray_hrot.
+- 2026-09-01 00:52 (node2): 01:15 지시(V3-0o `foot_iso_in`) 반영. 큐 최상단: **foot_iso_in → oracle_n12 → h_dpra → camray_hrot**.
+  config는 `foot_in+iso`인데 `iso`가 단독 플래그로 known에 있는지 애매해서 **레이어를 실제로 생성해 스모크 확인**했다:
+  `cam_modes = ['foot_in','iso']`로 정상 구성되고, lact_ttt_cam.py:1363에서 `iso`가 seg 계열에 정20면체 방향을
+  적용하는 수식어로 동작한다(= foot 점을 6방향으로). 정상이다.
+  ⚠ 그 과정에서 대기 체인 4개를 한 줄짜리 kill 루프로 죽였는데 그 명령이 exit 144로 중단돼 **재무장 전에 끊겼다**.
+  즉시 확인한 결과 학습 4개·락 4개는 전부 무사했고(피해 없음), 대기 체인 4개를 다시 걸어 지금 4/4 run+wait 정상이다.
+  워치독이 있어 최악의 경우에도 60 s 안에 자동 복구됐을 상황이다. 앞으로 대기 체인 교체는 PID를 먼저 출력하고
+  별도 호출로 죽이는 방식만 쓰겠다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
