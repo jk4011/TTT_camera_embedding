@@ -2712,3 +2712,73 @@ Readings.
    Single seed; 24 clips.
 
 Artifacts: outputs/eval_dev/gen_video2_t5_*_tf/.
+
+## F73: the addressing COORDINATE, not the phase mechanism, is what fails at wide
+## baseline -- GT-depth 3D-point rotary +2.08 dB on gObjaverse orbits; the depth-free
+## chord rotary flips both sites from harmful to positive (node1 wave 1, 2026-08-31)
+Context: user refocus (2026-08-31) on camera embedding for wide-baseline NVS; analysis
+and hypothesis list in `OBJ_ANALYSIS.md`. Protocol = F51 (LaCT-LVSM L6/d256/p16, gObjaverse
+orbit renders, 8+8 views, 30k, bs16, lr 1e-4, LPIPS from 5k, seed 95); eval 499 held-out
+scenes, 8 uniform inputs / 4 midpoint targets. ALL references were re-evaluated on the
+current test index (`outputs/gobj_*_s95/eval_v2.json`, reproducing the F51-F62 numbers to
+<=0.01 dB), so every pairing below is on the same 499 scenes. Launcher `lact_nvs/run_gobj.sh`.
+
+Mechanisms (all TTT-layer positional embeddings, no new layers; `lact_ttt_cam.py`):
+- `pt_gt`/`h_pt_gt` (ORACLE, diagnostic only): phase coordinate = the token's GT surface
+  point x = o + t_gt d (patch-median EXR z-depth, verified against cross-view reprojection,
+  converted to the ray parameter and to the canonical scale), 3 axes x F rungs, at the
+  input site (F=42, 252/256 dims) and hidden site (F=84, 252/512). Tokens without a surface
+  (background) fall back to the chord below. GT depth is used for BOTH input and target tokens.
+- `shell_sinc` (input) / `h_shell` (hidden): DEPTH-FREE. Scene focus point p* = least-squares
+  intersection of the input views' optical axes (closed form; the object centre on look-at
+  renders), a sphere of learnable radius r (init 0.35, one scalar per layer) around it, and
+  the phase is INTEGRATED over the ray's chord through that sphere:
+  int cos(w u.x(t)) dt = sinc(w u.(h d)) cos(w u.x_mid)  (rays that miss use [t_c - r, t_c + r]).
+  q/k re-L2-normalised after the rotary (envelope varies per token). Same ladder pi*[0.5,16].
+- `camray` + `rot_raw`: pose-free tokens (raymap with identity extrinsics: intrinsics/pixel
+  only, as in PRoPE/RayRoPE/GTA), all pose entering through rot_raw's q/k rotation + v/o
+  rotation transport.
+
+| cell | PSNR | dPSNR vs base 22.193 (t, win%) | LPIPS (d, t) | SSIM (d, t) |
+|---|---|---|---|---|
+| **oracle_both** (GT 3D point, in+hidden) | **24.274** | **+2.081 (+49.8, 100%)** | 0.1148 (-0.0297, -39.6) | 0.8642 (+0.0281, +36.2) |
+| **shell_in** (chord, input site) | **22.570** | **+0.377 (+21.0, 84%)** | 0.1397 (-0.0048, -22.7) | 0.8407 (+0.0046) |
+| **shell_h** (chord, hidden site) | **22.517** | **+0.324 (+19.3, 83%)** | 0.1395 (-0.0050, -24.7) | 0.8404 (+0.0044) |
+| camray + rot_raw | 22.536 | +0.343 (+18.1, 82%) | 0.1376 (-0.0069, -29.2) | 0.8410 (+0.0049) |
+
+Same-site contrasts (paired, n=499): shell_in - Plucker input ladder (21.781) = **+0.789
+(t=+33.8, 96.8%)**; shell_h - Plucker hidden ladder (21.627) = **+0.890 (t=+39.8, 97.6%)**;
+shell_in - imgvo (22.588) = -0.018 (t=-1.0; LPIPS +0.0037, t=+18 -- imgvo keeps the LPIPS
+edge); oracle_both - prope_raw (22.662) = +1.612 (t=+45.1, 99.4%); oracle_both - shell_in =
++1.705 (t=+46.8). camray_rotraw - rot_raw (22.613) = -0.077 (t=-5.0, 38%).
+Learned radii: shell cells shrink r from 0.35 to 0.13-0.29 (they want SHARPER chords); the
+oracle cells (where r only serves background tokens) drift up to 0.40-0.49.
+
+Readings:
+1. **The phase mechanism is not dead at 90 deg -- the RAY coordinate was wrong.** With the
+   coordinate replaced by the true 3D surface point, the same rotary machinery (input +
+   hidden) is worth +2.08 dB on every one of 499 scenes, 1.6 dB above the best matrix-action
+   cell (prope_raw) and larger than anything measured on this dataset. This is the TTT-site
+   counterpart of RayRoPE's known-depth Objaverse gain (+2.8 dB in attention) and settles
+   OBJ_ANALYSIS.md's judgement tree in favour of branch (a): correspondence at wide baseline
+   is ray INTERSECTION, and a code whose phase difference vanishes at the intersection
+   (a 3D point) is what the fast-weight address space needs.
+2. **A depth-free version already flips the sign.** Integrating the phase over the chord of
+   the focus sphere -- pure geometry from the camera poses, one scalar parameter, no learned
+   depth -- turns the input site from -0.41 to +0.38 and the hidden site from -0.57 to +0.32
+   (+0.79 / +0.89 vs the Plucker ladders at the same sites and budgets). shell_in alone ties
+   the previous best (imgvo, image ropes + transport) in PSNR. F51/F57's "every band fails"
+   was a statement about Plucker-line coordinates, not about phases.
+3. The gap oracle - chord (1.7 dB) is the price of not knowing depth. Under the user's scope
+   rule (positional embedding only, NO depth-prediction layers) the levers left are the
+   chord family itself: two sites (shell_both, running), carrier composition (shell_sinc +
+   v/o transport, running), fixed multi-anchor plane-sweep phases (anchor_*), radius/ladder
+   placement, and the oracle split `oracle_in` (GT for input tokens only; running) which
+   says whether TARGET-token depth is the binding constraint.
+4. **Pose-free tokens (the GTA/PRoPE regime) do not help at the TTT site**: camray + rot_raw
+   is +0.34 vs base but -0.08 below rot_raw with world-frame tokens (t=-5). H7 is rejected;
+   the absolute raymap in the tokens is not what limits relative transport here.
+5. Caveats: single seed (95); orbit renders only -- the same cells are being run on the
+   RayRoPE vary-intrinsics re-renders (`gobjvi_*`, base 21.981 re-evaluated on the fresh
+   index) as the paper-facing dataset per the user's request; the oracle uses target-view
+   depth and is a ceiling, never a method.

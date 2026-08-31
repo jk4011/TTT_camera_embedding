@@ -230,6 +230,15 @@ update가 스스로 상쇄. 90° 특유의 간섭 문제에 직접 대응하지�
 
 ---
 
+## 4.5 wave-1 결과 (2026-08-31, node1; dossier F73)
+| 셀 | Δ vs base 22.193 | 판정 |
+|---|---|---|
+| H1 oracle_both (GT 3D point, in+hidden) | **+2.081 (t=+49.8, 100%)** | 갈래 (a) 확정: 좌표가 문제였다. 위상 계열의 상한 = +2.1 dB |
+| H2 shell_in (chord, 입력) | **+0.377 (t=+21)**, Plücker 입력 대비 +0.79 | 채택; imgvo와 PSNR 동률 |
+| H2 shell_h (chord, hidden) | **+0.324 (t=+19)**, Plücker hidden 대비 +0.89 | 채택; hidden 사이트도 양수 → 합성 후보 |
+| H7 camray + rot_raw | +0.343, rot_raw 대비 −0.08 (t=−5) | 기각 |
+판정 트리 결과: H1 ≫ 0 → 갈래 (a)에 집중. 다음: shell_both, shell_vo(진행 중), anchor_*, oracle_in(타깃 depth가 병목인지), vi 데이터 재현.
+
 ## 5. 실험 계획
 
 프로토콜: F51과 동일(LaCT-LVSM L6/d256/p16, gObjaverse 256², 8+8 뷰, 30k, bs16, lr1e-4, LPIPS 5k~, seed 95,
