@@ -1122,7 +1122,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
                  "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot",
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
-                 "raygta", "rot_content"}
+                 "raygta", "rot_content", "od_coords"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1642,7 +1642,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
     # ---------- helpers ----------
 
     def _coords6(self, info):
-        """[b, L, 6] Plucker coords; optionally per-scene moment whitening."""
+        """[b, L, 6] Plucker coords; optionally per-scene moment whitening.
+        od_coords (user question 2026-08-31): use (camera origin o, direction d) instead
+        of the Plucker (d, o x d) -- a control for 'is it the moment specifically?'."""
+        if "od_coords" in self.cam_modes:
+            return torch.cat([info["tok_o"], info["tok_d"]], dim=-1)
         tok_m = info["tok_m"]
         if "m_scale" in self.cam_modes:
             if "_m_scale" not in info:
