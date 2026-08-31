@@ -132,14 +132,20 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 (vi = `DATA=gobj_vi`). 스모크는 전부 통과 상태. node1도 같은 표에서 가져간다(태그 선변경 규칙 유지).
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| W5-1 | `gobjvi_rot_hshell_iso_s95` | `config/gobj_rot_hshell_iso.yaml` | 현 최고 rot_hshell의 hidden chord를 정20면체 6방향으로 (iso가 chord에 +0.09였음) | [PENDING] |
-| W5-2 | `gobjvi_hh_all_s95` | `config/gobj_hh_all.yaml` | **비-RoPE 신규**: Householder 반사 PE — H = I−2nnᵀ, n = foot 방향(x_c−p*); 주소(q/k)+carrier(v/o) 모두, 파라미터 0 | [PENDING] |
-| W5-3 | `gobjvi_layer_all_s95` | `config/gobj_layer_all.yaml` | **층-색인 plane sweep**: 층 ℓ이 chord 분율 (ℓ+½)/6의 점을 주소로 (6개 메모리 = 6개 깊이 슬라이스) + carrier | [PENDING] |
-| W5-4 | `gobjvi_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | foot_all의 두 사이트를 6방향 좌표로 | [PENDING] |
-| W5-5 | `gobjvi_h4_base_s95` | `config/gobj_h4_base.yaml` | 4-head 기준선 (W5-6의 짝) | [PENDING] |
-| W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [PENDING] |
+| W5-1 | `gobjvi_rot_hshell_iso_s95` | `config/gobj_rot_hshell_iso.yaml` | 현 최고 rot_hshell의 hidden chord를 정20면체 6방향으로 (iso가 chord에 +0.09였음) | [QUEUED node2 (야간 큐)] |
+| W5-2 | `gobjvi_hh_all_s95` | `config/gobj_hh_all.yaml` | **비-RoPE 신규**: Householder 반사 PE — H = I−2nnᵀ, n = foot 방향(x_c−p*); 주소(q/k)+carrier(v/o) 모두, 파라미터 0 | [QUEUED node2 (야간 큐)] |
+| W5-3 | `gobjvi_layer_all_s95` | `config/gobj_layer_all.yaml` | **층-색인 plane sweep**: 층 ℓ이 chord 분율 (ℓ+½)/6의 점을 주소로 (6개 메모리 = 6개 깊이 슬라이스) + carrier | [QUEUED node2 (야간 큐)] |
+| W5-4 | `gobjvi_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | foot_all의 두 사이트를 6방향 좌표로 | [QUEUED node2 (야간 큐)] |
+| W5-5 | `gobjvi_h4_base_s95` | `config/gobj_h4_base.yaml` | 4-head 기준선 (W5-6의 짝) | [QUEUED node2 (야간 큐)] |
+| W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [QUEUED node2 (야간 큐)] |
 | W5-7 | 최종 후보 시드: `gobjvi_rot_hshell_s137/s211`, `gobjvi_foot_all_s137/s211` (`SEED` 인자) | 각 config | 큐가 비면 (논문 표용 3-seed; 야간 지시 '최대한 많은 실험'에 따름) | [PENDING] |
-브레인스토밍(5 에이전트) 결과에서 추가 셀이 나오면 node1이 이 표에 append한다.
+| W5-8 | `gobjvi_near_all_s95` | `config/gobj_near_all.yaml` | **near-shell 점**(불투명 prior: 가시 표면은 chord의 앞 교차점) 양 사이트 + carrier | [PENDING] |
+| W5-9 | `gobjvi_cfr_hshell_s95` | `config/gobj_cfr_hshell.yaml` | **CFR**(foot 방향 축, 각 2atan(γρ/2)의 matched-identity 회전 행렬) 입력 + hidden chord + carrier — rot_hshell의 R을 CFR로 교체 | [PENDING] |
+| W5-10 | `gobjvi_cfr_vo_s95` | `config/gobj_cfr_vo.yaml` | CFR 입력 + carrier (rot_raw +0.53 / foot_vo +0.595와 A/B) | [PENDING] |
+| W5-11 | `gobjvi_foot_all_ffvo_s95` | `config/gobj_foot_all_ffvo.yaml` | foot_all의 carrier를 **foot-지리 프레임**(정준화)으로 | [PENDING] |
+| W5-12 | `gobjvi_foot_all_w05_s95` | `config/gobj_foot_all_w05.yaml` | ω-split: 입력 ladder ×0.5 (L4 "입력은 제곱" 정량 검증) | [PENDING] |
+| W5-13 | `gobjvi_foot_all_vstore_s95` | `config/gobj_foot_all_vstore.yaml` | 저장 전용 carrier(o-side 없음) — transport가 닫혀 있어야 하는지 | [PENDING] |
+브레인스토밍(5 에이전트) 결과 반영 완료(02:58). node1도 이 표에서 가져간다.
 
 ### wave 4 — noisy-oracle 보정 (orbit, GT depth 필요: `DEPTH_DIR=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobj_depth_patch DATA=gobj`) — 2026-09-01 00:55, **V2-1…5보다 먼저**
 "메모리가 깊이를 오차 σ로 추정하면 몇 dB인가"의 곡선. node1이 σ=0.07을 돌리는 중(≈02:00). 명령 예:
@@ -413,6 +419,18 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   n=499로 base eval_v2와 scene set이 같아 paired 비교는 유효하다(§1-5의 '옛 eval.json' 경고는 이전 test index
   시절 파일에 대한 것이고, 이 셀은 오늘 현재 index로 돈 것이다). 문제 있으면 알려 달라.
   gpu1은 2분 만에 `foot_all_pvo`로 전환(02:32).
+- 2026-09-01 03:00 (node2): 야간 자율 라운드 준비 완료. **큐 10개**를 걸어 두었다(순서대로):
+  W5-1 rot_hshell_iso → W5-2 hh_all → W5-3 layer_all → W5-4 foot_all_iso → W5-5 h4_base → W5-6 h4_headanchor_vo
+  → W5-7 시드 4개(rot_hshell_s137/s211, foot_all_s137/s211). 4장 × 2 h이면 **약 5시간, 07:30~08:00경 소진**된다.
+  검증(전부 통과): 6개 config 모두 L6/d256/p16이고 레이어를 실제로 생성해 cam_modes를 확인했다 —
+  rot_hshell_iso['h_shell','iso','rot_raw'] / hh_all['hh_in','hh_vo'] / layer_all['h_layer_pt','layer_pt','vo_rel'] /
+  foot_all_iso['foot_in','h_foot','iso','vo_rel'] / h4_headanchor_vo['head_anchor','vo_rel'](4 head).
+  W5-5 `h4_base`는 cam 레이어가 없는 stock `lact_ttt.FastWeightGluMLPMultihead`(head_dim 64, inter_multi 8)로,
+  W5-6과 **TTT 레이어 클래스와 cam_mode만 다르다** — 짝 대조군으로 유효하다.
+  W5-7용으로 seed를 넘길 수 있는 `chain7.sh`를 새로 만들었다(기존 체인은 seed 95 고정이라 s137/s211을 못 돌린다).
+  워치독도 chain7을 쓰도록 교체했고, QUEUE.txt만 고치면 우선순위가 바뀌므로 밤새 체인을 죽였다 다시 걸 일은 없다.
+  **밤새 자율로 돌린다**: 셀이 끝날 때마다 paired 수치를 NODE2_RESULTS.md에 append하고 다음 셀을 자동으로 올린다.
+  중복(양 노드 같은 셀)은 60 s 주기 감지기가 잡고, GPU 유휴는 워치독이 60 s 안에 복구한다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.

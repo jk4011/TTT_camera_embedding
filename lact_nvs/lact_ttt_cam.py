@@ -1104,6 +1104,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         asym_k: int = 3,
         omega_scale_h: float = 1.0,
         oracle_noise: float = 0.0,
+        cfr_gamma: float = 3.1,
         vo_coords: str = "6d",
         fejer_h: bool = False,
         fejer_omega0: float = 0.5,
@@ -1125,7 +1126,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot",
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content", "od_coords", "vo_rope", "iso",
-                 "hh_in", "hh_vo", "layer_pt", "h_layer_pt"}
+                 "hh_in", "hh_vo", "layer_pt", "h_layer_pt", "near_in", "h_near", "ff_vo",
+                 "cfr_in", "vo_store"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1173,7 +1175,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
                        "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content", "gate_shell_rot"}
         assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
-        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot", "layer_pt"}
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot", "layer_pt", "near_in"}
         if "asym_in" in self.cam_modes:
             # ASYMMETRIC store/read codes (TTT-native, 2026-08-31): the KEY (stored) and the
             # QUERY (read) get DIFFERENT phase coordinates on the same K x 3 x F pair budget.
@@ -1195,9 +1197,26 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             # weights after the layer (c_proj, next blocks) choose which depth to trust.
             # Zero extra compute, no depth prediction anywhere.
             assert self.num_heads >= 2, "head_anchor needs >= 2 fast-weight heads"
-        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_layer_pt"}
+        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_layer_pt", "h_near"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
         hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump"} | self.seg_h_modes
+        if "cfr_in" in self.cam_modes:
+            # CFR -- Cayley Foot Rotation (overnight): per-token orthogonal rotation about the
+            # foot DIRECTION u by the bounded angle 2 atan(gamma*rho/2) (rho = |x_c - p*|).
+            # Relative product R_j^T R_i = I iff the foot points coincide (matched pairs at any
+            # view separation), angle < pi always (wrap-free), one learnable scalar. The
+            # matched-identity MATRIX that merges L1's coordinate with L4's input-site matrix
+            # preference; applied to q/k 3-blocks (and v/o when combined with vo_rel).
+            assert not (self.cam_modes & {"prope_raw", "rot_raw", "prope_in_raw", "prope_orig",
+                                          "prope_imgrope", "raygta", "rot_content", "gate_shell_rot",
+                                          "hh_in", "qk_rope_cam"})
+            self.cfr_gamma = nn.Parameter(torch.tensor(float(cfr_gamma)))
+        if "vo_store" in self.cam_modes:
+            # STORE-ONLY carrier: v <- R_i v on update, NO o-side map (values canonicalised into
+            # the world frame; the slow c_proj reads world-frame outputs). Tests whether the
+            # transport must be closed (both-sided) -- only TTT lets the o-map differ from the
+            # v-map at all.
+            assert not (self.cam_modes & {"vo_rel", "vo_rope", "ff_vo", "hh_vo"})
         if self.cam_modes & {"hh_in", "hh_vo"}:
             # HOUSEHOLDER PE (overnight 2026-09-01, non-rotary): per-token orthogonal reflection
             # H = I - 2 n n^T on every 3-block, n = unit(x_c - p*) (the FOOT DIRECTION -- matched
@@ -1817,6 +1836,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             c = torch.stack(cs, dim=1).flatten(0, 1)                        # [(b h), L, nF]
             sn = torch.stack(ss, dim=1).flatten(0, 1)
             return c, sn
+        near_here = ("near_in" in modes) if site == "in" else ("h_near" in modes)
+        if near_here:
+            # NEAR-SHELL POINT (opacity prior, overnight): the visible surface of an opaque
+            # object is the NEAR chord crossing; use x_near = o + t1 d as the sharp coordinate.
+            c, sn = self._seg_dirs_coeffs(info, t1, t1, dirs, om, gn)
+            return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
         if foot_here:
             if layer_here:
                 # LAYER-INDEXED PLANE SWEEP (free): layer l reads/stores at chord fraction
@@ -2004,6 +2029,26 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 v = apply_tiled_mat4(v, P_inv_h, tpv, span)
                 prope_raw_P_h = P_h
 
+        cfr_R = None
+        if "cfr_in" in modes:
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                xc_t = info["tok_o"] + info["tok_tc"].clamp_min(0.02) * info["tok_d"]
+                rel_t = xc_t - info["focus"][:, None, :]
+                rho = rel_t.norm(dim=-1, keepdim=True)
+                u = rel_t / (rho + 1e-8)
+                gam = self.cfr_gamma.clamp(0.1, 30.0)
+                theta = 2.0 * torch.atan(gam * rho / 2.0)                     # [b, L, 1]
+                ct, st = theta.cos()[..., None], theta.sin()[..., None]
+                K = torch.zeros(*u.shape[:2], 3, 3, device=x.device)
+                K[..., 0, 1] = -u[..., 2]; K[..., 0, 2] = u[..., 1]
+                K[..., 1, 0] = u[..., 2];  K[..., 1, 2] = -u[..., 0]
+                K[..., 2, 0] = -u[..., 1]; K[..., 2, 1] = u[..., 0]
+                eye3 = torch.eye(3, device=x.device)[None, None]
+                R_t = eye3 + st * K + (1.0 - ct) * (K @ K)
+                cfr_R = to_heads(R_t, nh)
+            q = apply_block_rot(q, cfr_R)
+            k = apply_block_rot(k, cfr_R)
+
         hh_H = None
         if modes & {"hh_in", "hh_vo"}:
             with torch.autocast(device_type=x.device.type, enabled=False):
@@ -2026,6 +2071,36 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
             if "hh_vo" in modes:
                 v = apply_block_rot(v, hh_H)
+
+        ff_F = None
+        if "ff_vo" in modes:
+            # FOOT-GEOGRAPHIC CARRIER FRAME (overnight): per-token frame F = [r^, e^, n^] built
+            # at the foot direction (r^ = blended unit(x_c - p*), e^ = unit(z x r^) with x-axis
+            # fallback near the pole, n^ = r^ x e^). Store F_i^T v (canonical surface frame),
+            # read F_j o: the relative product F_j F_i^T ~ I exactly for MATCHED pairs (shared
+            # foot direction) -- a canonicalizing carrier, vs rot_raw's view-rotation transport.
+            assert not (self.cam_modes & {"vo_rel", "vo_rope", "hh_vo", "prope_raw", "rot_raw",
+                                          "prope_orig", "prope_imgrope", "raygta", "rot_content",
+                                          "gate_shell_rot"})
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                xc_t = info["tok_o"] + info["tok_tc"].clamp_min(0.02) * info["tok_d"]
+                rel_t = xc_t - info["focus"][:, None, :]
+                rn = rel_t.norm(dim=-1, keepdim=True)
+                cam_dir = info["tok_o"] - info["focus"][:, None, :]
+                cam_dir = cam_dir / (cam_dir.norm(dim=-1, keepdim=True) + 1e-8)
+                wgt = (rn / 0.05).clamp(0.0, 1.0)
+                r_hat = rel_t / (rn + 1e-8) * wgt + cam_dir * (1.0 - wgt)
+                r_hat = r_hat / (r_hat.norm(dim=-1, keepdim=True) + 1e-8)
+                zax = torch.zeros_like(r_hat); zax[..., 2] = 1.0
+                xax = torch.zeros_like(r_hat); xax[..., 0] = 1.0
+                e1 = torch.cross(zax, r_hat, dim=-1); e2 = torch.cross(xax, r_hat, dim=-1)
+                use2 = (e1.norm(dim=-1, keepdim=True) < 0.2).float()
+                e_hat = e1 * (1 - use2) + e2 * use2
+                e_hat = e_hat / (e_hat.norm(dim=-1, keepdim=True) + 1e-8)
+                n_hat = torch.cross(r_hat, e_hat, dim=-1)
+                F_t = torch.stack([r_hat, e_hat, n_hat], dim=-1)          # columns = frame axes
+                ff_F = to_heads(F_t, nh)
+            v = apply_block_rot(v, ff_F, transpose=True)                   # F^T v : to canonical
 
         raygta_M = None
         if "raygta" in modes:
@@ -2188,6 +2263,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             R_tok = info["view_rot"].repeat_interleave(tpv, dim=1)  # [b, L, 3, 3]
             R_tok = to_heads(R_tok, nh)
             v = apply_block_rot(v, R_tok, transpose=False)
+        if "vo_store" in modes:
+            R_st = to_heads(info["view_rot"].repeat_interleave(tpv, dim=1), nh)
+            v = apply_block_rot(v, R_st, transpose=False)   # store canonical; no o-side map
         vo_rope_coeffs = None
         if "vo_rope" in modes:
             if self.vo_coords == "foot":
@@ -2456,6 +2534,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             wts = torch.softmax(logits, dim=1)
             o_tgt = (wts[..., None] * cands.float()).sum(1).to(output.dtype)
             output = torch.cat([o_main[:, :n_in_], o_tgt], dim=1)
+        if ff_F is not None:
+            output = apply_block_rot(output, ff_F, transpose=False)        # F o : to the query frame
         if hh_H is not None and "hh_vo" in modes:
             output = apply_block_rot(output, hh_H)     # H is its own inverse
         if vo_rope_coeffs is not None:
