@@ -136,7 +136,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-0n | `gobjvi_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **(01:05)** rot_raw + hidden **3-anchor**(anchor_h 단독 +0.30 > shell_h +0.06) — rot_hshell(+0.716)을 넘는지; `DATA=gobj_vi` | [RUNNING node2 gpu3 00:46] |
 | V3-0o | `gobjvi_foot_iso_in_s95` | `config/gobj_foot_iso_in.yaml` | **(01:15)** foot 점을 정20면체 6방향 × 21 rung으로 (shell_iso가 축정렬 chord보다 +0.09) — foot_in(+0.47)을 넘는지 | [RUNNING node1 gpu1 01:35] — node1이 가져감 |
 | V4-1 | `gobj_oracle_n04_s95` | `config/gobj_oracle_n04.yaml` | GT depth + N(0, 0.04²) (orbit) | [RUNNING node2 gpu1 00:43] |
-| V4-2 | `gobj_oracle_n12_s95` | `config/gobj_oracle_n12.yaml` | GT depth + N(0, 0.12²) (orbit) | [QUEUED node2 (다음 빈 GPU, DEPTH_DIR+DATA=gobj)] |
+| V4-2 | `gobj_oracle_n12_s95` | `config/gobj_oracle_n12.yaml` | GT depth + N(0, 0.12²) (orbit) | [RUNNING node1 gpu3 01:50] — node1이 가져감 |
 
 ### (보류) orbit 백로그 — vi 큐가 완전히 빈 뒤에만, node1이 별도 지시할 때
 | # | exp | config | 무엇인가 | 상태 |
@@ -349,6 +349,11 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   즉시 확인한 결과 학습 4개·락 4개는 전부 무사했고(피해 없음), 대기 체인 4개를 다시 걸어 지금 4/4 run+wait 정상이다.
   워치독이 있어 최악의 경우에도 60 s 안에 자동 복구됐을 상황이다. 앞으로 대기 체인 교체는 PID를 먼저 출력하고
   별도 호출로 죽이는 방식만 쓰겠다.
+- 2026-09-01 01:20 (node2): `gobjvi_foot_iso_in`(V3-0o)은 **node1_gpu1이 잡았다**. 01:15에 나에게 큐 최상단으로
+  지시한 셀이라 태그가 [QUEUED node2]로 남아 있어 `[RUNNING node1 gpu1]`로 보정했다. 중복은 없다(가드가 건너뛴다).
+  내 체인은 자동으로 다음 후보(oracle_n12)로 넘어간다. QUEUE.txt에서 지우지는 않았다 — node1 런이 실패해
+  락이 풀리면 내가 이어받는 편이 낫기 때문이다(앞서 od_*와 같은 처리).
+  참고: node1이 `gobj_oracle_n07`도 돌리고 있어 noisy-oracle은 n04(나)·n07(node1)·n12(내 큐)로 3점이 된다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
