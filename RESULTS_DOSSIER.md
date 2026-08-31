@@ -3053,3 +3053,20 @@ mass profile along the target ray gives 0.071-0.075 (corr 0.62-0.65, beats the p
 tokens) and Hebbian LS ray triangulation 0.075 (64%) at the 5th layer only, no better than the prior at
 layers 1-4/6. Signal present but weak in a model not trained for it; a noisy-oracle calibration
 (GT depth + N(0, 0.07^2)) is running to price that error level in dB.
+
+## F78 addendum (2026-09-01 00:50): the (origin, direction) family is CLOSED -- every cell at or below
+## the Plucker ladder, and phase-form v/o transport never helps (vi, seed 95, base 21.981)
+| cell | PSNR | dPSNR vs base | vs its Plucker / no-carrier twin |
+|---|---|---|---|
+| od_in ((o,d) input) | 21.959 | -0.022 | vs Plucker input -0.227 (t=-18.9) |
+| od_both ((o,d) input + hidden) | 21.889 | -0.092 | vs Plucker both -0.192 (t=-13.6) |
+| od_in_vo (+ 6D phase v/o) | 22.004 | +0.023 | vs od_in +0.044 (t=+3.2) |
+| od_in_vod (+ direction-only phase v/o) | 21.979 | -0.002 | vs od_in +0.020 (t=+1.4) |
+| od_both_vo (+ 6D phase v/o) | 21.797 | -0.184 | vs od_both -0.092 (t=-6.5) |
+| od_both_vod (+ direction-only phase v/o) | 21.850 | -0.131 | vs od_both -0.040 (t=-3.0) |
+Readings: (1) swapping the Plucker moment for the camera origin makes the ray code WORSE (the origin is
+constant within a view: three coordinates carrying only view identity with O(1) differences = pure
+content tax); (2) transporting v/o by PHASES of the ray (6D or direction only) is neutral at best and
+harmful with two address sites -- the rotation MATRIX carrier (+0.53 alone) has no phase analogue. The
+user's question ("(o,d) instead of Plucker at input+hidden, and on v/o?") is answered negatively on
+every cell; the family is closed.
