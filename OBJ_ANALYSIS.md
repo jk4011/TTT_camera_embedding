@@ -243,6 +243,7 @@ update가 스스로 상쇄. 90° 특유의 간섭 문제에 직접 대응하지�
 | shell_vo (chord 입력 + 회전 v/o transport) | **+0.532 (t=+26)**, shell_in 대비 +0.155, imgvo 대비 +0.137 | **orbit PE-only 최고**; 주소·carrier 슬롯 합성 성립 |
 | shell_both (chord 입력+hidden) | +0.299, shell_in 대비 −0.078 (t=−6.1) | 두 사이트는 90°에서 비합성 (F52와 동일) |
 | oracle_in (입력 토큰만 GT) | +0.426, shell_in 대비 +0.05; oracle_both 대비 −1.66 | oracle 이득은 **타깃 토큰의 depth** 효과 |
+**vi(RayRoPE 재렌더) 결과 (F75)**: rot_raw **+0.533**, shell_vo +0.509(rot_raw와 동률), shell_both +0.375(shell_in 대비 +0.129 → vi에서는 두 사이트 합성), shell_in +0.247(Plücker +0.206 대비 +0.04), shell_h +0.062. vi에서는 carrier가 지배적이고 chord 좌표의 몫은 작다(기하가 좁을수록 좌표 효과 감소).
 판정 트리 결과: H1 ≫ 0 → 갈래 (a)에 집중. 다음: shell_both, shell_vo(진행 중), anchor_*, oracle_in(타깃 depth가 병목인지), vi 데이터 재현.
 
 ## 5. 실험 계획

@@ -2847,3 +2847,41 @@ Readings:
    layer; decision deferred to the user).
 4. Single seed, orbit renders; the same cells are running on the RayRoPE vary-intrinsics
    re-renders (gobjvi_*), which is the paper-facing dataset per the user's 2026-08-31 decision.
+
+## F75: the chord family on the RayRoPE vary-intrinsics re-renders (vi) -- the two chord
+## sites COMPOSE here, but the rotation carrier is the dominant ingredient and chord + carrier
+## only ties rot_raw (2026-08-31 17:50; node1 + node2, seed 95, 500 scenes)
+Data = `gobj_vi` (F69: 20,500 objects re-rendered with RayRoPE's `objv_render_vary_intrinsics.py`,
+24 views/object, per-view random FOV/distance; nested same-angle pairs in the 8-view windows).
+Same 30k protocol (`run_gobj.sh DATA=gobj_vi`, min_frames 24); references re-evaluated on the
+fresh index (`gobjvi_*_s95/eval_v2.json`: base 21.981 / Plucker input 22.187 / hidden 21.881 /
+both 22.082 -- F69 reproduced). User decision 2026-08-31: vi is the paper-facing dataset.
+
+| cell | PSNR | dPSNR vs base 21.981 (t, win%) | LPIPS (d, t) | contrasts |
+|---|---|---|---|---|
+| **rot_raw** (R on q/k + rotation v/o) | **22.514** | **+0.533 (+33.0, 96%)** | 0.0931 (-0.0074, -35.1) | |
+| **shell_vo** (chord input address + rotation v/o) | 22.490 | +0.509 (+32.3, 95%) | 0.0931 (-0.0074, -34.3) | vs rot_raw **-0.025 (t=-1.9, parity)**; vs shell_in +0.262 (t=+21.5) |
+| shell_both (chord input + hidden) | 22.356 | +0.375 (+24.2, 91%) | 0.0950 (-0.0055) | vs shell_in **+0.129 (t=+11.2, 74%)**; vs Plucker both +0.274 |
+| shell_in (chord input) | 22.228 | +0.247 (+18.5, 83%) | 0.0963 (-0.0042) | vs Plucker input ladder +0.041 (t=+2.3) |
+| shell_h (chord hidden) | 22.043 | +0.062 (+4.8, 61%) | 0.0984 (-0.0021) | vs Plucker hidden +0.162 (t=+10.9) |
+| Plucker input / hidden / both (F69, re-eval) | 22.187 / 21.881 / 22.082 | +0.206 / -0.100 / +0.101 | | |
+
+Readings:
+1. **Geometry sets the size of the coordinate effect.** On the orbit set (F73) the chord
+   coordinate turned -0.41/-0.57 into +0.38/+0.32; on vi, where nested near-duplicate pairs
+   already make the Plucker ladder positive, the same change is worth only +0.04 (input) /
+   +0.16 (hidden). The chord coordinate matters in proportion to how far the window's
+   correspondences are from "same ray".
+2. **The two chord sites compose on vi** (+0.129 over the better single site, t=+11) where
+   the Plucker sites did not (Plucker both < input, F69), and where the chord sites did NOT
+   compose on the 91-deg orbits (F74). Same ordering as the F52/F53 dose-response:
+   composition returns as the window narrows -- and the coordinate fix is what lets it
+   return on vi.
+3. **On vi the carrier dominates**: rot_raw (+0.53) is the best single recipe, chord + carrier
+   ties it (-0.025, t=-1.9), so replacing rot_raw's matrix address (R on q/k) by chord
+   phases neither helps nor hurts once the v/o transport is present. Contrast the orbit set,
+   where shell_vo beat rot_raw by +0.11 (t=+6.1). Pending on vi: shell_all (in + hidden chord
+   + carrier), pra_vo (Plucker ladder + carrier: is the chord needed at all on vi?), foot_in
+   (single closest-approach point instead of the integrated chord), prope_raw / imgvo
+   references, raygta, anchor_in.
+4. Single seed; 500 held-out objects; all cells paired on the same index.
