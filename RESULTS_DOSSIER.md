@@ -2941,3 +2941,42 @@ Readings:
    orbit best) -- on vi the matched q/k transform of rot_raw matters.
 4. Next: foot_vo (foot + carrier) and foot_all (foot at both sites + carrier), queued at the top;
    expected to move the vi best above +0.63. Single seed throughout; paired on 500 objects.
+
+## F77 (wave 3, first half; vi, seed 95, 500 scenes, base 21.981; 2026-08-31 21:15): SITE ROLE
+## ASSIGNMENT wins -- rotation matrix at the input address, 3D-point phases at the hidden address,
+## rotation carrier = +0.716 (new best); asymmetric store/read codes do NOT help
+Context: after the user asked for TTT-specific PE (not borrowed from attention) under a PE-only /
+~zero-cost rule, five ideation agents produced ~57 ideas; seven families were selected
+(OBJ_ANALYSIS.md 4.6). First results:
+
+| cell | recipe | PSNR | dPSNR vs base (t, win%) | key contrasts |
+|---|---|---|---|---|
+| **rot_hshell** | input R (matrix) + hidden chord phases + rotation v/o | **22.697** | **+0.716 (+41.2, 98%)** | vs rot_raw +0.183 (t=+15.7); vs shell_all +0.086 (t=+7.2); vs rot_shell +0.147 |
+| foot_vo | input foot-point phases + rotation v/o | 22.577 | +0.595 (+36.1, 96%) | vs foot_in +0.124; vs rot_raw +0.062 (t=+4.6); vs shell_vo +0.087; vs rot_hshell -0.120 |
+| rot_shell | input R AND chord phases stacked on q/k + v/o | 22.550 | +0.569 (+33.9, 96%) | vs rot_raw +0.036 (t=+2.9) only |
+| anchor_both | anchor input + anchor hidden | 22.492 | +0.511 | vs anchor_in +0.110 (t=+10.1) |
+| anchor_vo | anchor input + rotation v/o | 22.409 | +0.428 | vs anchor_in +0.027 (t=+2.2): anchors barely compose with the carrier |
+| asym_ck_qa_vo | key chord / query 3 anchors + v/o | 22.273 | +0.292 | vs shell_vo -0.217 |
+| asym_ck_qa | key chord / query 3 anchors (input site) | 22.209 | +0.228 | vs shell_in -0.018 (t=-1.7); vs foot_in -0.244 |
+
+Readings:
+1. **Site role assignment is the TTT-specific recipe that pays.** The input code passes through the
+   SwiGLU (enters the dominant coefficient roughly squared, wrap-tolerant) and wants an exact,
+   envelope-free group action (the rotation matrix); the hidden code multiplies the dominant
+   coefficient linearly and wants a 3D-point kernel; the carrier wants the rotation transport.
+   Giving the three slots three different codes beats every same-code combination: +0.18 over
+   rot_raw, +0.09 over chord-everywhere (shell_all), +0.15 over stacking a second code on the SAME
+   input site (rot_shell, which barely moves rot_raw). Attention has one bilinear slot and cannot
+   assign roles -- this is the differentiation the user asked for, and it is free.
+2. **Foot point + carrier is the best two-slot recipe** (+0.595 > rot_raw), confirming F76's
+   "simplest coordinate wins" with the carrier attached; hidden foot on top (rot_hfoot) is queued.
+3. **Asymmetric store/read codes (the agents' consensus #1) do not help in the chord-key form**:
+   key=chord / query=anchors equals the symmetric chord (-0.018) and loses to a single foot point
+   by 0.24; with the carrier it trails shell_vo by 0.22. The sinc-coded key is the bottleneck (its
+   envelope kills the high rungs), not the query side. The foot-key variant (asym_fk_qa) is the
+   last test of this family. Anchors also barely compose with the carrier (+0.03).
+4. Pending in wave 3: rot_hfoot, foot_all, od_in (origin+direction 6D control), asym_fk_qa /
+   asym_ak_qc, rot_hfejer (non-negative Fejer hidden ladder), rot_hbump (hidden view-direction
+   amplitude code), gate_shell_rot (SwiGLU gate=chord x content=rotation product kernel),
+   vernier_both (low-band input x high-band hidden). Single seed; the orbit cross-check of
+   rot_hshell is queued behind the vi queue.

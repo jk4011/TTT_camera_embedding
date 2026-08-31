@@ -245,6 +245,7 @@ update가 스스로 상쇄. 90° 특유의 간섭 문제에 직접 대응하지�
 | oracle_in (입력 토큰만 GT) | +0.426, shell_in 대비 +0.05; oracle_both 대비 −1.66 | oracle 이득은 **타깃 토큰의 depth** 효과 |
 **vi(RayRoPE 재렌더) 결과 (F75)**: rot_raw **+0.533**, shell_vo +0.509(rot_raw와 동률), shell_both +0.375(shell_in 대비 +0.129 → vi에서는 두 사이트 합성), shell_in +0.247(Plücker +0.206 대비 +0.04), shell_h +0.062. vi에서는 carrier가 지배적이고 chord 좌표의 몫은 작다(기하가 좁을수록 좌표 효과 감소).
 **vi wave 2 (F76)**: foot_in(최근접점 1개, 파라미터 0) **+0.472** = 주소 단독 최고(anchor +0.07, chord +0.23 상회); shell_all(입력 chord + hidden chord + carrier) **+0.630** = vi 최고 — 3슬롯 모두 합성. shell_h_vo +0.33(carrier의 짝은 입력 주소), imgvo +0.26(vi에서는 약함).
+**wave 3 전반 (F77)**: rot_hshell(입력 회전 행렬 + hidden chord + carrier) **+0.716** = vi 최고 — 사이트 역할 배정 성립(rot_raw +0.18, shell_all +0.09, rot_shell +0.15). foot_vo +0.595(rot_raw +0.06). 비대칭 코드(asym_ck_qa) +0.228 = 대칭 chord와 동률 → key=chord 형태는 기각; anchor+carrier 비합성(+0.03).
 판정 트리 결과: H1 ≫ 0 → 갈래 (a)에 집중. 다음: shell_both, shell_vo(진행 중), anchor_*, oracle_in(타깃 depth가 병목인지), vi 데이터 재현.
 
 ## 4.6 wave 3 — TTT 고유 PE (사용자 요청, 5개 에이전트 ~57개 아이디어 → 7계열, 2026-08-31 저녁)
