@@ -1098,6 +1098,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         shell_r: float = 0.35,
         n_dirs: int = 6,
         num_freqs_hseg: int = 84,
+        sweep_k: int = 4,
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1111,7 +1112,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "hnrot", "sharedf", "gate_rope", "content_rope",
                  # gObjaverse program (2026-08-31): 3D-point / object-shell addressing,
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
-                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in",
+                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in",
                  "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content"}
         unknown = self.cam_modes - known
@@ -1156,12 +1157,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if "mlp2_rot2" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra",
-                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in"}
+                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
         matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
                        "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content"}
         assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
-        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in"}
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in"}
         self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
         hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga"} | self.seg_h_modes
@@ -1331,6 +1332,25 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.register_buffer("omega_himg", math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), num_freqs_h, base=2.0), persistent=False)
             self.gain_himg = _gain("gain_himg", 2, num_freqs_h)
+
+        if "sweep_in" in self.cam_modes:
+            # DEPTH-SWEEP READOUT (TTT-native, 2026-08-31). The fast weight is a function
+            # over the address space, so a TARGET token can query it at several 3D points
+            # along its own ray: K point-coded copies of q_j at chord fractions (k+0.5)/K,
+            # plus the chord-integrated read (k = 0), are all applied, and the K+1 readouts
+            # are mixed by a softmax over a zero-init linear probe of each readout ("let the
+            # memory's own retrieval pick the depth"). Keys/values are stored with the
+            # chord code as in shell_sinc; input-token reads are unchanged. Attention has
+            # no equivalent short of K extra full passes; here it costs K extra MLP
+            # evaluations on the target tokens only. Zero-init probe => starts as the
+            # uniform mixture (close to shell_sinc).
+            assert not (self.cam_modes & (hidden_fams | {"prope_raw", "rot_raw", "prope_in_raw",
+                                                          "prope_orig", "prope_imgrope", "raygta",
+                                                          "rot_content", "gate_rope", "content_rope"})), \
+                "sweep_in: first version supports the plain kernel (+ vo_rel) only"
+            self.sweep_k = sweep_k
+            self.sweep_probe = nn.Linear(head_dim, 1)
+            nn.init.zeros_(self.sweep_probe.weight); nn.init.zeros_(self.sweep_probe.bias)
 
         if {"h_pra", "h_dpra"} & self.cam_modes:
             # Hidden-space Plucker rotary: 6 coords x num_freqs_h pairs in d_h.
@@ -1877,6 +1897,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             v = _mat4_tok(v, raygta_M)
 
         q_plain = k_plain = None
+        sweep_state = None
         if "rot_content" in modes:
             # H8 stage 1 (gate-invariant / content-relative SwiGLU): the rot_raw transform
             # (R_c2w on q/k tiled over 4-blocks, v transport, output back) is routed ONLY to
@@ -1941,10 +1962,28 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             k = apply_rotary_pairs(k, ec, es)
         elif modes & self.seg_in_modes:
             ec, es = self._point_site_coeffs(info, "in")
+            q_pre = q
             q = apply_rotary_pairs(q, ec, es)
             k = apply_rotary_pairs(k, ec, es)
             q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
             k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+            if "sweep_in" in modes:
+                ops = info["ttt_op_order"]
+                assert len(ops) == 2 and ops[0].update and not ops[0].apply and ops[1].apply \
+                    and ops[0].start == 0 and ops[1].start == 0, "sweep_in expects [update(inputs), apply(all)]"
+                n_in, n_all = ops[0].end, ops[1].end
+                n_tgt = n_all - n_in
+                t1, t2 = self._chord_t(info)
+                q_ks = []
+                for kk in range(self.sweep_k):
+                    fr = (kk + 0.5) / self.sweep_k
+                    ta = t1 + fr * (t2 - t1)
+                    c, sn = self._seg_dirs_coeffs(info, ta, ta, self.dirs_in, self.omega_seg3, self.gain_seg3)
+                    c, sn = to_heads(c, nh)[:, n_in:n_all], to_heads(sn, nh)[:, n_in:n_all]
+                    qk_ = apply_rotary_pairs(q_pre[:, n_in:n_all], c, sn)
+                    q_ks.append(qk_ / (qk_.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype))
+                q = torch.cat([q] + q_ks, dim=1)                  # [B, n_all + K*n_tgt, d]
+                sweep_state = (n_in, n_tgt, self.sweep_k)
         elif "point_rope" in modes:
             with torch.autocast(device_type="cuda", enabled=False):
                 depth_raw = self.depth_head(x.float())
@@ -2007,6 +2046,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 w2 = w2 + to_heads(torch.einsum("dr,br,rh->bdh", self.U2, s[:, 2], self.V2), nh)
 
         ttt_op_order = info["ttt_op_order"]
+        if sweep_state is not None:
+            n_in_, n_tgt_, K_ = sweep_state
+            ttt_op_order = [ttt_op_order[0],
+                            TTTOperator(0, n_in_ + n_tgt_ + K_ * n_tgt_, False, True)]
         if "cam_registers" in modes:
             ops = ttt_op_order
             assert len(ops) == 2 and ops[0].update and not ops[0].apply \
@@ -2181,6 +2224,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 muon_update_steps=self.muon_update_steps,
             )
 
+        if sweep_state is not None:
+            n_in_, n_tgt_, K_ = sweep_state
+            Bq = output.shape[0]
+            o_main = output[:, : n_in_ + n_tgt_]
+            o_t0 = o_main[:, n_in_:]
+            o_ks = output[:, n_in_ + n_tgt_ :].reshape(Bq, K_, n_tgt_, output.shape[-1])
+            cands = torch.cat([o_t0[:, None], o_ks], dim=1)          # [B, K+1, n_tgt, d]
+            logits = self.sweep_probe(cands.float()).squeeze(-1)      # [B, K+1, n_tgt]
+            wts = torch.softmax(logits, dim=1)
+            o_tgt = (wts[..., None] * cands.float()).sum(1).to(output.dtype)
+            output = torch.cat([o_main[:, :n_in_], o_tgt], dim=1)
         if "vo_rel" in modes:
             output = apply_block_rot(output, R_tok, transpose=True)
         if "prope_ttt" in modes:
