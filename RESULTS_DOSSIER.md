@@ -3036,3 +3036,20 @@ Readings:
 4. Pending: the rest of the user's (o,d) family (od_both, od_*_vo, od_*_vod: phase-form v/o
    transport with 6D or direction-only coordinates), the orbit cross-checks (rot_hshell running,
    foot_all queued), and seeds for the final recipe (user decision).
+
+## F79: the role-assignment recipe holds on the 91-deg ORBIT set too -- rot_hshell +0.642, the new
+## PE-only best there (seed 95, 499 scenes, base 22.193; 2026-09-01 00:40)
+| cell | PSNR | dPSNR vs base (t, win%) | contrasts |
+|---|---|---|---|
+| **rot_hshell** (input R + hidden chord + rotation v/o) | **22.835** | **+0.642 (+31.2, 95%)** | vs shell_vo (+0.53) +0.110 (t=+6.6); vs rot_raw +0.222 (t=+13.4); vs prope_raw +0.173 (t=+11.1); vs shell_h +0.318 |
+
+Reading: one recipe, both geometries -- vi +0.716 (F77), orbit +0.642 -- each time above every
+two-slot combination. On the orbit set the two chord SITES did not compose (F74: shell_both < shell_in),
+yet the rotation matrix at the input + chord at the hidden compose (+0.11 over shell_vo): what fails at
+91 deg is two phase codes, not two slots. The orbit cross-check of foot_all (the simplest recipe) is
+running. Also recorded: the zero-training depth probe on gobj_shell_h (probe_depth_from_memory.py,
+32 scenes, 9,712 surface target tokens): median |t - t_gt| foot prior 0.083 (corr 0.55); the memory's
+mass profile along the target ray gives 0.071-0.075 (corr 0.62-0.65, beats the prior on 53-56% of
+tokens) and Hebbian LS ray triangulation 0.075 (64%) at the 5th layer only, no better than the prior at
+layers 1-4/6. Signal present but weak in a model not trained for it; a noisy-oracle calibration
+(GT depth + N(0, 0.07^2)) is running to price that error level in dB.

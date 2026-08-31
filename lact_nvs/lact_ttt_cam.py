@@ -1103,6 +1103,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         asym_query: str = "anchor",
         asym_k: int = 3,
         omega_scale_h: float = 1.0,
+        oracle_noise: float = 0.0,
         vo_coords: str = "6d",
         fejer_h: bool = False,
         fejer_omega0: float = 0.5,
@@ -1224,6 +1225,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 "gate_rope/content_rope only implemented in the plain-kernel path"
         self.head_dim = head_dim
         self.num_freqs = num_freqs
+        # oracle_noise (calibration, 2026-09-01): Gaussian noise (std, canonical units) added to
+        # the GT ray parameter of the oracle modes -- "what is an estimator with error sigma worth?"
+        self.oracle_noise = float(oracle_noise)
         d_h = int(head_dim * inter_multi)
 
         if "ogta" in self.cam_modes:
@@ -1776,6 +1780,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert "tok_t_gt" in info, "oracle modes need --depth_dir (GT patch depth)"
             tg = info["tok_t_gt"]
             use = tg > 0
+            if self.oracle_noise > 0:
+                key = "_tgt_noise_%d" % id(self)
+                if key not in info:   # one draw per forward per layer, shared by both sites
+                    info[key] = torch.randn_like(tg) * self.oracle_noise
+                tg = (tg + info[key]).clamp_min(0.02)
             if modes & {"pt_gt_in", "h_pt_gt_in"}:
                 n_in = info["ttt_op_order"][0].end
                 idx = torch.arange(tg.shape[1], device=tg.device)[None, :, None]
