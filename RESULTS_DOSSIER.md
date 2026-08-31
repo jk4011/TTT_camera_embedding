@@ -2885,3 +2885,31 @@ Readings:
    (single closest-approach point instead of the integrated chord), prope_raw / imgvo
    references, raygta, anchor_in.
 4. Single seed; 500 held-out objects; all cells paired on the same index.
+
+## F75 addendum (vi controls, node1, 2026-08-31 18:40): projective carrier FAILS under varying
+## intrinsics, per-token ray frames lose to per-view frames, discrete depth anchors beat the
+## chord integral, and the Plucker ladder does not compose with the carrier
+Same vi protocol/pairing as F75 (base 21.981, 500 scenes).
+
+| cell | PSNR | dPSNR vs base (t, win%) | contrasts |
+|---|---|---|---|
+| prope_raw (TTT port of full projective PRoPE on q/k/v/o) | 21.973 | **-0.008 (-0.6, 50%)** | vs rot_raw (22.514) **-0.541 (t=-34.4, 3.8%)** |
+| raygta (per-TOKEN ray-frame rotation on q/k/v/o) | 22.224 | +0.243 (+17.4, 79%) | vs rot_raw -0.291 (t=-24.4) |
+| **anchor_in** (3 fixed depth anchors on the chord, input site) | **22.382** | **+0.401 (+23.7, 89%)** | vs chord shell_in +0.154 (t=+11.4); vs shell_both +0.026 (t=+1.9); vs rot_raw -0.132 |
+| pra_vo (Plucker ladder + rotation v/o) | 22.149 | +0.168 (+10.0, 73%) | vs Plucker input alone **-0.038 (t=-3.1)**: no composition |
+
+Readings:
+1. **The projective PRoPE transform is worthless as a fast-weight carrier once intrinsics vary per view**
+   (FOV 20-80 deg, random distance): lift(K_j) w2c_j scales the stored value tiles by view-dependent
+   factors (norm distortion, F3) and couples R with t (DPPE's non-identifiability); the rotation-only
+   carrier keeps the whole +0.53. On the fixed-intrinsics orbit set the two were equal (F59). For the
+   paper: the orthogonal rotation carrier is not a simplification of PRoPE but the version that survives
+   RayRoPE-style data.
+2. Per-view camera frames beat per-token ray frames (RayGTA -0.29 vs rot_raw): rotating tokens of ONE
+   view into different frames breaks within-view consistency of the stored values.
+3. Discrete anchors beat the integrated chord at the input site (+0.15): the sinc envelope kills the
+   high rungs on long chords, whereas three point codes keep full resolution at three depths (their sum
+   is a 3-peak kernel). This is the "plane-sweep" flavour of the coordinate lesson, still at zero cost.
+4. The chord composes with the carrier (+0.26 over shell_in on vi) while the Plucker ladder does not
+   (pra_vo below the ladder alone): the address must be geometrically right for the transported values
+   to be blended coherently.
