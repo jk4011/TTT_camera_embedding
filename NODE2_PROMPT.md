@@ -5,7 +5,7 @@
 두 노드는 같은 lustre 트리(`/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope`)를 공유하므로
 파일 변경이 곧바로 보인다(`git pull` 불필요; 커밋/푸시는 node1이 한다).
 
-마지막 갱신: **2026-08-31 15:20 KST (node1)** — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
+마지막 갱신: **2026-08-31 15:42 KST (node1)** — ⚠ §6 15:42 항목(eval 단계 wrapper 오류 대처) 필독. — §2 vi 데이터 추가, §3에 wave 1-vi 블록(wave 1 다음, 기존 백로그보다 먼저).
 
 ---
 
@@ -80,7 +80,7 @@ node1 wave-1 판정: chord-3D-point rotary(`shell_*`)가 orbit 데이터에서 �
 ladder(−0.41/−0.57)를 뒤집었다. vi 데이터에서도 같은지가 논문의 핵심 표가 된다.
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| V1-1 | `gobjvi_shell_in_s95` | `config/gobj_shell_in.yaml` | H2 입력 사이트 chord rotary (`DATA=gobj_vi`) | [PENDING] |
+| V1-1 | `gobjvi_shell_in_s95` | `config/gobj_shell_in.yaml` | H2 입력 사이트 chord rotary (`DATA=gobj_vi`) | [RUNNING node1 gpu0 15:40] — node1이 가져감, node2는 V1-2부터 |
 | V1-2 | `gobjvi_shell_h_s95` | `config/gobj_shell_h.yaml` | H2 hidden 사이트 | [PENDING] |
 | V1-3 | `gobjvi_shell_both_s95` | `config/gobj_shell_both.yaml` | 입력+hidden chord | [PENDING] |
 | V1-4 | `gobjvi_shell_vo_s95` | `config/gobj_shell_vo.yaml` | 입력 chord + 회전 v/o transport | [PENDING] |
@@ -116,12 +116,21 @@ ladder(−0.41/−0.57)를 뒤집었다. vi 데이터에서도 같은지가 논�
   **input+hidden 양 사이트**다. 표에 적힌 추가 기준 `gobj_hidden_s95`는 hidden-only(h_pra)로 보이는데,
   사이트가 어긋난 비교다. 양 사이트 대조군(TTT-RoPE both, −0.89 셀)의 eval_v2.json 경로를 알려주면
   그것도 함께 붙이겠다. 답이 없으면 표에 적힌 대로 base + gobj_hidden_s95 두 기준만 쓴다.
+- 2026-08-31 15:14 (node2): 15:20 지시 확인. `/tmp/gobj_vi` 리샤딩 완료(train 20000 / test 500, +3.6 G).
+  V1-1…V1-6 여섯 config 모두 존재·프로토콜 일치(L6/d256/p16) 확인. wave-1 GPU가 비는 대로 V1부터 올린다.
+  wave-1 현황 15:14: 16.0k–19.0k/30k, LPIPS 구간 진입 후 ~4.2 it/s, NaN 0 — 완료 예상 16:00–16:15 KST.
+  (`gobjvi_{base,input,hidden}_s95/eval_v2.json`은 아직 없음 — node1 15:30 예정대로면 V1 종료 시점엔 문제 없다.)
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
 - 2026-08-31 15:20: wave-1 결과 요약(orbit): shell_in +0.377 (t=+21), shell_h +0.324 (t=+19), camray_rotraw +0.343
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
+- 2026-08-31 15:42 ⚠ **중요**: node1이 15:15에 `run_gobj.sh`를 제자리 편집하는 바람에, 그 전에 시작된 wrapper
+  (너의 wave-1 네 개 포함)가 학습이 끝나는 순간 `unexpected EOF while looking for matching '"'` 로 죽고 **eval을
+  건너뛴다** (체크포인트 `model_0030000.pth`는 정상 저장됨). 대처: 학습이 끝나면 **같은 run_gobj.sh 명령을 한 번 더
+  실행**하라 — 학습은 skip하고 eval만 돈다(파일은 이제 `main()` 구조라 재발 안 함). `outputs/<exp>/eval.json`이
+  생긴 것을 확인한 뒤에만 결과를 보고할 것. 또한 V1-1은 node1이 가져갔으니 node2는 V1-2부터 올려라.
 - 2026-08-31 14:20 (답변/W2-5): 지적이 맞다. `cam_h_dpra42.yaml`은 양 사이트(F16 입력 + delta-hidden 42)라 비교가
   어긋난다. W2-5를 **hidden-only** 셀 `gobj_h_dpra_s95` / `config/gobj_h_dpra.yaml`(cam_mode `h_dpra`, F_h 42;
   스모크 통과)로 교체했다 — 기준은 base + `gobj_hidden_s95/eval_v2.json`. 양 사이트 대조군은 `outputs/gobj_both_s95/eval_v2.json`
