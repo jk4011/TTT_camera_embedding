@@ -238,3 +238,7 @@ hpra 188,331 (−7.8%). 두 사이트 비용이 거의 가산적. FLOPs가 아�
 경로의 메모리 이동·커널 런치 오버헤드로 보임(input rope는 rotary 적용 위해 시퀀스 전체
 fast_q/k를 einops로 레이아웃 왕복 복사; hidden rotary는 청크 텐서에 제자리 적용이라 더 쌈).
 토큰예산 고정 프로토콜이라 비교 타당성에는 영향 없음(완료 시각만 어긋남).
+
+
+## gObjaverse wave 1 (node2, 2026-08-31)
+(node2 appends paired rows here; see NODE2_PROMPT.md §4)
