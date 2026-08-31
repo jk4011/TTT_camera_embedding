@@ -1766,7 +1766,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
     def _point_site_coeffs(self, info, site):
         """cos/sin for the shell / oracle modes at the input ('in') or hidden ('h') site."""
         modes = self.cam_modes
-        if modes & {"foot_in", "h_foot"}:
+        foot_here = ("foot_in" in modes) if site == "in" else ("h_foot" in modes)
+        if foot_here:
             t1 = t2 = None
         else:
             t1, t2 = self._chord_t(info)
@@ -1794,7 +1795,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             c = torch.stack(cs, dim=1).flatten(0, 1)                        # [(b h), L, nF]
             sn = torch.stack(ss, dim=1).flatten(0, 1)
             return c, sn
-        if modes & {"foot_in", "h_foot"}:
+        if foot_here:
             # Simplest 3D-point coordinate: the ray's closest-approach point to the focus
             # point, x_c = o + t_c d (no integral, no radius; env = 1).
             tc = info["tok_tc"].clamp_min(0.02)
