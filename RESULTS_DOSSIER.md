@@ -3007,3 +3007,32 @@ Readings:
 3. Still pending: rot_hfoot (hidden foot instead of chord), foot_all, the (o,d)-coordinate family
    (od_in/od_both/od_*_vo/vod) requested by the user, and the ORBIT cross-check of rot_hshell
    (launched 22:45, node1 gpu0). Single seed throughout.
+
+## F78: the SIMPLEST recipe ties the best -- foot point at BOTH sites + rotation carrier = +0.717,
+## equal to rot_hshell; and (origin, direction) coordinates are WORSE than Plucker (vi, seed 95,
+## 500 scenes, base 21.981; 2026-08-31 23:20)
+| cell | recipe | PSNR | dPSNR vs base (t, win%) | contrasts |
+|---|---|---|---|---|
+| **foot_all** | foot-point phases at input AND hidden + rotation v/o | **22.698** | **+0.717 (+41.1, 98%)** | vs rot_hshell **+0.001 (t=+0.1, tie)**; vs shell_all +0.087 (t=+7.8); vs foot_vo +0.122 (t=+11.3) |
+| rot_hfoot | input R + hidden foot + rotation v/o | 22.615 | +0.634 | vs rot_hshell -0.082 (t=-7.4); vs rot_raw +0.101 |
+| od_in | (camera origin, direction) 6D phases at the input site (user question) | 21.959 | **-0.022 (t=-1.2)** | vs Plucker input (+0.206) **-0.227 (t=-18.9, 18%)** |
+
+Readings:
+1. **One coordinate, two sites, one carrier.** The user's request for something simpler than the
+   chord/role-assignment machinery is met: "use the 3D point on the ray nearest the scene focus as the
+   rotary coordinate at the input AND hidden sites, and transport v/o by the camera rotation" gives
+   +0.717, statistically identical to rot_hshell (matrix input + chord hidden). Zero learnable
+   parameters beyond the usual ladder gains, no radius, no integral, no matrix address.
+   Composition at wide-ish baselines: foot_in +0.47 -> +foot hidden (foot_both, not run) -> +carrier
+   +0.717; each slot adds.
+2. **Hidden site prefers uncertainty when the input is a matrix, but not when the input is the same
+   point**: rot + hidden chord (+0.716) > rot + hidden foot (+0.634), yet foot + hidden foot + v/o
+   (+0.717) ties the former. Two recipes reach the same ceiling from different sides; the shared
+   point code at both sites is the simpler one to present.
+3. **(o, d) is not a fix for Plucker's failure -- it is worse** (-0.23 vs the Plucker ladder, below the
+   NoPE base). The camera origin is constant within a view, so three of the six coordinates carry
+   only view identity with O(1) differences between views: pure content tax. The lesson stands as
+   stated in F73: any RAY coordinate fails at wide baseline; the 3D POINT on the ray is what works.
+4. Pending: the rest of the user's (o,d) family (od_both, od_*_vo, od_*_vod: phase-form v/o
+   transport with 6D or direction-only coordinates), the orbit cross-checks (rot_hshell running,
+   foot_all queued), and seeds for the final recipe (user decision).
