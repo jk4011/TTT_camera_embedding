@@ -61,9 +61,17 @@ heading "gObjaverse wave 1 (node2, 2026-08-31)" and push. Numbers only; node1 wr
 Paper is under FREEZE — do not touch `paper_overleaf/`.
 
 ## If GPUs free up before node1 sends wave 2
-Run, in this order, one per free GPU (all already implemented and smoke-tested):
-1. `NODE=node2 ./run_gobj.sh <g> gobj_camray_properaw_s95 config/gobj_camray_properaw.yaml 95`
+Run, in this order, one per free GPU (all implemented and smoke-tested; `git pull` first):
+1. `NODE=node2 ./run_gobj.sh <g> gobj_raygta_s95 config/gobj_raygta.yaml 95`  (H6: per-token
+   ray-frame rotation on q/k/v/o -- matrix fusion of image ropes + camera rotation transport)
+2. `NODE=node2 ./run_gobj.sh <g> gobj_rot_content_s95 config/gobj_rot_content.yaml 95`  (H8 stage 1:
+   rot_raw transform routed to the SwiGLU content branch only; gate reads plain q/k)
+3. `NODE=node2 ./run_gobj.sh <g> gobj_camray_properaw_s95 config/gobj_camray_properaw.yaml 95`
    (H7 with translation-carrying projective transport)
-2. `NODE=node2 ./run_gobj.sh <g> gobj_h_dpra42_s95 config/cam_h_dpra42.yaml 95`  (H5: hidden
-   rotary on the update-induced path only; compare with gobj_hidden_s95 −0.57)
-3. `NODE=node2 ./run_gobj.sh <g> gobj_shell_iso_in_s95 config/gobj_shell_iso_in.yaml 95`  (H2 iso)
+4. `NODE=node2 ./run_gobj.sh <g> gobj_anchor_in_s95 config/gobj_anchor_in.yaml 95`  (H3b: 3 fixed
+   depth anchors along the chord, input site)
+5. `NODE=node2 ./run_gobj.sh <g> gobj_h_dpra42_s95 config/cam_h_dpra42.yaml 95`  (H5; compare with
+   gobj_hidden_s95 -0.57)
+6. `NODE=node2 ./run_gobj.sh <g> gobj_camray_hrot_s95 config/gobj_camray_hrot.yaml 95`  (H7 + H4)
+7. `NODE=node2 ./run_gobj.sh <g> gobj_shell_iso_in_s95 config/gobj_shell_iso_in.yaml 95`  (H2 iso)
+Append every finished cell's paired numbers (vs `gobj_base_s95/eval_v2.json`) to NODE2_RESULTS.md and push.

@@ -157,11 +157,11 @@ chord → 날카로운 주소, 중심 ray는 지름 → 저주파만 생존. plu
 object-centric 버전이며 objaverse에서는 미실험. 예측 +0.1~+0.4. 반증: ≤ 0. 변형 `shell_iso`: 3축 대신
 정20면체 6방향(등방 3D kernel).
 
-**H3. 학습 depth + shell prior (`point_rope` 재설계).** ☐ (H1/H2 결과 후)
-depth head가 chord 중심을 기준 log-offset과 불확실성 σ를 예측, σ 초기값 = chord 반폭. RE10K에서는
-학습 depth가 확산된 채 남았지만(F7) 여기서는 ray 코드가 무용하므로 depth를 배울 압력이 훨씬 크다.
-문헌(URoPE)은 **고정 depth anchor가 학습 depth보다 낫다**고 보고 → H3b: chord 위 K=3 고정 anchor 점
-각각에 주파수 블록(plane-sweep 위상). H1의 결과가 이 갈래 전체의 상한을 정한다.
+**H3. (제외) 학습 depth head.** 사용자 지침(2026-08-31): "depth를 예측하는 layer 추가는 우리 방향이
+아니다 — 모델 구조 변경 없이 positional embedding만 개발." 따라서 depth head 계열(point_rope 재설계)은
+계획에서 뺀다. 이 갈래에서 허용되는 것은 구조 변경이 없는 H2(chord sinc)와 그 변형 H3b(✅ `anchor_in` /
+`h_anchor`): chord 위 K=3 **고정** anchor 점(chord 분율 0.25/0.5/0.75) 각각에 주파수 블록(plane-sweep 위상;
+URoPE는 고정 anchor가 학습 depth보다 낫다고 보고). H1(oracle)은 이 갈래의 상한을 재는 진단일 뿐 방법이 아니다.
 
 ### 갈래 (b): 위상 대신 행렬 군 작용, 모든 주소 공간에
 
@@ -177,7 +177,7 @@ h_ga(−0.18)는 norm을 왜곡하는 projective P였다. 4-블록마다 `blockd
 (정준 프레임 = 장면마다 무작위 방위각 → nuisance). 먼저 기존 `h_dpra42`를 objaverse에 돌려 h_pra(−0.57)와
 비교(예측: 덜 나쁘거나 +). 반증: h_dpra ≤ h_pra.
 
-**H6. Ray-frame per-token transport (RayGTA).** ☐
+**H6. Ray-frame per-token transport (RayGTA, `raygta`).** ✅
 뷰별 R_cam 대신 `R_tok = R_cam · R_pix(u,v)`(광축을 픽셀 ray로 돌리는 회전)을 q/k/v/o에 적용:
 image rope(+0.34)와 rot transport(+0.43)를 하나의 SO(3) 작용으로 융합(둘의 위상 조합 imgvo는 +0.39로
 가산되지 않았다). 예측 +0.5~+0.8. 반증: ≤ rot_raw.
@@ -191,7 +191,7 @@ TTT 사이트의 `R_j R_iᵀ`(주소)·`R_j R_iᵀ v`(carrier)로만 들어간�
 +1.4 dB. 위험: cross-view 정보 통로가 TTT 층뿐이라 pose 병목; 고정 반경 orbit에서는 회전이 위치를
 결정하므로 rot_raw로 충분, 일반 데이터용은 prope_raw(translation 포함). 예측 +0.5~+1.0. 반증: < rot_raw.
 
-**H8. 등변 SwiGLU (gate는 불변량만, content 경로는 등변).** ☐ (H7 양성 시)
+**H8. 등변 SwiGLU (gate는 불변량만, content 경로는 등변).** ◐ 1단계 `rot_content` 구현됨(gate 브랜치 plain q/k, content 브랜치 R-변환 + v/o transport); 완전 등변 커널은 H7 양성 시
 gate `silu(xW0)`가 l=0 불변량(3-블록 norm, 스칼라 슬롯)만 읽고 W2·W1이 블록-스칼라(`A⊗I₃ ⊕ B`)이면
 `h(Rx) = ρ(R)h(x)`가 되어 (B)채널이 정확히 GTA 구조가 되고 (A)항이 pose-free가 된다(3.4(b)(c) 해결).
 1단계(코드 재사용): `fast_weight_swish_glu_branch_input_rotary_apply`로 gate 브랜치에 plain q/k, content
@@ -199,7 +199,8 @@ gate `silu(xW0)`가 l=0 불변량(3-블록 norm, 스칼라 슬롯)만 읽고 W2�
 
 ### 갈래 (d): 세금 없는 부가 채널 / TTT 고유 메커니즘
 
-**H9. Epipolar 2차 특징 bias (`epi_quad`).** ☐
+**H9. Epipolar 2차 특징 bias (`epi_quad`).** ☐ (후순위 — fast weight에 기하 특징 행을 추가하므로 "PE만"
+기준에서 구조 변경에 가깝다; 사용자 지침 반영)
 hidden 주소에 37차원 블록을 덧붙여 `⟨φ(π_j), ψ(π_i)⟩ = c − β²B(π_i,π_j)²`(정확한 "ray 교차" kernel,
 SE(3) 불변, wrap 없음)을 (B)채널에 **가산**한다: W1에 37행 추가(zero-init), update는 기하 basis로
 value를 splat, apply는 자기 ray의 epipolar 이웃 value의 가중합을 읽는다 = fast-weight 판 epipolar
@@ -211,7 +212,8 @@ attention bias(SPAD: Objaverse +1.3 dB). attention에서는 O(N²)인 bias가 TT
 baseline에서 hidden 사이트가 이득의 대부분을 날랐으므로(E8) 세금 없는 좌표라면 90°에서도 가산될 수 있다.
 예측 imgvo 대비 +0.1~+0.2. 반증: ≤ imgvo.
 
-**H11. View-direction soft partition of hidden units (`hgate`).** ☐
+**H11. View-direction soft partition of hidden units (`hgate`).** ☐ (후순위 — hidden 유닛 gating은 PE보다
+구조 변경에 가깝다; 사용자 지침 반영)
 뷰 방향 f_v를 G개 anchor에 softmax로 배정하고 hidden 유닛에 `1+β·(a−1/G)`의 **비음·봉우리형** 대각
 gating(update·apply 동일). cos kernel의 음의 로브 없이 "이웃 뷰에서 더 많이 읽기"를 구현, β zero-init으로
 baseline과 정확히 일치. 예측 +0.1~+0.4. 반증: β → 0.
@@ -237,8 +239,12 @@ update가 스스로 상쇄. 90° 특유의 간섭 문제에 직접 대응하지�
 | wave | node1 (GPU 0–3) | node2 (GPU 0–3) |
 |---|---|---|
 | 1 | H1 `oracle_both` · H2 `shell_in` · H2 `shell_h` · H7 `camray_rotraw` | 대조군 `attn_nope` · `attn_prope` · H4 `hrot_rotraw` · H10 `imgvo_himg` |
-| 2 | H1 `oracle_in` · H2 `shell_iso_in` · H7 `camray_properaw` · H5 `h_dpra42` | H6 RayGTA · H9 epi_quad · H8 rot_content · H11 hgate (구현 후) |
-| 3 | wave 1–2 승자 조합(예: shell + rot transport, camray + h_rot), RE10K 역검증(one-recipe 조건), 3-seed | H3 depth-anchor · H12 dres2 |
+| 2 | H1 `oracle_in` · H2 `shell_iso_in` · H7 `camray_properaw` · H5 `h_dpra42` | H6 RayGTA · H8 rot_content · H3b depth-anchor · camray+h_rot (구현 후) |
+| 3 | wave 1–2 승자 조합(예: shell + rot transport, camray + h_rot), RE10K 역검증(one-recipe 조건), 3-seed | (후순위) H9 epi_quad · H11 hgate · H12 dres2 |
+
+**범위 규칙 (사용자, 2026-08-31)**: 모델 구조 변경 없이 positional embedding만 개발한다. 허용: q/k/v/o·hidden에
+곱하는 직교 변환(위상·회전 행렬), 위상 좌표의 선택(ray → 3D 점/chord/anchor), 입력 raymap의 프레임(camray).
+비허용: depth 예측 layer, 새 sub-layer. 진단(oracle, attention 대조군)은 방법이 아니며 논문의 방법 표에 들어가지 않는다.
 
 판정 트리: H1 ≤ +0.1 → 갈래 (a) 폐기, (b)(c) 집중. H1 ≫ 0 & `oracle_in` ≈ 0 → 타깃 depth가 병목 →
 H3(학습 depth/anchor)로. H7 > rot_raw → pose-free 체제 채택 후 H8·H4 적층. H4 ≤ rot_raw → hidden 사이트는

@@ -530,3 +530,18 @@ Wave 6 cells: `raycal4` (gpu7) = camray input + data canon + rich calibrated PE 
 transport = their architecture end-to-end on our renders; `prope -camray` (gpu4) =
 the matched PRoPE bar under the same input encoding. Target: raycal4 within ~0.5
 of prope-camray = reproduction achieved.
+
+## 2026-08-31 NEW PROGRAM: camera embedding at wide baseline (gObjaverse) — user refocus
+User decision (2026-08-31): concentrate on the camera-embedding (NVS) task; develop the method so it
+works on Objaverse/DL3DV, not only RE10K/ReCamMaster. Analysis + 12 hypotheses: `OBJ_ANALYSIS.md`.
+Protocol: F51 recipe via `lact_nvs/run_gobj.sh` (gObjaverse orbit renders in /tmp/gobj, 30k, seed 95,
+paired vs `gobj_base_s95/eval_v2.json` = baseline re-evaluated on the current test index).
+- wave 1 node1 (launched 13:15 KST): oracle_both (H1, GT-depth 3D-point rotary in+hidden; DEPTH_DIR),
+  shell_in (H2 input), shell_h (H2 hidden), camray_rotraw (H7 pose-free tokens + rot transport).
+  [oracle/shell relaunched 13:40 after a sqrt(0)-backward NaN fix in `_chord_t`]
+- wave 1 node2 (NODE2_PROMPT_OBJ.md, awaiting the user's paste): attn_nope / attn_prope (attention
+  ceiling controls), hrot_rotraw (H4), imgvo_himg (H10); then camray_properaw, h_dpra42, shell_iso_in.
+- wave 2 candidates (implement next): RayGTA per-token ray-frame transport (H6), epi_quad (H9),
+  rot_content = gate-invariant/content-relative SwiGLU (H8 stage 1), hgate (H11), oracle_in (H1b).
+- reference re-evals on the current test index: outputs/gobj_{base,imgvo,rot_raw,prope_raw,input,
+  hidden,prope_imgrope,both}_s95/eval_v2.json (script outputs/_smoke/reeval_refs.sh).

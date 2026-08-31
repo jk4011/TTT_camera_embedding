@@ -1111,8 +1111,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "hnrot", "sharedf", "gate_rope", "content_rope",
                  # gObjaverse program (2026-08-31): 3D-point / object-shell addressing,
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
-                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in",
-                 "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_img", "h_rot"}
+                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in",
+                 "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_img", "h_rot",
+                 "raygta", "rot_content"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1155,10 +1156,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if "mlp2_rot2" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra",
-                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in"}
+                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
-        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in"}
-        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in"}
+        matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
+                       "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content"}
+        assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in"}
+        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor"}
+        self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
         hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga"} | self.seg_h_modes
         assert len(hidden_fams & self.cam_modes) <= 1, "one hidden-site mechanism at a time"
         if self.cam_modes & {"ms2", "res2"}:
@@ -1300,7 +1305,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.shell_r_raw = nn.Parameter(torch.tensor(float(shell_r)))
         if self.cam_modes & self.seg_in_modes:
             nd = n_dirs if "shell_iso" in self.cam_modes else 3
-            assert 2 * nd * num_freqs_seg <= head_dim, (nd, num_freqs_seg, head_dim)
+            mult = self.n_anchor if "anchor_in" in self.cam_modes else 1
+            assert 2 * nd * num_freqs_seg * mult <= head_dim, (nd, num_freqs_seg, mult, head_dim)
             self.register_buffer("dirs_in", _dirs(nd), persistent=False)
             self.register_buffer("omega_seg3", math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), num_freqs_seg, base=2.0) * omega_scale,
@@ -1308,7 +1314,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.gain_seg3 = _gain("gain_seg3", nd, num_freqs_seg)
         if self.cam_modes & self.seg_h_modes:
             nd = n_dirs if "h_shell_iso" in self.cam_modes else 3
-            assert 2 * nd * num_freqs_hseg <= d_h, (nd, num_freqs_hseg, d_h)
+            mult = self.n_anchor if "h_anchor" in self.cam_modes else 1
+            assert 2 * nd * num_freqs_hseg * mult <= d_h, (nd, num_freqs_hseg, mult, d_h)
             self.register_buffer("dirs_h", _dirs(nd), persistent=False)
             self.register_buffer("omega_hseg", math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), num_freqs_hseg, base=2.0) * omega_scale,
@@ -1654,10 +1661,19 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 use = use & (idx < n_in)
             t1 = torch.where(use, tg, t1)
             t2 = torch.where(use, tg, t2)
-        if site == "in":
-            c, sn = self._seg_dirs_coeffs(info, t1, t2, self.dirs_in, self.omega_seg3, self.gain_seg3)
+        dirs, om, gn = ((self.dirs_in, self.omega_seg3, self.gain_seg3) if site == "in"
+                        else (self.dirs_h, self.omega_hseg, self.gain_hseg))
+        if modes & {"anchor_in", "h_anchor"}:
+            # H3b: K FIXED anchor points along the chord (plane-sweep phases, env = 1 each).
+            cs, ss = [], []
+            for kf in range(self.n_anchor):
+                f = (kf + 0.5) / self.n_anchor
+                ta = t1 + f * (t2 - t1)
+                c, sn = self._seg_dirs_coeffs(info, ta, ta, dirs, om, gn)
+                cs.append(c); ss.append(sn)
+            c, sn = torch.cat(cs, -1), torch.cat(ss, -1)
         else:
-            c, sn = self._seg_dirs_coeffs(info, t1, t2, self.dirs_h, self.omega_hseg, self.gain_hseg)
+            c, sn = self._seg_dirs_coeffs(info, t1, t2, dirs, om, gn)
         return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
 
     def _prope_mats(self, info):
@@ -1821,7 +1837,55 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 v = apply_tiled_mat4(v, P_inv_h, tpv, span)
                 prope_raw_P_h = P_h
 
+        raygta_M = None
+        if "raygta" in modes:
+            # H6 RayGTA: per-TOKEN ray-frame rotation R_tok = R_c2w * R_pix(u,v), where R_pix
+            # rotates the optical axis onto the pixel ray (camera y = roll reference). q/k/v
+            # are brought from the token's RAY frame to the world frame, the output back to
+            # the query's ray frame: address <R_tok,j q, R_tok,i k> and carrier R_tok,j^T
+            # R_tok,i v depend only on the relative rotation between the two RAYS -- the
+            # matrix (wrap-free) fusion of image-coordinate ropes and rot_raw's camera rotation.
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                Rc = info["view_rot"].float()                                   # [b, V, 3, 3] c2w
+                bsz, L = Rc.shape[0], q.shape[1]
+                vidx = torch.arange(L, device=q.device) // tpv
+                R_cam = Rc[:, vidx]                                             # [b, L, 3, 3]
+                d_w = info["tok_d"].float()                                     # [b, L, 3]
+                z = torch.einsum("blji,blj->bli", R_cam, d_w)                   # cam-frame ray dir
+                z = z / (z.norm(dim=-1, keepdim=True) + 1e-8)
+                ey = torch.zeros_like(z); ey[..., 1] = 1.0
+                xa = torch.cross(ey, z, dim=-1)
+                xa = xa / (xa.norm(dim=-1, keepdim=True) + 1e-8)
+                ya = torch.cross(z, xa, dim=-1)
+                R_pix = torch.stack([xa, ya, z], dim=-1)                        # ray -> cam
+                R_tok = R_cam @ R_pix                                           # ray -> world
+                M = torch.zeros(bsz, L, 4, 4, device=q.device, dtype=torch.float32)
+                M[..., :3, :3] = R_tok
+                M[..., 3, 3] = 1.0
+                raygta_M = to_heads(M.reshape(bsz, L, 16), nh).reshape(-1, L, 4, 4)
+            q = _mat4_tok(q, raygta_M)
+            k = _mat4_tok(k, raygta_M)
+            v = _mat4_tok(v, raygta_M)
+
         q_plain = k_plain = None
+        if "rot_content" in modes:
+            # H8 stage 1 (gate-invariant / content-relative SwiGLU): the rot_raw transform
+            # (R_c2w on q/k tiled over 4-blocks, v transport, output back) is routed ONLY to
+            # the CONTENT branch (w2); the GATE branch (w0) reads the plain post-L2-norm q/k.
+            # The gate silu(q W0) is then pose-free (no absolute leak through W0^0), while
+            # the content path and the W1 carrier are relative.
+            w2c = info["view_w2c"].float()
+            P = torch.zeros_like(w2c)
+            P[..., :3, :3] = w2c[..., :3, :3]
+            P[..., 3, 3] = 1.0
+            P_inv = P.transpose(-1, -2)
+            P_h = to_heads(P, nh)
+            P_inv_h = to_heads(P_inv, nh)
+            q_plain, k_plain = q, k
+            q = apply_tiled_mat4(q, P_h.transpose(-1, -2), tpv, self.head_dim)
+            k = apply_tiled_mat4(k, P_inv_h, tpv, self.head_dim)
+            v = apply_tiled_mat4(v, P_inv_h, tpv, self.head_dim)
+            prope_raw_P_h = P_h
         if "qk_rope_camimg" in modes:
             ccos, csin = self._rope_coeffs_camimg(info)
             q = apply_rotary_pairs(q, ccos, csin)
@@ -2086,6 +2150,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 w0, w1, w2, q, k, v, lr0, lr1, lr2, Mu_tok, Ma_tok, ttt_op_order,
                 muon_update_steps=self.muon_update_steps,
             )
+        elif "rot_content" in modes:
+            output, w0, w1, w2 = fast_weight_swish_glu_branch_input_rotary_apply(
+                w0, w1, w2, q_plain, k_plain, q, k, v, lr0, lr1, lr2, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
         elif self.branch_rope:
             # gate_rope: gate branch (w0) reads the rotated q/k, content
             # branch (w2) the plain copy; content_rope is the mirror.
@@ -2109,6 +2178,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             output = apply_tiled_mat4(output, P_h, tpv, self.head_dim // 2)
         if prope_raw_P_h is not None:
             output = apply_tiled_mat4(output, prope_raw_P_h, tpv, self.head_dim)
+        if raygta_M is not None:
+            output = _mat4_tok(output, raygta_M.transpose(-1, -2))
         if prope_orig_state is not None:
             P_h, _prope_apply = prope_orig_state
             output = _prope_apply(output, P_h, inv=True)
