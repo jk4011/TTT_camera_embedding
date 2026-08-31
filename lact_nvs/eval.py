@@ -33,6 +33,8 @@ parser.add_argument("--window", type=int, default=128)
 # frames/scene, so 16 inputs => threshold 60 => 0 scenes, PSNR nan). Pin it to keep
 # one scene set across the whole sweep. None keeps the old behaviour.
 parser.add_argument("--min_frames", type=int, default=None)
+parser.add_argument("--depth_dir", type=str, default=None,
+                    help="patch-grid GT depth side files (oracle diagnostics only)")
 parser.add_argument("--bs", type=int, default=8)
 parser.add_argument("--ttt_num_chunks", type=int, default=1,
                     help="Split the input-token fast-weight update into n sequential "
@@ -64,6 +66,7 @@ dataset = Re10KDataset(
     num_input_views=n_in,
     num_target_views=n_tg,
     max_scenes=args.num_scenes,
+    depth_dir=args.depth_dir,
 )
 loader = DataLoader(dataset, batch_size=args.bs, shuffle=False, num_workers=8)
 

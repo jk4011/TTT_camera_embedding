@@ -43,6 +43,9 @@ class SelfAttention(nn.Module):
         use_qk_norm=True,
         causal=False,
         bias=False,
+        block_causal=False,
+        attn_mode="none",
+        prope_proj_frac=0.5,
     ):
         super().__init__()
         assert dim % head_dim == 0
@@ -58,8 +61,21 @@ class SelfAttention(nn.Module):
             self.k_norm = nn.RMSNorm(head_dim)
 
         self.causal = causal
+        # Attention CEILING controls for the camera-embedding program (2026-08-31), used
+        # with length_dim "vl" in place of the TTT layer (LaCT's own full-attention
+        # baseline: "block-wise causal attention -- bidirectional among input tokens,
+        # cross-attention from novel views"):
+        #   block_causal: input tokens attend to all input tokens; target tokens attend
+        #                 to all input tokens + their own view's tokens only.
+        #   attn_mode "prope": faithful PRoPE on q/k/v/o per head ([frac] tiled
+        #                 projective P = lift(K) w2c | image-x RoPE | image-y RoPE, freq
+        #                 base 100, inverse on the output), after the qk norm.
+        assert attn_mode in ("none", "prope"), attn_mode
+        self.block_causal = block_causal
+        self.attn_mode = attn_mode
+        self.prope_proj_frac = prope_proj_frac
 
-    def forward(self, x, *args):
+    def forward(self, x, info=None, *args):
         """
         x: (b, l, d)
         """
@@ -69,7 +85,55 @@ class SelfAttention(nn.Module):
             q = self.q_norm(q)
             k = self.k_norm(k)
 
-        x = F.scaled_dot_product_attention(q, k, v, is_causal=self.causal)
+        prope_state = None
+        if self.attn_mode == "prope":
+            from lact_ttt_cam import (_prope_rope_apply, _prope_rope_coeffs,
+                                      apply_tiled_mat4, lift_K4, lift_K4_inv, to_heads)
+            assert info is not None and "view_w2c" in info, "attn prope needs camera_info"
+            b, nh, L, hd = q.shape
+            tpv = info["tokens_per_view"]
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                K, w2c = info["view_K_norm"].float(), info["view_w2c"].float()
+                P = lift_K4(K) @ w2c
+                P_inv = info["view_c2w"].float() @ lift_K4_inv(K)
+            half = int(hd * self.prope_proj_frac) // 8 * 8
+            quart = (hd - half) // 2
+            P_h, P_inv_h = to_heads(P, nh), to_heads(P_inv, nh)
+            px = int(math.sqrt(tpv)); assert px * px == tpv, tpv
+            pos = torch.arange(tpv, device=q.device)
+            cx, sx = _prope_rope_coeffs(pos % px, quart, q.device)
+            cy, sy = _prope_rope_coeffs(pos // px, quart, q.device)
+            V = P.shape[1]
+            cx, sx, cy, sy = cx.repeat(V, 1), sx.repeat(V, 1), cy.repeat(V, 1), sy.repeat(V, 1)
+
+            def _apply(t, mat, inv=False):
+                t = rearrange(t, "b nh l dh -> (b nh) l dh")
+                t2 = apply_tiled_mat4(t, mat, tpv, half)
+                a = _prope_rope_apply(t2[..., half:half + quart], cx, sx, inv)
+                c = _prope_rope_apply(t2[..., half + quart:], cy, sy, inv)
+                t3 = torch.cat([t2[..., :half], a, c], dim=-1)
+                return rearrange(t3, "(b nh) l dh -> b nh l dh", nh=nh)
+
+            q = _apply(q, P_h.transpose(-1, -2))
+            k = _apply(k, P_inv_h)
+            v = _apply(v, P_inv_h)
+            prope_state = (P_h, _apply)
+
+        attn_mask = None
+        if self.block_causal:
+            assert info is not None and "num_input_views" in info, "block_causal needs camera_info"
+            L = q.shape[2]
+            tpv = info["tokens_per_view"]
+            n_in = info["num_input_views"] * tpv
+            vid = torch.arange(L, device=q.device) // tpv
+            is_in = torch.arange(L, device=q.device) < n_in
+            attn_mask = is_in[None, :] | (vid[:, None] == vid[None, :])   # [Lq, Lk] bool
+            attn_mask = attn_mask[None, None]
+
+        x = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, is_causal=self.causal)
+        if prope_state is not None:
+            P_h, _apply = prope_state
+            x = _apply(x, P_h, inv=True)
         x = rearrange(x, "b nh l dh -> b l (nh dh)")
 
         x = self.c_proj(x)
@@ -172,7 +236,7 @@ def compute_rays(fxfycxcy, c2w, h, w):
 
 
 def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input_views,
-                        cam_scene_random=False):
+                        cam_scene_random=False, tok_t_gt=None):
     """Per-token / per-view camera tensors for camera-conditioned TTT layers.
 
     All views (input + target) are covered; token order matches the
@@ -280,25 +344,65 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
         tok_d = rand_d.expand(b, L, 3)
         tok_m = rand_m.expand(b, L, 3)
 
-    return {
+    # ---- Object-centric geometry for 3D-POINT addressing (gObjaverse program, 2026-08-31).
+    # Scene focus point p*: least-squares intersection of the INPUT views' optical axes
+    # (exact object centre for look-at renders; a regularised "point in front of the mean
+    # camera" for forward-facing captures where the axes are nearly parallel). Per token,
+    # the closest-approach ray parameter t_c = (p* - o).d and the squared impact parameter
+    # b^2 = |p* - o|^2 - t_c^2 let a TTT layer form the chord of the ray through a sphere
+    # of radius r around p* without any learned depth. All in the canonical frame.
+    f_in = rot[:, :num_input_views, :, 2]                                 # [b, v_in, 3]
+    c_in = center[:, :num_input_views]                                    # [b, v_in, 3]
+    eye3 = torch.eye(3, device=c2w.device, dtype=c2w.dtype)
+    Pm = eye3[None, None] - f_in[..., :, None] * f_in[..., None, :]       # I - f f^T
+    lam = 1e-2
+    A = Pm.sum(1) + lam * eye3[None]
+    f_mean = f_in.mean(1)
+    f_mean = f_mean / (f_mean.norm(dim=-1, keepdim=True) + 1e-8)
+    prior = c_in.mean(1) + f_mean                                         # 1 unit ahead of the mean cam
+    bvec = torch.einsum("bvij,bvj->bi", Pm, c_in) + lam * prior
+    focus = torch.linalg.solve(A, bvec)                                   # [b, 3]
+    rel = focus[:, None, :] - tok_o                                       # [b, L, 3]
+    tok_tc = (rel * tok_d).sum(-1, keepdim=True)                          # [b, L, 1]
+    tok_b2 = (rel.pow(2).sum(-1, keepdim=True) - tok_tc.pow(2)).clamp_min(0.0)
+    view_fdist = (focus[:, None, :] - center).norm(dim=-1)                # [b, v]
+
+    out = {
         "tok_o": tok_o, "tok_d": tok_d, "tok_m": tok_m, "tok_uv": tok_uv,
         "tok_d_delta": tok_d_delta, "tok_m_delta": tok_m_delta,
+        "tok_tc": tok_tc, "tok_b2": tok_b2, "focus": focus, "view_fdist": view_fdist,
         "cam_feat": cam_feat, "cam_feat_lr": cam_feat_lr,
         "view_rot": rot, "view_w2c": w2c, "view_c2w": c2w,
         "view_K_norm": K_norm, "view_pose11": view_pose11,
         "tokens_per_view": tokens_per_view,
         "num_views": v, "num_input_views": num_input_views,
     }
+    if tok_t_gt is not None:
+        # Oracle diagnostics only: GT ray parameter of the patch-centre surface point
+        # (0 = no surface / background), already in the canonical scale. [b, L, 1]
+        out["tok_t_gt"] = tok_t_gt.reshape(b, -1, 1).to(tok_o.dtype)
+    return out
 
 
 class LaCTLVSM(nn.Module):
     def __init__(self, patch_size, dim, layers, block_config,
                  ttt_chunk_per_view=False, ttt_view_tour=False,
                  ttt_num_chunks=1,
-                 cam_scene_random=False):
+                 cam_scene_random=False,
+                 input_raymap="world"):
         super().__init__()
         self.patch_size = patch_size
         self.dim = dim
+        # input_raymap (gObjaverse program, 2026-08-31):
+        #   "world"  -- stock: per-pixel Plucker rays (o, d, o x d) in the canonical scene
+        #               frame are the token features, so every token carries ABSOLUTE pose.
+        #   "camray" -- pose-free tokens (the PRoPE/RayRoPE/GTA regime): rays computed with
+        #               IDENTITY extrinsics (o = 0, d = normalised K^-1 [u v 1], o x d = 0),
+        #               i.e. intrinsics + pixel position only. Pose then reaches the network
+        #               ONLY through the camera-conditioned TTT layer (its transforms use the
+        #               true c2w via compute_camera_info), making the whole model relative.
+        assert input_raymap in ("world", "camray"), input_raymap
+        self.input_raymap = input_raymap
         # Camera-scheduled TTT updates: one update chunk per input view
         # (multi-step inner optimization), optionally ordered far-from-target
         # -> near-target so that target-adjacent views are written last
@@ -368,20 +472,29 @@ class LaCTLVSM(nn.Module):
                 fxfycxcy = data_dict["fxfycxcy"]
                 c2w = data_dict["c2w"]
 
+                # true (canonical-frame) rays: camera_info always uses these
                 data_dict["ray_o"], data_dict["ray_d"] = compute_rays(fxfycxcy, c2w, h, w)
-                data_dict["o_cross_d"] = torch.cross(data_dict["ray_o"], data_dict["ray_d"], dim=2)
+                if self.input_raymap == "camray":
+                    eye = torch.eye(4, device=c2w.device, dtype=c2w.dtype).expand_as(c2w)
+                    tok_o_, tok_d_ = compute_rays(fxfycxcy, eye, h, w)
+                    data_dict["tok_ray_o"], data_dict["tok_ray_d"] = tok_o_, tok_d_
+                else:
+                    data_dict["tok_ray_o"], data_dict["tok_ray_d"] = data_dict["ray_o"], data_dict["ray_d"]
+                data_dict["o_cross_d"] = torch.cross(data_dict["tok_ray_o"], data_dict["tok_ray_d"], dim=2)
                 data_dict["pose_only"] = torch.concat(
-                    [data_dict[key] for key in self.pose_keys], dim=2
+                    [data_dict[key] for key in ("tok_ray_o", "tok_ray_d", "o_cross_d")], dim=2
                 )
-                
+
                 if "image" in data_dict:
                     data_dict["normalized_image"] = data_dict["image"] * 2.0 - 1.0
 
                     # Compile the information for posed-image input, and pose-only input.
+                    # (token rays, so that "camray" tokens are pose-free for inputs too)
                     data_dict["posed_image"] = torch.concat(
-                        [data_dict[key] for key in self.posed_image_keys], dim=2
+                        [data_dict[key] for key in
+                         ("tok_ray_o", "tok_ray_d", "o_cross_d", "normalized_image")], dim=2
                     )
-            
+
             transformer_input = input_data_dict["image"].new_zeros(
                 batch_size, num_input_views + num_target_views, self.input_dim, h, w
             )
@@ -395,10 +508,14 @@ class LaCTLVSM(nn.Module):
             all_c2w = torch.cat([input_data_dict["c2w"], target_data_dict["c2w"]], dim=1)
             all_ray_o = torch.cat([input_data_dict["ray_o"], target_data_dict["ray_o"]], dim=1)
             all_ray_d = torch.cat([input_data_dict["ray_d"], target_data_dict["ray_d"]], dim=1)
+            tok_t_gt = None
+            if "depth_t" in input_data_dict and "depth_t" in target_data_dict:
+                # [b, v, hh, ww] patch-grid GT ray parameters (oracle diagnostics)
+                tok_t_gt = torch.cat([input_data_dict["depth_t"], target_data_dict["depth_t"]], dim=1)
             camera_info = compute_camera_info(
                 all_fxfycxcy, all_c2w, h, w, self.patch_size,
                 all_ray_o, all_ray_d, num_input_views,
-                cam_scene_random=self.cam_scene_random,
+                cam_scene_random=self.cam_scene_random, tok_t_gt=tok_t_gt,
             )
 
         # Running the model
@@ -487,12 +604,13 @@ class LaCTLVSM(nn.Module):
             fxfycxcy = input_data_dict["fxfycxcy"]
             c2w = input_data_dict["c2w"]
 
+            assert self.input_raymap == "world", "reconstruct(): camray tokens need forward()"
             input_data_dict["ray_o"], input_data_dict["ray_d"] = compute_rays(fxfycxcy, c2w, h, w)
             input_data_dict["o_cross_d"] = torch.cross(input_data_dict["ray_o"], input_data_dict["ray_d"], dim=2)
             input_data_dict["pose_only"] = torch.concat(
                 [input_data_dict[key] for key in self.pose_keys], dim=2
             )
-                
+
             input_data_dict["normalized_image"] = input_data_dict["image"] * 2.0 - 1.0
 
             # Compile the information for posed-image input, and pose-only input.

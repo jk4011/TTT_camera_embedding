@@ -1095,6 +1095,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         phase_bias: bool = False,
         t_near: float = 0.05,
         t_far: float = 4.0,
+        shell_r: float = 0.35,
+        n_dirs: int = 6,
+        num_freqs_hseg: int = 84,
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1105,7 +1108,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
                  "fw3l", "fw3l_rot2", "fw3l_rot3", "fw4l", "fw4l_rot4",
                  "mlp2", "mlp2_rot2",
-                 "hnrot", "sharedf", "gate_rope", "content_rope"}
+                 "hnrot", "sharedf", "gate_rope", "content_rope",
+                 # gObjaverse program (2026-08-31): 3D-point / object-shell addressing,
+                 # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
+                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in",
+                 "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_img", "h_rot"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1147,9 +1154,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert len(self.cam_modes) == 1, "mlp2 modes are standalone (no '+' combos)"
             if "mlp2_rot2" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
-        rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra"}
+        rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra",
+                       "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
-        assert len({"h_pra", "h_dpra", "h_strat"} & self.cam_modes) <= 1, "one hidden rotary at a time"
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in"}
+        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in"}
+        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga"} | self.seg_h_modes
+        assert len(hidden_fams & self.cam_modes) <= 1, "one hidden-site mechanism at a time"
         if self.cam_modes & {"ms2", "res2"}:
             assert {"h_pra", "h_dpra"} & self.cam_modes, "ms2/res2 require a hidden rotary mode"
         assert not ({"ms2", "res2"} <= self.cam_modes), "ms2 and res2 are exclusive"
@@ -1258,6 +1269,60 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.gain_line = nn.Parameter(torch.ones(6, num_freqs))
             self.gain_seg = nn.Parameter(torch.ones(3, num_freqs_seg))
             self.t_near, self.t_far = t_near, t_far
+
+        # ---- 3D-point / object-shell addressing (gObjaverse program, 2026-08-31) ----
+        # Phase coordinate = a 3D POINT on the token's ray instead of the ray's Plucker
+        # line: two rays that see the same surface point from 90 deg apart have a zero
+        # phase difference there (the line coordinates differ by O(1)). Depth is unknown,
+        # so the phase is INTEGRATED over the chord of the ray through a sphere of radius
+        # r (learnable) around the scene focus point p* (LS intersection of the input
+        # optical axes = the object centre on look-at renders): closed form
+        #   int cos(w u.x(t)) dt over the chord = sinc(w u.(h d)) cos(w u.x_mid)
+        # per unit direction u; rays missing the sphere use [t_c - r, t_c + r].
+        #   shell_sinc / h_shell : u in {x, y, z} (axis-separable kernel, as plucker_sinc)
+        #   shell_iso / h_shell_iso : u = the 6 icosahedral axes (isotropic 3D kernel)
+        #   pt_gt / h_pt_gt : ORACLE -- t1 = t2 = GT surface depth (env = 1) where a
+        #       surface exists, chord otherwise; *_in = GT for input tokens only.
+        # Input-site variants re-L2-normalise q/k after the rotary (the envelope shrinks
+        # norms token-dependently; F3). Hidden variants reuse the h-PRA kernel.
+        def _dirs(n):
+            if n == 3:
+                return torch.eye(3)
+            if n == 6:
+                phi = (1.0 + 5 ** 0.5) / 2.0
+                d = torch.tensor([[0, 1, phi], [0, 1, -phi], [1, phi, 0],
+                                  [1, -phi, 0], [phi, 0, 1], [phi, 0, -1]], dtype=torch.float32)
+                return d / d.norm(dim=-1, keepdim=True)
+            i = torch.arange(n, dtype=torch.float32) + 0.5
+            th = torch.acos(1 - i / n); ph = math.pi * (1 + 5 ** 0.5) * i
+            return torch.stack([th.sin() * ph.cos(), th.sin() * ph.sin(), th.cos()], -1)
+        if self.cam_modes & (self.seg_in_modes | self.seg_h_modes):
+            self.shell_r_raw = nn.Parameter(torch.tensor(float(shell_r)))
+        if self.cam_modes & self.seg_in_modes:
+            nd = n_dirs if "shell_iso" in self.cam_modes else 3
+            assert 2 * nd * num_freqs_seg <= head_dim, (nd, num_freqs_seg, head_dim)
+            self.register_buffer("dirs_in", _dirs(nd), persistent=False)
+            self.register_buffer("omega_seg3", math.pi * torch.logspace(
+                math.log2(0.5), math.log2(16.0), num_freqs_seg, base=2.0) * omega_scale,
+                persistent=False)
+            self.gain_seg3 = _gain("gain_seg3", nd, num_freqs_seg)
+        if self.cam_modes & self.seg_h_modes:
+            nd = n_dirs if "h_shell_iso" in self.cam_modes else 3
+            assert 2 * nd * num_freqs_hseg <= d_h, (nd, num_freqs_hseg, d_h)
+            self.register_buffer("dirs_h", _dirs(nd), persistent=False)
+            self.register_buffer("omega_hseg", math.pi * torch.logspace(
+                math.log2(0.5), math.log2(16.0), num_freqs_hseg, base=2.0) * omega_scale,
+                persistent=False)
+            self.gain_hseg = _gain("gain_hseg", nd, num_freqs_hseg)
+        if "h_img" in self.cam_modes:
+            # Hidden-site IMAGE-coordinate rotary: 2 in-view patch coords x num_freqs_h
+            # pairs. Tax-free across views by construction (same coordinates in every
+            # view); F34/F56: image ropes are the one phase code positive at both ends
+            # of the baseline axis, but they were only ever placed at the input site.
+            assert 2 * 2 * num_freqs_h <= d_h
+            self.register_buffer("omega_himg", math.pi * torch.logspace(
+                math.log2(0.5), math.log2(16.0), num_freqs_h, base=2.0), persistent=False)
+            self.gain_himg = _gain("gain_himg", 2, num_freqs_h)
 
         if {"h_pra", "h_dpra"} & self.cam_modes:
             # Hidden-space Plucker rotary: 6 coords x num_freqs_h pairs in d_h.
@@ -1549,6 +1614,52 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         env = sinc(halfphase)
         return env * phase.cos(), env * phase.sin()
 
+    def _chord_t(self, info):
+        """Per-token chord [t1, t2] of the ray through the focus sphere. [b, L, 1] each."""
+        r = self.shell_r_raw.clamp(0.05, 1.0)
+        tc, b2 = info["tok_tc"].float(), info["tok_b2"].float()
+        hit = b2 < r * r
+        # sqrt(0) has an infinite backward (0 * inf = NaN through the where); floor it.
+        hlf = torch.sqrt((r * r - b2).clamp_min(0.0) + 1e-4)
+        half = torch.where(hit, hlf, torch.ones_like(hlf) * r)
+        t1 = (tc - half).clamp_min(0.02)
+        t2 = torch.maximum(tc + half, t1 + 1e-3)
+        return t1, t2
+
+    def _seg_dirs_coeffs(self, info, t1, t2, dirs, omega, gain):
+        """Sinc-enveloped rotary coeffs of the ray segment [t1, t2] projected on unit
+        directions `dirs` [n, 3]; omega [F], gain [n, F]. Returns cos/sin [b, L, n*F]."""
+        o, d = info["tok_o"], info["tok_d"]
+        mid = o + 0.5 * (t1 + t2) * d                    # [b, L, 3]
+        half = 0.5 * (t2 - t1) * d
+        pm = mid @ dirs.t()                              # [b, L, n]
+        ph = half @ dirs.t()
+        wg = omega[None, None, None] * gain[None, None]  # [1, 1, n, F]
+        phase = (pm[..., None] * wg).flatten(2)
+        env = sinc((ph[..., None] * wg).flatten(2))
+        return env * phase.cos(), env * phase.sin()
+
+    def _point_site_coeffs(self, info, site):
+        """cos/sin for the shell / oracle modes at the input ('in') or hidden ('h') site."""
+        modes = self.cam_modes
+        t1, t2 = self._chord_t(info)
+        oracle = {"pt_gt", "pt_gt_in"} if site == "in" else {"h_pt_gt", "h_pt_gt_in"}
+        if modes & oracle:
+            assert "tok_t_gt" in info, "oracle modes need --depth_dir (GT patch depth)"
+            tg = info["tok_t_gt"]
+            use = tg > 0
+            if modes & {"pt_gt_in", "h_pt_gt_in"}:
+                n_in = info["ttt_op_order"][0].end
+                idx = torch.arange(tg.shape[1], device=tg.device)[None, :, None]
+                use = use & (idx < n_in)
+            t1 = torch.where(use, tg, t1)
+            t2 = torch.where(use, tg, t2)
+        if site == "in":
+            c, sn = self._seg_dirs_coeffs(info, t1, t2, self.dirs_in, self.omega_seg3, self.gain_seg3)
+        else:
+            c, sn = self._seg_dirs_coeffs(info, t1, t2, self.dirs_h, self.omega_hseg, self.gain_hseg)
+        return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
+
     def _prope_mats(self, info):
         K, w2c = info["view_K_norm"].float(), info["view_w2c"].float()
         P = lift_K4(K) @ w2c
@@ -1755,6 +1866,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             ec, es = to_heads(ec, nh), to_heads(es, nh)
             q = apply_rotary_pairs(q, ec, es)
             k = apply_rotary_pairs(k, ec, es)
+        elif modes & self.seg_in_modes:
+            ec, es = self._point_site_coeffs(info, "in")
+            q = apply_rotary_pairs(q, ec, es)
+            k = apply_rotary_pairs(k, ec, es)
+            q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+            k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
         elif "point_rope" in modes:
             with torch.autocast(device_type="cuda", enabled=False):
                 depth_raw = self.depth_head(x.float())
@@ -1881,8 +1998,16 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             )
             fw_state_extra["wb"] = wb
             fw_state_extra["wc"] = wc
-        elif {"h_pra", "h_dpra", "h_strat"} & modes:
-            if "h_strat" in modes:
+        elif ({"h_pra", "h_dpra", "h_strat", "h_img"} | self.seg_h_modes) & modes:
+            if modes & self.seg_h_modes:
+                hcos, hsin = self._point_site_coeffs(info, "h")
+            elif "h_img" in modes:
+                img = info["tok_uv"].to(info["tok_d"].dtype)          # [b, L, 2]
+                th = (img[..., None] * (self.omega_himg[None, None, None]
+                                        * self.gain_himg[None, None])).flatten(2)
+                hcos = to_heads(th.cos(), nh)
+                hsin = to_heads(th.sin(), nh)
+            elif "h_strat" in modes:
                 xs = info["tok_o"][:, :, None, :] + \
                     self.t_strat[None, None, :, None] * info["tok_d"][:, :, None, :]
                 coords18 = xs.flatten(2)  # [b, L, 18]
@@ -1924,6 +2049,27 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                     muon_update_steps=self.muon_update_steps,
                     hnorm="hnrot" in modes,
                 )
+        elif "h_rot" in modes:
+            # Hidden-site ROTATION action (2026-08-31): the orthogonal cousin of h_ga.
+            # Every 4-block of the hidden activation is rotated by the token's c2w
+            # rotation (l=1 on 3 dims + l=0 on the 4th) on update AND apply, so the
+            # dominant retrieval coefficient becomes <R_j h_j, R_i h_i> = h_j^T R_j^T R_i h_i
+            # -- the relative rotation, norm-preserving (no F3 distortion), Muon and
+            # weight-norm untouched. Composable with rot_raw (input-site R + v/o
+            # transport) = "one matrix action per address space" at wide baseline.
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                c2w = info["view_c2w"].float()
+                V = c2w.shape[1]
+                M = torch.zeros_like(c2w)
+                M[..., :3, :3] = c2w[..., :3, :3]
+                M[..., 3, 3] = 1.0
+                Mh = to_heads(M.reshape(M.shape[0], V, 16), nh).reshape(-1, V, 4, 4)
+                vidx = torch.arange(q.shape[1], device=q.device) // tpv
+                M_tok = Mh[:, vidx]                              # [(b nh), L, 4, 4]
+            output, w0, w1, w2 = fast_weight_swish_glu_hidden_mat4_apply(
+                w0, w1, w2, q, k, v, lr0, lr1, lr2, M_tok, M_tok, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
         elif "h_ga" in modes:
             # Q41: hidden-site group action. Per-view projective mats expanded to
             # per-token; update side P^-1, apply side P^T (prope's convention moved

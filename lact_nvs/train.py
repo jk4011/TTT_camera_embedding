@@ -30,6 +30,8 @@ parser.add_argument("--log_every", type=int, default=100)
 parser.add_argument("--data_path", type=str, required=True,
                     help="NVSDataset json or Re10K *_index.json (see --dataset)")
 parser.add_argument("--dataset", type=str, default="re10k", choices=["nvs", "re10k"])
+parser.add_argument("--depth_dir", type=str, default=None,
+                    help="patch-grid GT depth side files (oracle diagnostics only)")
 parser.add_argument("--min_frames", type=int, default=None,
                     help="Re10KDataset scene filter; default num_views*3. gobjaverse "
                          "scenes have 40 frames < 15*3, so object-orbit runs pass 40.")
@@ -160,7 +162,7 @@ def remove_module_prefix(state_dict):
 # Data
 if args.dataset == "re10k":
     from data_re10k import Re10KDataset
-    dataset = Re10KDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize, min_frames=args.min_frames, window=args.window)
+    dataset = Re10KDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize, min_frames=args.min_frames, window=args.window, depth_dir=args.depth_dir)
 else:
     dataset = NVSDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize)
 datasampler = DistributedSampler(dataset)

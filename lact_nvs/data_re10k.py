@@ -12,7 +12,27 @@ from torch.utils.data import Dataset
 from torchvision.io import decode_image
 from torchvision.transforms.v2 import functional as TF
 
-from data import normalize_with_mean_pose
+from data import normalize, normalize_with_mean_pose
+
+
+def normalize_with_mean_pose_scale(c2ws: torch.Tensor):
+    """Bit-identical to data.normalize_with_mean_pose, but also returns the scene scale
+    it divides the camera centres by (needed to bring metric GT depth into the
+    canonical frame: unit rays => t scales exactly like translations)."""
+    center = c2ws[:, :3, 3].mean(0)
+    vec2 = c2ws[:, :3, 2].mean(0)
+    up = c2ws[:, :3, 1].mean(0)
+    vec2 = normalize(vec2)
+    vec0 = normalize(torch.cross(up, vec2))
+    vec1 = normalize(torch.cross(vec2, vec0))
+    m = torch.stack([vec0, vec1, vec2, center], 1)
+    avg_pos = c2ws.new_zeros(4, 4)
+    avg_pos[3, 3] = 1.0
+    avg_pos[:3] = m
+    c2ws = torch.linalg.inv(avg_pos) @ c2ws
+    scene_scale = torch.max(torch.abs(c2ws[:, :3, 3]))
+    c2ws[:, :3, 3] /= scene_scale
+    return c2ws, scene_scale
 
 
 def decode_resize_crop(jpeg_bytes, target_size):
@@ -52,6 +72,7 @@ class Re10KDataset(Dataset):
         num_input_views=None,
         num_target_views=None,
         max_scenes=None,
+        depth_dir=None,
     ):
         """
         index_path: json list of {"file", "num_frames"}; scene files live in the
@@ -83,6 +104,11 @@ class Re10KDataset(Dataset):
             assert num_input_views + num_target_views == num_views
         if max_scenes is not None:
             self.entries = self.entries[:max_scenes]
+        # Optional patch-grid GT depth side files (<depth_dir>/<scene>.pt with 't' [N,16,16]
+        # = ray parameter of the patch-centre surface point, metric frame; 0 = none).
+        # Used ONLY by oracle diagnostics; returned as 'depth_t' [V, hh, ww] in the
+        # canonical (mean-pose-normalised) scale.
+        self.depth_dir = depth_dir
 
     def __len__(self):
         return len(self.entries)
@@ -141,11 +167,17 @@ class Re10KDataset(Dataset):
             image_list.append(image)
 
         c2ws = torch.stack(c2w_list)
+        scene_scale = torch.tensor(1.0)
         if self.scene_pose_normalize:
-            c2ws = normalize_with_mean_pose(c2ws)
+            c2ws, scene_scale = normalize_with_mean_pose_scale(c2ws)
 
-        return {
+        out = {
             "fxfycxcy": torch.tensor(fxfycxcy_list),
             "c2w": c2ws,
             "image": torch.stack(image_list),
         }
+        if self.depth_dir is not None:
+            key = os.path.basename(entry["file"]).replace(".torch", "")
+            dd = torch.load(os.path.join(self.depth_dir, key + ".pt"), weights_only=True)
+            out["depth_t"] = dd["t"][indices].float() / scene_scale.float()
+        return out
