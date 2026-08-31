@@ -139,13 +139,16 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-5 | `gobjvi_h4_base_s95` | `config/gobj_h4_base.yaml` | 4-head 기준선 (W5-6의 짝) | [QUEUED node2 (야간 큐)] |
 | W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [QUEUED node2 (야간 큐)] |
 | W5-7 | 최종 후보 시드: `gobjvi_rot_hshell_s137/s211`, `gobjvi_foot_all_s137/s211` (`SEED` 인자) | 각 config | 큐가 비면 (논문 표용 3-seed; 야간 지시 '최대한 많은 실험'에 따름) | [PENDING] |
-| W5-8 | `gobjvi_near_all_s95` | `config/gobj_near_all.yaml` | **near-shell 점**(불투명 prior: 가시 표면은 chord의 앞 교차점) 양 사이트 + carrier | [PENDING] |
+| W5-8 | `gobjvi_near_all_s95` | `config/gobj_near_all.yaml` | **near-shell 점**(불투명 prior: 가시 표면은 chord의 앞 교차점) 양 사이트 + carrier | [QUEUED node2 (야간 큐)] |
 | W5-9 | `gobjvi_cfr_hshell_s95` | `config/gobj_cfr_hshell.yaml` | **CFR**(foot 방향 축, 각 2atan(γρ/2)의 matched-identity 회전 행렬) 입력 + hidden chord + carrier — rot_hshell의 R을 CFR로 교체 | [RUNNING node1 gpu1 03:20] — node1 |
 | W5-10 | `gobjvi_cfr_vo_s95` | `config/gobj_cfr_vo.yaml` | CFR 입력 + carrier (rot_raw +0.53 / foot_vo +0.595와 A/B) | [PENDING] |
 | W5-11 | `gobjvi_foot_all_ffvo_s95` | `config/gobj_foot_all_ffvo.yaml` | foot_all의 carrier를 **foot-지리 프레임**(정준화)으로 | [PENDING] |
 | W5-12 | `gobjvi_foot_all_w05_s95` | `config/gobj_foot_all_w05.yaml` | ω-split: 입력 ladder ×0.5 (L4 "입력은 제곱" 정량 검증) | [PENDING] |
 | W5-13 | `gobjvi_foot_all_vstore_s95` | `config/gobj_foot_all_vstore.yaml` | 저장 전용 carrier(o-side 없음) — transport가 닫혀 있어야 하는지 | [PENDING] |
-브레인스토밍(5 에이전트) 결과 반영 완료(02:58). node1도 이 표에서 가져간다.
+| W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [PENDING] |
+| W5-15 | `gobjvi_foot_all_h2x_s95` | `config/gobj_foot_all_h2x.yaml` | SPEC-2x: hidden ladder ×2 (입력 kernel이 제곱이므로 유도 스펙트럼이 2ω — L4의 정량 귀결) | [PENDING] |
+| W5-16 | `gobjvi_rot_hshell_env2_s95` | `config/gobj_rot_hshell_env2.yaml` | ENV²: sinc 봉투를 학습 지수로 깊게 (Muon이 얕은 억제를 되살리므로 깊은 null만 유효) | [PENDING] |
+브레인스토밍(5 에이전트) 결과 반영 완료(03:03). node1도 이 표에서 가져간다.
 
 ### wave 4 — noisy-oracle 보정 (orbit, GT depth 필요: `DEPTH_DIR=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobj_depth_patch DATA=gobj`) — 2026-09-01 00:55, **V2-1…5보다 먼저**
 "메모리가 깊이를 오차 σ로 추정하면 몇 dB인가"의 곡선. node1이 σ=0.07을 돌리는 중(≈02:00). 명령 예:
@@ -431,6 +434,11 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   워치독도 chain7을 쓰도록 교체했고, QUEUE.txt만 고치면 우선순위가 바뀌므로 밤새 체인을 죽였다 다시 걸 일은 없다.
   **밤새 자율로 돌린다**: 셀이 끝날 때마다 paired 수치를 NODE2_RESULTS.md에 append하고 다음 셀을 자동으로 올린다.
   중복(양 노드 같은 셀)은 60 s 주기 감지기가 잡고, GPU 유휴는 워치독이 60 s 안에 복구한다.
+- 2026-09-01 03:05 (node2): W5-8 `near_all`·W5-9 `cfr_hshell` 확인 후 큐에 삽입 — **W5-6 다음, W5-7 시드보다 앞**
+  (W5-7은 '큐가 비면'이라고 적혀 있어 마지막으로 두었다). 레이어 생성 확인: near_all['h_near','near_in','vo_rel'],
+  cfr_hshell['cfr_in','h_shell','vo_rel']. 큐는 이제 **12개**(≈6시간, 08:30~09:00 소진).
+  네가 `dl3dv_rot_hshell`·`re10k_rot_hshell`로 교차 데이터셋 검증에 들어간 것도 확인했다 — 내 큐와 겹치지 않는다.
+  참고: `gobjvi_foot_iso_in`(네가 가져간 셀)이 03:0x에 완료됐다(22.409). 네 셀이므로 내가 기록하지는 않았다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.

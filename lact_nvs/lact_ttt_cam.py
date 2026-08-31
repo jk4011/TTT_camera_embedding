@@ -1105,6 +1105,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         omega_scale_h: float = 1.0,
         oracle_noise: float = 0.0,
         cfr_gamma: float = 3.1,
+        qh_kappa: float = 1.0,
+        env_gamma: float = 1.0,
         vo_coords: str = "6d",
         fejer_h: bool = False,
         fejer_omega0: float = 0.5,
@@ -1127,7 +1129,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content", "od_coords", "vo_rope", "iso",
                  "hh_in", "hh_vo", "layer_pt", "h_layer_pt", "near_in", "h_near", "ff_vo",
-                 "cfr_in", "vo_store"}
+                 "cfr_in", "vo_store", "h_qh"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1199,7 +1201,19 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert self.num_heads >= 2, "head_anchor needs >= 2 fast-weight heads"
         self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_layer_pt", "h_near"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
-        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump"} | self.seg_h_modes
+        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump", "h_qh"} | self.seg_h_modes
+        if "h_qh" in self.cam_modes:
+            # QH -- quaternion half-angle hidden code (algebra agent P1): per-token unit
+            # quaternion u_i for the geodesic rotation e -> n_i (foot direction), applied as
+            # LEFT quaternion multiplication L_u on the 4-blocks of h (update and apply, via
+            # the mat4 kernel). Coefficient multiplier = cos(Delta/2) with Delta ~ angle
+            # between foot directions: NON-NEGATIVE (never subtracts a matched value),
+            # monotone, wrap-free -- what the sign-sensitive linear hidden slot demands.
+            # (spin-1/2 = the double cover, NOT a Wigner l>=2 irrep; flag for the user.)
+            self.qh_kappa = nn.Parameter(torch.tensor(float(qh_kappa)))
+        # env_gamma (algebra agent P3): raise the sinc envelope of segment codes to a learnable
+        # power -- Muon re-amplifies mildly suppressed directions, so only deep nulls stick.
+        self.env_gamma = nn.Parameter(torch.tensor(float(env_gamma))) if env_gamma != 1.0 else None
         if "cfr_in" in self.cam_modes:
             # CFR -- Cayley Foot Rotation (overnight): per-token orthogonal rotation about the
             # foot DIRECTION u by the bounded angle 2 atan(gamma*rho/2) (rho = |x_c - p*|).
@@ -1777,6 +1791,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         wg = omega[None, None, None] * gain[None, None]  # [1, 1, n, F]
         phase = (pm[..., None] * wg).flatten(2)
         env = sinc((ph[..., None] * wg).flatten(2))
+        if getattr(self, "env_gamma", None) is not None:
+            env = env.abs().clamp_min(1e-4).pow(self.env_gamma.clamp(0.5, 4.0)) * env.sign()
         return env * phase.cos(), env * phase.sin()
 
     def _asym_coeffs(self, info, code, t1, t2):
@@ -2459,6 +2475,38 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                     muon_update_steps=self.muon_update_steps,
                     hnorm="hnrot" in modes,
                 )
+        elif "h_qh" in modes:
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                xc_t = info["tok_o"] + info["tok_tc"].clamp_min(0.02) * info["tok_d"]
+                rel_t = xc_t - info["focus"][:, None, :]
+                rn = rel_t.norm(dim=-1, keepdim=True)
+                cam_dir = info["tok_o"] - info["focus"][:, None, :]
+                cam_dir = cam_dir / (cam_dir.norm(dim=-1, keepdim=True) + 1e-8)
+                wgt_c = (rn / 0.05).clamp(0.0, 1.0)
+                n_t = rel_t / (rn + 1e-8) * wgt_c + cam_dir * (1.0 - wgt_c)
+                n_t = n_t / (n_t.norm(dim=-1, keepdim=True) + 1e-8)
+                # scene axis e = mean input-camera direction from the focus
+                n_in_tok = info["ttt_op_order"][0].end
+                e_ax = cam_dir[:, :n_in_tok].mean(1, keepdim=True)
+                e_ax = e_ax / (e_ax.norm(dim=-1, keepdim=True) + 1e-8)
+                cosang = (n_t * e_ax).sum(-1, keepdim=True).clamp(-1 + 1e-6, 1 - 1e-6)
+                ang = torch.acos(cosang) * self.qh_kappa.clamp(0.1, 4.0)
+                axis = torch.cross(e_ax.expand_as(n_t), n_t, dim=-1)
+                axis = axis / (axis.norm(dim=-1, keepdim=True) + 1e-8)
+                half = 0.5 * ang
+                w_q = half.cos()
+                xyz = half.sin() * axis
+                xq, yq, zq = xyz[..., 0:1], xyz[..., 1:2], xyz[..., 2:3]
+                rowa = torch.cat([w_q, -xq, -yq, -zq], -1)
+                rowb = torch.cat([xq, w_q, -zq, yq], -1)
+                rowc = torch.cat([yq, zq, w_q, -xq], -1)
+                rowd = torch.cat([zq, -yq, xq, w_q], -1)
+                Lq = torch.stack([rowa, rowb, rowc, rowd], -2)          # [b, L, 4, 4]
+                M_tok = to_heads(Lq.flatten(2), nh).reshape(-1, Lq.shape[1], 4, 4)
+            output, w0, w1, w2 = fast_weight_swish_glu_hidden_mat4_apply(
+                w0, w1, w2, q, k, v, lr0, lr1, lr2, M_tok, M_tok, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
         elif "h_rot" in modes:
             # Hidden-site ROTATION action (2026-08-31): the orthogonal cousin of h_ga.
             # Every 4-block of the hidden activation is rotated by the token's c2w
