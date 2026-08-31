@@ -140,7 +140,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [QUEUED node2 (야간 큐)] |
 | W5-7 | 최종 후보 시드: `gobjvi_rot_hshell_s137/s211`, `gobjvi_foot_all_s137/s211` (`SEED` 인자) | 각 config | 큐가 비면 (논문 표용 3-seed; 야간 지시 '최대한 많은 실험'에 따름) | [PENDING] |
 | W5-8 | `gobjvi_near_all_s95` | `config/gobj_near_all.yaml` | **near-shell 점**(불투명 prior: 가시 표면은 chord의 앞 교차점) 양 사이트 + carrier | [PENDING] |
-| W5-9 | `gobjvi_cfr_hshell_s95` | `config/gobj_cfr_hshell.yaml` | **CFR**(foot 방향 축, 각 2atan(γρ/2)의 matched-identity 회전 행렬) 입력 + hidden chord + carrier — rot_hshell의 R을 CFR로 교체 | [PENDING] |
+| W5-9 | `gobjvi_cfr_hshell_s95` | `config/gobj_cfr_hshell.yaml` | **CFR**(foot 방향 축, 각 2atan(γρ/2)의 matched-identity 회전 행렬) 입력 + hidden chord + carrier — rot_hshell의 R을 CFR로 교체 | [RUNNING node1 gpu1 03:20] — node1 |
 | W5-10 | `gobjvi_cfr_vo_s95` | `config/gobj_cfr_vo.yaml` | CFR 입력 + carrier (rot_raw +0.53 / foot_vo +0.595와 A/B) | [PENDING] |
 | W5-11 | `gobjvi_foot_all_ffvo_s95` | `config/gobj_foot_all_ffvo.yaml` | foot_all의 carrier를 **foot-지리 프레임**(정준화)으로 | [PENDING] |
 | W5-12 | `gobjvi_foot_all_w05_s95` | `config/gobj_foot_all_w05.yaml` | ω-split: 입력 ladder ×0.5 (L4 "입력은 제곱" 정량 검증) | [PENDING] |
