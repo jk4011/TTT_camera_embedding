@@ -99,10 +99,14 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-0d | `gobjvi_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | rot_raw + hidden chord (V2-0c의 hidden 쪽 짝) | [RUNNING node1 gpu1 18:28] — node1 |
 | V2-0e | `gobjvi_anchor_vo_s95` | `config/gobj_anchor_vo.yaml` | anchor_in(+0.40, vi에서 shell_in +0.15 상회) + 회전 v/o | [RUNNING node1 gpu2 18:52] — node1 |
 | V2-0f | `gobjvi_anchor_both_s95` | `config/gobj_anchor_both.yaml` | anchor 입력 + anchor hidden (vi에서 사이트 합성 확인용) | [RUNNING node1 gpu0 18:40] — node1 |
-| V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [PENDING] |
-| V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [PENDING] |
-| V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [PENDING] |
-| V3-4 | `gobjvi_asym_ak_qc_s95` | `config/gobj_asym_ak_qc.yaml` | 거울 대조: key=3 anchor, query=chord — "불확실성을 어느 쪽에 두어야 하나" | [PENDING] |
+| V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [QUEUED node2 (다음 빈 GPU)] |
+| V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [QUEUED node2 (다음 빈 GPU)] |
+| V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [QUEUED node2 (다음 빈 GPU)] |
+| V3-4 | `gobjvi_asym_ak_qc_s95` | `config/gobj_asym_ak_qc.yaml` | 거울 대조: key=3 anchor, query=chord — "불확실성을 어느 쪽에 두어야 하나" | [QUEUED node2 (다음 빈 GPU)] |
+| N1-a | `gobjvi_gate_shell_rot_s95` | `config/gobj_gate_shell_rot.yaml` | (node1 체인) SwiGLU gate 브랜치=chord, content 브랜치=회전, v/o 회전 — 곱(AND) kernel | [CHAINED node1 gpu0 after anchor_both] |
+| N1-b | `gobjvi_rot_hfejer_s95` | `config/gobj_rot_hfejer.yaml` | (node1 체인) rot_raw + hidden chord with **Fejér**(비음) ladder | [CHAINED node1 gpu1 after rot_hshell] |
+| N1-c | `gobjvi_rot_hbump_s95` | `config/gobj_rot_hbump.yaml` | (node1 체인) rot_raw + hidden 뷰방향 bump(진폭) 코드 | [CHAINED node1 gpu2 after anchor_vo] |
+| N1-d | `gobjvi_vernier_both_s95` | `config/gobj_vernier_both.yaml` | (node1 체인) input 저주파(wrap 불가) chord × hidden 고주파 chord (Vernier) | [CHAINED node1 gpu3 after rot_shell] |
 | V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 (다음 빈 GPU)] |
@@ -182,6 +186,13 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   **부탁**: 네가 node2 표의 셀을 가져갈 때 §3 상태 태그를 `[RUNNING node1 ...]`로 바꿔 주면 확실하다.
   현재 node1 락: gpu0 pra_vo / gpu1 raygta / gpu2 anchor_in / gpu3 rot_shell — 이 넷은 내 후보에서 자동 제외된다.
   node2 다음 순서(빈 GPU가 먼저 집는 방식): anchor_h → shell_iso_in → rot_content → h_dpra → camray_hrot.
+- 2026-08-31 18:52 (node2): 18:50 지시(wave 3 우선) 반영. 후보 큐를 교체했다 —
+  **V3-1 asym_ck_qa → V3-2 asym_ck_qa_vo → V3-3 asym_fk_qa → V3-4 asym_ak_qc → V2-1 anchor_h →
+  V2-2 shell_iso_in → V2-3 rot_content → V2-4 h_dpra → V2-5 camray_hrot** (비는 GPU가 위에서부터 집는다).
+  config 4개 확인: 모두 L6/d256/p16, `asym_in`은 known/seg_in_modes에 등록됨. 네 셀이 `asym_key`/`asym_query`로
+  실제로 갈리는 것도 확인(chord/anchor, chord/anchor+vo, foot/anchor, anchor/chord) — cam_mode 문자열만으로는
+  V3-1/3/4가 동일해 보여서 별도로 검증했다.
+  현재 실행 중 4셀은 19:25~20:10에 순차 종료 예정이라, wave 3은 그때부터 GPU 4장에 차례로 올라간다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.

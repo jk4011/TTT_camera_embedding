@@ -246,6 +246,16 @@ update가 스스로 상쇄. 90° 특유의 간섭 문제에 직접 대응하지�
 **vi(RayRoPE 재렌더) 결과 (F75)**: rot_raw **+0.533**, shell_vo +0.509(rot_raw와 동률), shell_both +0.375(shell_in 대비 +0.129 → vi에서는 두 사이트 합성), shell_in +0.247(Plücker +0.206 대비 +0.04), shell_h +0.062. vi에서는 carrier가 지배적이고 chord 좌표의 몫은 작다(기하가 좁을수록 좌표 효과 감소).
 판정 트리 결과: H1 ≫ 0 → 갈래 (a)에 집중. 다음: shell_both, shell_vo(진행 중), anchor_*, oracle_in(타깃 depth가 병목인지), vi 데이터 재현.
 
+## 4.6 wave 3 — TTT 고유 PE (사용자 요청, 5개 에이전트 ~57개 아이디어 → 7계열, 2026-08-31 저녁)
+제약: PE만(q/k/v/o/h에 곱하는 카메라 기하의 함수), 추가 연산 ≈0(apply K배 기각), 새 layer·depth head 없음.
+1. **비대칭 store/read 코드** (`asym_in`, 5/5 수렴): key=chord/foot, query=K anchor 블록 → query 깊이 가설의 OR을 apply 1회로; Hebbian readout(정규화 없음)에서만 의미. V3-1~4.
+2. **비음 hidden kernel**: Fejér 조화 ladder(`fejer_h`), 뷰방향 bump 진폭 코드(`h_bump`). 선형 readout은 kernel 부호를 그대로 쓰므로 hidden 고유.
+3. **사이트 역할 배정**: input=회전 행렬(제곱되어 들어감), hidden=3D-point kernel(선형), carrier=transport (`rot_raw+h_shell/fejer`).
+4. **SwiGLU 브랜치 곱 kernel** (`gate_shell_rot`): gate=chord, content=회전 → AND.
+5. **Vernier 2-사이트 ladder** (`omega_scale`≠`omega_scale_h`): 저주파 input이 고주파 hidden의 alias를 거부.
+6. 층별 깊이 sweep / coarse→fine (미구현), 7. 좌표 정제(앞쪽 anchor, shell 교차점, 극좌표) (미구현).
+기각: 뷰별 메모리 혼합, sweep 읽기(K배), 특징 주입, l≥2, 학습 query 코드. 구현됐지만 미실행: `sweep_in`(비용), `head_anchor`(층상 메모리; 백로그).
+
 ## 5. 실험 계획
 
 프로토콜: F51과 동일(LaCT-LVSM L6/d256/p16, gObjaverse 256², 8+8 뷰, 30k, bs16, lr1e-4, LPIPS 5k~, seed 95,

@@ -1102,6 +1102,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         asym_key: str = "chord",
         asym_query: str = "anchor",
         asym_k: int = 3,
+        omega_scale_h: float = 1.0,
+        fejer_h: bool = False,
+        fejer_omega0: float = 0.5,
+        bump_p: int = 96,
+        bump_kappa: float = 2.0,
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1115,8 +1120,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "hnrot", "sharedf", "gate_rope", "content_rope",
                  # gObjaverse program (2026-08-31): 3D-point / object-shell addressing,
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
-                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in",
-                 "h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
+                 "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot",
+                 "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content"}
         unknown = self.cam_modes - known
         if unknown:
@@ -1163,9 +1168,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                        "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
         matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
-                       "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content"}
+                       "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content", "gate_shell_rot"}
         assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
-        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in"}
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot"}
         if "asym_in" in self.cam_modes:
             # ASYMMETRIC store/read codes (TTT-native, 2026-08-31): the KEY (stored) and the
             # QUERY (read) get DIFFERENT phase coordinates on the same K x 3 x F pair budget.
@@ -1189,7 +1194,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert self.num_heads >= 2, "head_anchor needs >= 2 fast-weight heads"
         self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
-        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga"} | self.seg_h_modes
+        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump"} | self.seg_h_modes
         assert len(hidden_fams & self.cam_modes) <= 1, "one hidden-site mechanism at a time"
         if self.cam_modes & {"ms2", "res2"}:
             assert {"h_pra", "h_dpra"} & self.cam_modes, "ms2/res2 require a hidden rotary mode"
@@ -1341,12 +1346,36 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if self.cam_modes & self.seg_h_modes:
             nd = n_dirs if "h_shell_iso" in self.cam_modes else 3
             mult = self.n_anchor if "h_anchor" in self.cam_modes else 1
+            if fejer_h:
+                # FEJER ladder (2026-08-31): harmonic rungs n*w0 (n = 0..N0-1) with triangular
+                # multiplicity (N0 - n) => the per-direction kernel is the Fejer kernel,
+                # pointwise NON-NEGATIVE. Only a linear (Hebbian) readout cares about the sign
+                # of its address kernel -- a wrapped hidden phase SUBTRACTS another view's
+                # value -- so this is a hidden-site-specific fix with no attention analogue.
+                # n = 0 rungs are unrotated (content-pure) pairs.
+                N0 = int((math.sqrt(8 * num_freqs_hseg + 1) - 1) / 2)
+                lad = [n * fejer_omega0 * math.pi for n in range(N0) for _ in range(N0 - n)]
+                num_freqs_hseg = len(lad)
+                omega_h_l = torch.tensor(lad, dtype=torch.float32)
+            else:
+                omega_h_l = math.pi * torch.logspace(
+                    math.log2(0.5), math.log2(16.0), num_freqs_hseg, base=2.0) * omega_scale_h
             assert 2 * nd * num_freqs_hseg * mult <= d_h, (nd, num_freqs_hseg, mult, d_h)
             self.register_buffer("dirs_h", _dirs(nd), persistent=False)
-            self.register_buffer("omega_hseg", math.pi * torch.logspace(
-                math.log2(0.5), math.log2(16.0), num_freqs_hseg, base=2.0) * omega_scale,
-                persistent=False)
+            self.register_buffer("omega_hseg", omega_h_l, persistent=False)
             self.gain_hseg = _gain("gain_hseg", nd, num_freqs_hseg)
+        if "h_bump" in self.cam_modes:
+            # HIDDEN BUMP CODE (2026-08-31): amplitude, not phase. Hidden pair p is scaled by
+            # a_p(u) = exp(-kappa (1 - u . c_p)), u = unit direction focus -> token's camera,
+            # c_p fixed Fibonacci centres on the sphere. <a_j h_j, a_i h_i> ~ vMF(angle_ij)
+            # x <h_j, h_i>: a positive, monotone, wrap-free view-proximity kernel on the
+            # dominant channel (a soft partition of hidden units by viewing direction).
+            # Runs on the stock hidden-rotary kernel with hsin = 0 (diagonal map; its
+            # backward transpose is exact). q/k are L2-normalised so amplitude codes are
+            # squashed there; h is not -- hidden-site specific.
+            assert 2 * bump_p <= d_h
+            self.register_buffer("bump_centres", _dirs(bump_p), persistent=False)
+            self.bump_kappa = nn.Parameter(torch.tensor(float(bump_kappa)))
         if "h_img" in self.cam_modes:
             # Hidden-site IMAGE-coordinate rotary: 2 in-view patch coords x num_freqs_h
             # pairs. Tax-free across views by construction (same coordinates in every
@@ -2013,6 +2042,25 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             ec, es = to_heads(ec, nh), to_heads(es, nh)
             q = apply_rotary_pairs(q, ec, es)
             k = apply_rotary_pairs(k, ec, es)
+        elif "gate_shell_rot" in modes:
+            # BRANCH-SPLIT PRODUCT KERNEL (2026-08-31): the SwiGLU fast weight has two input
+            # branches; the GATE branch gets the chord 3D-point code, the CONTENT branch the
+            # rotation tiles (rot_raw's input half) -- the hidden coefficient becomes an AND of
+            # "near the same 3D point" x "rotation-compatible content", multiplicatively, with
+            # no dim competition (attention's single bilinear score can only ADD block kernels).
+            # v/o keep rot_raw's rotation transport.
+            ec, es = self._point_site_coeffs(info, "in")
+            qg = apply_rotary_pairs(q, ec, es); kg = apply_rotary_pairs(k, ec, es)
+            qg = qg / (qg.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+            kg = kg / (kg.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+            w2c = info["view_w2c"].float()
+            P = torch.zeros_like(w2c); P[..., :3, :3] = w2c[..., :3, :3]; P[..., 3, 3] = 1.0
+            P_h = to_heads(P, nh); P_inv_h = to_heads(P.transpose(-1, -2), nh)
+            q = apply_tiled_mat4(q, P_h.transpose(-1, -2), tpv, self.head_dim)
+            k = apply_tiled_mat4(k, P_inv_h, tpv, self.head_dim)
+            v = apply_tiled_mat4(v, P_inv_h, tpv, self.head_dim)
+            prope_raw_P_h = P_h
+            q_plain, k_plain = qg, kg          # gate-branch inputs
         elif "asym_in" in modes:
             t1, t2 = self._chord_t(info)
             kc, ks = self._asym_coeffs(info, self.asym_key, t1, t2)
@@ -2175,8 +2223,19 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             )
             fw_state_extra["wb"] = wb
             fw_state_extra["wc"] = wc
-        elif ({"h_pra", "h_dpra", "h_strat", "h_img"} | self.seg_h_modes) & modes:
-            if modes & self.seg_h_modes:
+        elif ({"h_pra", "h_dpra", "h_strat", "h_img", "h_bump"} | self.seg_h_modes) & modes:
+            if "h_bump" in modes:
+                with torch.autocast(device_type=x.device.type, enabled=False):
+                    centre = info["view_c2w"][..., :3, 3].float()                # [b, V, 3]
+                    u = centre - info["focus"][:, None, :].float()
+                    u = u / (u.norm(dim=-1, keepdim=True) + 1e-8)
+                    vidx = torch.arange(q.shape[1], device=q.device) // tpv
+                    u_tok = u[:, vidx]                                          # [b, L, 3]
+                    amp = torch.exp(-self.bump_kappa.clamp(0.0, 20.0)
+                                    * (1.0 - u_tok @ self.bump_centres.t()))     # [b, L, P]
+                hcos = to_heads(amp, nh)
+                hsin = torch.zeros_like(hcos)
+            elif modes & self.seg_h_modes:
                 hcos, hsin = self._point_site_coeffs(info, "h")
             elif "h_img" in modes:
                 img = info["tok_uv"].to(info["tok_d"].dtype)          # [b, L, 2]
@@ -2261,6 +2320,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 Mu_tok = Pi[:, vidx]                             # P^-1 per update token
             output, w0, w1, w2 = fast_weight_swish_glu_hidden_mat4_apply(
                 w0, w1, w2, q, k, v, lr0, lr1, lr2, Mu_tok, Ma_tok, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
+        elif "gate_shell_rot" in modes:
+            output, w0, w1, w2 = fast_weight_swish_glu_branch_input_rotary_apply(
+                w0, w1, w2, q_plain, k_plain, q, k, v, lr0, lr1, lr2, ttt_op_order,
                 muon_update_steps=self.muon_update_steps,
             )
         elif "rot_content" in modes:
