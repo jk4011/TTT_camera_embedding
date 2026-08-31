@@ -123,8 +123,8 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [DONE 22.276 (+0.295 vs base, +0.233 vs shell_h)] |
 | V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [DONE 22.317 (+0.336 vs base, +0.089 vs shell_in)] |
 | V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [DONE 22.365 (+0.384 vs base, -0.149 vs rot_raw)] |
-| V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [QUEUED node2 (다음 빈 GPU)] |
-| V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [RUNNING node2 gpu0 02:05] |
+| V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [DONE 21.862 (-0.119 vs base, -0.018 vs h_pra)] |
+| V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [DONE 20.080 (-1.901 vs base — pose-free 토큰 최종 기각)] |
 모두 `DATA=gobj_vi`, 기준 `gobjvi_base_s95/eval_v2.json`(21.981). orbit 백로그(아래)는 vi 큐가 빈 뒤에만.
 
 ### wave 5 — 야간 자율 라운드 (2026-09-01 02:55; 사용자 취침 ~11:00, node1이 계속 갱신)
@@ -132,9 +132,9 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 (vi = `DATA=gobj_vi`). 스모크는 전부 통과 상태. node1도 같은 표에서 가져간다(태그 선변경 규칙 유지).
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| W5-1 | `gobjvi_rot_hshell_iso_s95` | `config/gobj_rot_hshell_iso.yaml` | 현 최고 rot_hshell의 hidden chord를 정20면체 6방향으로 (iso가 chord에 +0.09였음) | [QUEUED node2 (야간 큐)] |
-| W5-2 | `gobjvi_hh_all_s95` | `config/gobj_hh_all.yaml` | **비-RoPE 신규**: Householder 반사 PE — H = I−2nnᵀ, n = foot 방향(x_c−p*); 주소(q/k)+carrier(v/o) 모두, 파라미터 0 | [QUEUED node2 (야간 큐)] |
-| W5-3 | `gobjvi_layer_all_s95` | `config/gobj_layer_all.yaml` | **층-색인 plane sweep**: 층 ℓ이 chord 분율 (ℓ+½)/6의 점을 주소로 (6개 메모리 = 6개 깊이 슬라이스) + carrier | [QUEUED node2 (야간 큐)] |
+| W5-1 | `gobjvi_rot_hshell_iso_s95` | `config/gobj_rot_hshell_iso.yaml` | 현 최고 rot_hshell의 hidden chord를 정20면체 6방향으로 (iso가 chord에 +0.09였음) | [RUNNING node2 gpu2 03:04] |
+| W5-2 | `gobjvi_hh_all_s95` | `config/gobj_hh_all.yaml` | **비-RoPE 신규**: Householder 반사 PE — H = I−2nnᵀ, n = foot 방향(x_c−p*); 주소(q/k)+carrier(v/o) 모두, 파라미터 0 | [RUNNING node2 gpu3 03:54] |
+| W5-3 | `gobjvi_layer_all_s95` | `config/gobj_layer_all.yaml` | **층-색인 plane sweep**: 층 ℓ이 chord 분율 (ℓ+½)/6의 점을 주소로 (6개 메모리 = 6개 깊이 슬라이스) + carrier | [RUNNING node2 gpu0 03:55] |
 | W5-4 | `gobjvi_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | foot_all의 두 사이트를 6방향 좌표로 | [QUEUED node2 (야간 큐)] |
 | W5-5 | `gobjvi_h4_base_s95` | `config/gobj_h4_base.yaml` | 4-head 기준선 (W5-6의 짝) | [QUEUED node2 (야간 큐)] |
 | W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [QUEUED node2 (야간 큐)] |
@@ -145,7 +145,9 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-11 | `gobjvi_foot_all_ffvo_s95` | `config/gobj_foot_all_ffvo.yaml` | foot_all의 carrier를 **foot-지리 프레임**(정준화)으로 | [PENDING] |
 | W5-12 | `gobjvi_foot_all_w05_s95` | `config/gobj_foot_all_w05.yaml` | ω-split: 입력 ladder ×0.5 (L4 "입력은 제곱" 정량 검증) | [PENDING] |
 | W5-13 | `gobjvi_foot_all_vstore_s95` | `config/gobj_foot_all_vstore.yaml` | 저장 전용 carrier(o-side 없음) — transport가 닫혀 있어야 하는지 | [PENDING] |
-| W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [PENDING] |
+| W5-17 | `gobj_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **orbit 쌍둥이**: vi 신규 1위 rot_hanchor(+0.765; vs rot_hshell +0.049, t=5.0)의 orbit 검증 — `DATA=gobj` | [PENDING] |
+| W5-18 | `gobjvi_foot_hanchor_pvo_s95` | `config/gobj_foot_hanchor_pvo.yaml` | 상위 결합: foot 입력 + **anchor hidden**(신규 1위 요소) + **foot-위상 carrier**(+0.041 유의 요소); smoke 통과 | [PENDING] |
+| W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [RUNNING node1 gpu3] |
 | W5-15 | `gobjvi_foot_all_h2x_s95` | `config/gobj_foot_all_h2x.yaml` | SPEC-2x: hidden ladder ×2 (입력 kernel이 제곱이므로 유도 스펙트럼이 2ω — L4의 정량 귀결) | [PENDING] |
 | W5-16 | `gobjvi_rot_hshell_env2_s95` | `config/gobj_rot_hshell_env2.yaml` | ENV²: sinc 봉투를 학습 지수로 깊게 (Muon이 얕은 억제를 되살리므로 깊은 null만 유효) | [PENDING] |
 브레인스토밍(5 에이전트) 결과 반영 완료(03:03). node1도 이 표에서 가져간다.
@@ -156,7 +158,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 기준: `gobj_base_s95/eval_v2.json`(22.193), `gobj_oracle_both_s95/eval.json`(24.274, σ=0).
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| V3-0n | `gobjvi_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **(01:05)** rot_raw + hidden **3-anchor**(anchor_h 단독 +0.30 > shell_h +0.06) — rot_hshell(+0.716)을 넘는지; `DATA=gobj_vi` | [RUNNING node2 gpu3 00:46] |
+| V3-0n | `gobjvi_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **(01:05)** rot_raw + hidden **3-anchor**(anchor_h 단독 +0.30 > shell_h +0.06) — rot_hshell(+0.716)을 넘는지; `DATA=gobj_vi` | [DONE 22.746 (+0.765 vs base — vi 최고, rot_hshell +0.049)] |
 | V3-0o | `gobjvi_foot_iso_in_s95` | `config/gobj_foot_iso_in.yaml` | **(01:15)** foot 점을 정20면체 6방향 × 21 rung으로 (shell_iso가 축정렬 chord보다 +0.09) — foot_in(+0.47)을 넘는지 | [RUNNING node1 gpu1 01:35] — node1이 가져감 |
 | V3-0p | `gobjvi_foot_all_pvo_s95` | `config/gobj_foot_all_pvo.yaml` | **(사용자 질문 02:15)** foot_all의 carrier를 회전 행렬 대신 **foot 점 위상**으로 (`vo_rope`, `vo_coords: foot`) — "carrier는 행렬이어야 하나, 좌표가 문제였나" 최종 분리 | [RUNNING node2 gpu1 02:32] |
 | V4-1 | `gobj_oracle_n04_s95` | `config/gobj_oracle_n04.yaml` | GT depth + N(0, 0.04²) (orbit) | [DONE 23.174 (+0.981 vs base, -1.100 vs noise-0 oracle)] |
@@ -439,6 +441,39 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   cfr_hshell['cfr_in','h_shell','vo_rel']. 큐는 이제 **12개**(≈6시간, 08:30~09:00 소진).
   네가 `dl3dv_rot_hshell`·`re10k_rot_hshell`로 교차 데이터셋 검증에 들어간 것도 확인했다 — 내 큐와 겹치지 않는다.
   참고: `gobjvi_foot_iso_in`(네가 가져간 셀)이 03:0x에 완료됐다(22.409). 네 셀이므로 내가 기록하지는 않았다.
+- 2026-09-01 03:10 (node2): **V2-4 `h_dpra` 21.862 = −0.119** (t=−8.1, 37%), 사이트 일치 짝 `hidden`(h_pra 21.881)
+  대비 **−0.018**(t=−1.5, 47% — 동률). → H5 기각: hidden rotary를 update-유도 경로에만 적용해도(초기 readout 비회전)
+  h_pra와 같다. vi에서 절대 (A)항 제거는 이득도 손해도 아니다(RE10K의 −0.59와 대비).
+  gpu2는 야간 큐 첫 셀 `rot_hshell_iso`로 전환(03:04).
+- 2026-09-01 03:25 (node2, ⚠ 내 실수 보고 + 조치 완료): **gpu3이 00:46부터 2.5시간 동안 학습 2개를 동시에 돌리고 있었다.**
+  원인: 00:46에 gpu3 대기 체인을 죽이고 `rot_hanchor`로 갈아탈 때, 그 체인이 **6초 전에 이미 `oracle_n12`를 시작**했고
+  체인 부모만 죽어서 자식 run_gobj.sh/train.py가 고아로 살아남았다(체인 로그 00:46:26 oracle_n12 → 00:46:32 rot_hanchor).
+  결과: gpu3에서 두 학습이 GPU를 나눠 써 `rot_hanchor`가 **2.04 it/s**로 절반 속도였다(정상 4.3).
+  게다가 내 고아 런은 iter 21000까지 진행해 **네가 완주시킨 `oracle_n12`(03:17 model_0030000, 03:18 eval.json)를
+  1시간쯤 뒤에 덮어쓸 예정**이었다.
+  **조치**: 고아 런만 종료(네 결과물은 그대로, 03:18 eval.json 무결 확인). 종료 직후 `rot_hanchor` 속도가 3.06 it/s로 회복.
+  부수 효과 하나 더 잡았다 — run_gobj.sh의 `trap rm -f $LOCK EXIT` 때문에 고아가 죽으며 **gpu3 락 파일을 지웠다**
+  (두 런이 같은 락 경로를 공유). `rot_hanchor`가 락 없이 도는 상태여서 즉시 락을 복구했다.
+  교훈(내 체크리스트에 반영): 체인을 죽일 때는 **자식 프로세스가 이미 셀을 띄웠는지 먼저 확인**하고 자식까지 함께 정리한다.
+  참고: `gobj_oracle_n12` TRAIN_ERROR 알림은 내 kill이 남긴 traceback이며 네 런과 무관하다.
+  또한 `gobj_oracle_n12_s95/train.log`는 두 런이 섞여 있어(iter가 21000→1로 되돌아감) 학습곡선 용도로는 못 쓴다.
+  체크포인트/eval.json은 네 런이 03:17–03:18에 단독으로 쓴 것이라 유효하다.
+- 2026-09-01 03:56 (node2): **V3-0n `rot_hanchor` 22.746 = +0.765** (t=+44.1, **99% win**) — **현재 vi 최고**.
+  `rot_hshell`(22.697) 대비 +0.049(t=+5.0, 63%), `foot_all`(22.698) 대비 +0.048(t=+4.0, 55%), `rot_raw` 대비 +0.232.
+  → 상위 3셀(rot_hanchor / foot_all / rot_hshell)이 0.05 dB 안에 몰려 있다. **단일 시드로는 사실상 동률**이고,
+  t는 유의하지만(+5.0/+4.0) 이건 같은 시드 paired라 시드 간 변동을 반영하지 않는다(F18: 0.1 dB는 시드 노이즈).
+  → W5-7 3-seed가 이 셋을 가르는 데 꼭 필요하다. 지금 큐에는 rot_hshell·foot_all의 s137/s211만 있으니,
+  **`rot_hanchor`의 s137/s211도 추가할지 알려 달라**(내 판단으로는 최고 셀이므로 넣는 게 맞다).
+  주의: 이 셀은 00:46~03:22 동안 고아 oracle_n12와 gpu3을 나눠 썼다. **결과 수치는 유효하다**(공유는 속도만 영향,
+  배치·시드·데이터 동일) — 다만 train.log의 it/s는 2.0대로 낮게 찍혀 있으니 속도 통계로는 쓰지 마라.
+  gpu3은 W5-2 `hh_all`(Householder 반사 PE)로 전환(03:54).
+- 2026-09-01 04:00 (node2): **V2-5 `camray_hrot` 20.080 = −1.901** (t=−29.1, 2% win) — 큰 폭의 손해다.
+  같은 cam_mode(`rot_raw+h_rot`)에 world raymap을 쓰는 `rot_raw`(22.514) 대비 **−2.434**(t=−35.9, 1%).
+  두 config는 `input_raymap: camray` 한 줄만 다르므로, 이 −2.4는 순수하게 **토큰에서 절대 pose를 뺀 효과**다.
+  → H7(pose-free 토큰) vi에서도 최종 기각. orbit의 `camray_rotraw`(rot_raw 대비 −0.08)보다 훨씬 크게 무너졌다.
+  해석은 네 몫이지만 수치가 커서 덧붙인다: vi는 뷰별 FOV·거리가 무작위라 intrinsics-only 토큰이 잃는 정보가
+  orbit(고정 반경)보다 훨씬 크다 — TTT 층이 유일한 cross-view 통로라는 §4 H7의 '위험' 항목과 일치한다.
+  학습 자체는 정상이다(30k 완주, NaN 0, traceback 0, 4.21 it/s). gpu0은 W5-3 `layer_all`로 전환(03:55).
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
