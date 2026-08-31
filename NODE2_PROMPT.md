@@ -104,8 +104,8 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-0b | `gobjvi_foot_all_s95` | `config/gobj_foot_all.yaml` | **(19:40)** foot 입력 + foot hidden + 회전 v/o — shell_all(+0.63, vi 최고)의 foot 버전 | [RUNNING node2 gpu1 21:11] |
 | V3-0d | `gobjvi_od_in_s95` | `config/gobj_od_in.yaml` | 사용자 질문(21:10) 대조: Plücker (d, o×d) 대신 **(o, d)** 6D를 입력 rotary 좌표로 (F21) — "moment 때문인가, ray 좌표 자체 때문인가" | [RUNNING node2 gpu2 21:25] |
 | V3-0e | `gobjvi_od_both_s95` | `config/gobj_od_both.yaml` | **사용자 요청(21:20)**: (o,d) 6D를 입력+hidden rope에 (Plücker both의 (o,d) 버전) | [RUNNING node2 gpu3 21:28] |
-| V3-0f | `gobjvi_od_both_vo_s95` | `config/gobj_od_both_vo.yaml` | (o,d) 입력+hidden + **(o,d) 위상 transport on v/o** | [QUEUED node2 (다음 빈 GPU)] |
-| V3-0g | `gobjvi_od_both_vod_s95` | `config/gobj_od_both_vod.yaml` | (o,d) 입력+hidden + **ray 방향 d만 위상 transport on v/o** ("camera ray만") | [QUEUED node2 (다음 빈 GPU)] |
+| V3-0f | `gobjvi_od_both_vo_s95` | `config/gobj_od_both_vo.yaml` | (o,d) 입력+hidden + **(o,d) 위상 transport on v/o** | [RUNNING node1 gpu2 22:35] — node1이 가져감 |
+| V3-0g | `gobjvi_od_both_vod_s95` | `config/gobj_od_both_vod.yaml` | (o,d) 입력+hidden + **ray 방향 d만 위상 transport on v/o** ("camera ray만") | [RUNNING node1 gpu3] — node1 락으로 확인(태그 누락분 node2가 보정) |
 | V3-0h | `gobjvi_od_in_vo_s95` | `config/gobj_od_in_vo.yaml` | (o,d) 입력 + (o,d) v/o 위상 transport | [QUEUED node2 (다음 빈 GPU)] |
 | V3-0i | `gobjvi_od_in_vod_s95` | `config/gobj_od_in_vod.yaml` | (o,d) 입력 + d-only v/o 위상 transport | [RUNNING node1 gpu1 22:20] — node1이 가져감 |
 | V3-0j | `gobjvi_od_h_s95` | `config/gobj_od_h.yaml` | (o,d) hidden만 | [QUEUED node2 (다음 빈 GPU)] |
@@ -259,6 +259,13 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   대기 체인을 먼저 죽인 이유: 그 체인은 생기지 않을 eval.json을 영원히 기다렸을 것이고 gpu3이 놀았을 것이다.
   gpu3은 3분 만에 **V3-0e od_both**로 전환(21:28). 현재 4/4: gpu0 rot_hfoot / gpu1 foot_all / gpu2 od_in(21:25) / gpu3 od_both.
   V3-3까지의 비대칭 3셀: asym_ck_qa +0.228 / asym_ck_qa_vo +0.292 / asym_fk_qa +0.232 — 세 수치 모두 NODE2_RESULTS.md에 있다.
+- 2026-08-31 22:00 (node2): node1이 내 큐의 두 셀을 가져간 것을 확인했다 — `od_in_vod`(node1_gpu1, 태그 정상)와
+  **`od_both_vod`(node1_gpu3, 태그가 아직 [QUEUED node2]로 남아 있었다)**. 후자를 `[RUNNING node1 gpu3]`로 보정했다.
+  중복 실행 위험은 없었다: 4중 가드가 node1 락을 먼저 확인하므로 내 체인은 두 셀을 자동으로 건너뛴다(내 claims에도 없음).
+  두 셀을 내 후보 목록에서 지우지는 않았다 — node1 런이 eval까지 끝나면 '이미 평가됨'으로, 실패로 락이 풀리면
+  내가 이어받는 쪽이 낫기 때문이다.
+  내 잔여 큐(6): od_both_vo → od_in_vo → od_h → anchor_h → shell_iso_in → rot_content → h_dpra → camray_hrot.
+  현재 4/4 실행 중, 23:00~23:30 순차 종료 예정.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
