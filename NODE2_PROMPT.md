@@ -109,7 +109,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-0h | `gobjvi_od_in_vo_s95` | `config/gobj_od_in_vo.yaml` | (o,d) 입력 + (o,d) v/o 위상 transport | [RUNNING node2 gpu0 22:43] |
 | V3-0i | `gobjvi_od_in_vod_s95` | `config/gobj_od_in_vod.yaml` | (o,d) 입력 + d-only v/o 위상 transport | [RUNNING node1 gpu1 22:20] — node1이 가져감 |
 | V3-0j | `gobjvi_od_h_s95` | `config/gobj_od_h.yaml` | (o,d) hidden만 | [SKIP 23:15 — od_h 중단, 아래 V3-0k로 교체] |
-| V3-0k | `gobjvi_foot_both_s95` | `config/gobj_foot_both.yaml` | foot 입력 + foot hidden (carrier 없음) — foot_all(+0.717) 분해의 빠진 항 | [PENDING] |
+| V3-0k | `gobjvi_foot_both_s95` | `config/gobj_foot_both.yaml` | foot 입력 + foot hidden (carrier 없음) — foot_all(+0.717) 분해의 빠진 항 | [RUNNING node2 gpu2 23:12] |
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [DONE 22.209 (+0.228 vs base, -0.018 vs shell_in)] |
 | V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [DONE 22.273 (+0.292 vs base, -0.217 vs shell_vo)] |
 | V3-3 | `gobjvi_asym_fk_qa_s95` | `config/gobj_asym_fk_qa.yaml` | key=foot point(날카로운 저장), query=3 anchor | [DONE 22.213 (+0.232 vs base, -0.240 vs foot_in)] |
@@ -119,7 +119,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | N1-c | `gobjvi_rot_hbump_s95` | `config/gobj_rot_hbump.yaml` | (node1 체인) rot_raw + hidden 뷰방향 bump(진폭) 코드 | [CHAINED node1 gpu2 after anchor_vo] |
 | N1-d | `gobjvi_vernier_both_s95` | `config/gobj_vernier_both.yaml` | (node1 체인) input 저주파(wrap 불가) chord × hidden 고주파 chord (Vernier) | [CHAINED node1 gpu3 after rot_shell] |
 | V2-1 | `gobjvi_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b: chord 위 고정 depth anchor 3개의 3D-point 위상, hidden 사이트 | [RUNNING node2 gpu1 23:02] |
-| V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [QUEUED node2 (다음 빈 GPU)] |
+| V2-2 | `gobjvi_shell_iso_in_s95` | `config/gobj_shell_iso_in.yaml` | H2 변형: chord sinc를 정20면체 6방향(등방 3D kernel)으로 | [RUNNING node2 gpu3 23:06] |
 | V2-3 | `gobjvi_rot_content_s95` | `config/gobj_rot_content.yaml` | H8-1: rot_raw 변환을 SwiGLU content 브랜치에만 | [QUEUED node2 (다음 빈 GPU)] |
 | V2-4 | `gobjvi_h_dpra_s95` | `config/gobj_h_dpra.yaml` | H5: hidden Plücker 위상을 update-유도 경로에만; 기준 `gobjvi_hidden_s95/eval_v2.json` | [QUEUED node2 (다음 빈 GPU)] |
 | V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [QUEUED node2 (다음 빈 GPU)] |
@@ -128,7 +128,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ### (보류) orbit 백로그 — vi 큐가 완전히 빈 뒤에만, node1이 별도 지시할 때
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| W2-000 | `gobj_foot_all_s95` | `config/gobj_foot_all.yaml` | vi 공동 최고(+0.717, 가장 단순한 레시피)의 orbit 교차 확인 (`DATA=gobj`) — vi 큐가 빈 뒤 | [HOLD → 우선] |
+| W2-000 | `gobj_foot_all_s95` | `config/gobj_foot_all.yaml` | vi 공동 최고(+0.717, 가장 단순한 레시피)의 orbit 교차 확인 (`DATA=gobj`) — vi 큐가 빈 뒤 | [RUNNING node1 gpu3 23:55] — orbit 교차 확인 (DATA=gobj) |
 | W2-00 | `gobj_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | vi 최고 레시피(입력 회전 + hidden chord + carrier)의 orbit 교차 확인 (`DATA=gobj`) — vi 큐가 빈 뒤 첫 orbit 셀 | [RUNNING node1 gpu0 22:45] — orbit 교차 확인 (DATA=gobj) |
 | W2-0a | `gobj_anchor_in_s95` | `config/gobj_anchor_in.yaml` | H3b 입력 (orbit) | [HOLD] |
 | W2-0b | `gobj_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b hidden (orbit) | [HOLD] |
@@ -292,6 +292,12 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   남은 (o,d) 셀은 내 쪽 gpu0 `od_in_vo`(23:00 기준 8.8k)·gpu2 `od_h`(2.2k), node1 쪽 3개다.
   v/o transport가 붙은 변형이라 결과가 다를 여지는 있지만, 주소가 죽은 상태에서 carrier만으로 뒤집힌 전례는 없다(E4).
   중단 여부는 네 판단에 맡긴다 — 지시 없으면 완주시킨다. gpu3은 큐 순서대로 shell_iso_in으로 넘어간다.
+- 2026-08-31 23:14 (node2): 23:15 답변 반영 완료. `od_*_vo/vod` 4셀은 완주시킨다(사용자 요청 carrier 판정).
+  `od_h`는 iter 5400에서 중단 → `outputs/_SKIPPED_gobjvi_od_h_s95_killed_at_5400/`(eval 없음), claim도 해제했다.
+  gpu2는 4분 만에 **V3-0k `foot_both`**로 전환(23:12). config 확인: `foot_in+h_foot`(carrier 없음), F 42/84, L6/d256/p16.
+  이걸로 foot 분해가 4항 모두 채워진다: foot_in +0.472 / foot_vo +0.595 / **foot_both(진행 중)** / foot_all +0.717.
+  → foot_both가 나오면 '주소 두 사이트'와 'carrier'의 기여를 분리해 읽을 수 있다(01:10경).
+  현재 4/4: gpu0 od_in_vo / gpu1 anchor_h / gpu2 foot_both / gpu3 shell_iso_in. 잔여 큐: rot_content → h_dpra → camray_hrot.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
