@@ -2782,3 +2782,33 @@ Readings:
    RayRoPE vary-intrinsics re-renders (`gobjvi_*`, base 21.981 re-evaluated on the fresh
    index) as the paper-facing dataset per the user's request; the oracle uses target-view
    depth and is a ceiling, never a method.
+
+## F73 addendum (node2 wave 1, 2026-08-31 16:05): attention ceiling controls, and two
+## hidden-site additions that do not pay at 90 deg
+Same protocol/pairing as F73 (gObjaverse orbit, seed 95, 499 scenes, vs base eval_v2 22.193).
+Controls replace the TTT layer by LaCT's own block-causal full attention (inputs attend to all
+inputs; each target attends to all inputs + its own view), hd 64, same tokens, same 6L/d256:
+
+| cell | PSNR | dPSNR vs base (t, win%) | LPIPS (d, t) | own base |
+|---|---|---|---|---|
+| attn_nope (full attention, no PE) | 22.898 | +0.705 (+28.5, 94%) | 0.1294 (-0.0151, -36.5) | -- |
+| **attn_prope** (full attention + faithful PRoPE q/k/v/o) | **23.630** | **+1.437 (+55.4, 99%)** | 0.1210 (-0.0235, -41.2) | vs attn_nope +0.732 (t=+36.8, 98%) |
+| hrot_rotraw (H4: rot_raw + orthogonal rotation action on the hidden address) | 22.603 | +0.410 (+19.7, 84%) | 0.1346 (-0.0099, -31.4) | vs rot_raw 22.613: **-0.010 (t=-0.7)**, LPIPS -0.0024 (t=-13) |
+| imgvo_himg (H10: imgvo + image-coordinate rotary at the hidden site) | 22.529 | +0.336 (+16.3, 79%) | 0.1378 (-0.0067, -25.5) | vs imgvo 22.588: **-0.059 (t=-3.4)**, LPIPS +0.0018 (t=+9.7) |
+
+Readings:
+1. **The attention yardstick at this scale.** Replacing TTT by attention is worth +0.71 with the
+   same world-frame Plucker tokens, and PRoPE adds +0.73 on top of attention -- the "+1-2 dB"
+   fair estimate from OBJ_ANALYSIS.md 3.4(a), not the +8 dB of the pose-free 2-view protocol
+   (F65). The SAME matrix action inside the TTT layer earned +0.47 (prope_raw), i.e. the
+   fast-weight site extracts ~2/3 of what softmax attention extracts from PRoPE.
+2. **TTT + the oracle 3D-point PE (24.274) beats attention + PRoPE (23.630) by +0.645
+   (t=+22.9, 89%)**: with the right addressing coordinate the fast-weight memory is not the
+   ceiling -- the coordinate is. The depth-free chord PE (22.570) trails attention+PRoPE by
+   1.06 dB, which is the concrete target for the PE-only program.
+3. **Hidden-site additions that are not the chord coordinate do not pay at 90 deg**: a
+   rotation group action on the hidden address is PSNR-neutral on top of rot_raw (H4
+   rejected; tiny LPIPS gain), and hidden image ropes are slightly harmful on top of imgvo
+   (H10 rejected). Together with F58 (h-GA -0.18) and F73's shell_h (+0.32), the only thing
+   that has ever made the hidden site positive at wide baseline is a 3D-point coordinate.
+4. Single seed; node2 numbers (NODE2_RESULTS.md), node1 pairing.

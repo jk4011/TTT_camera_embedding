@@ -237,6 +237,9 @@ update가 스스로 상쇄. 90° 특유의 간섭 문제에 직접 대응하지�
 | H2 shell_in (chord, 입력) | **+0.377 (t=+21)**, Plücker 입력 대비 +0.79 | 채택; imgvo와 PSNR 동률 |
 | H2 shell_h (chord, hidden) | **+0.324 (t=+19)**, Plücker hidden 대비 +0.89 | 채택; hidden 사이트도 양수 → 합성 후보 |
 | H7 camray + rot_raw | +0.343, rot_raw 대비 −0.08 (t=−5) | 기각 |
+| 대조 attn_nope / attn_prope (node2) | +0.705 / **+1.437** | attention 상한; TTT+oracle(+2.08)이 attn+PRoPE를 +0.65 앞섬 |
+| H4 hrot_rotraw (node2) | +0.410, rot_raw 대비 −0.01 (t=−0.7) | 기각 (hidden 행렬 작용 무효) |
+| H10 imgvo_himg (node2) | +0.336, imgvo 대비 −0.06 (t=−3.4) | 기각 |
 판정 트리 결과: H1 ≫ 0 → 갈래 (a)에 집중. 다음: shell_both, shell_vo(진행 중), anchor_*, oracle_in(타깃 depth가 병목인지), vi 데이터 재현.
 
 ## 5. 실험 계획
