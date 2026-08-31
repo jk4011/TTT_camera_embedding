@@ -100,7 +100,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-0e | `gobjvi_anchor_vo_s95` | `config/gobj_anchor_vo.yaml` | anchor_in(+0.40, vi에서 shell_in +0.15 상회) + 회전 v/o | [RUNNING node1 gpu2 18:52] — node1 |
 | V2-0f | `gobjvi_anchor_both_s95` | `config/gobj_anchor_both.yaml` | anchor 입력 + anchor hidden (vi에서 사이트 합성 확인용) | [RUNNING node1 gpu0 18:40] — node1 |
 | V3-0 | `gobjvi_foot_vo_s95` | `config/gobj_foot_vo.yaml` | **최우선(19:30)**: foot_in(+0.47, 주소 단독 최고·파라미터 0) + 회전 v/o carrier — rot_raw(+0.53)를 넘는지 | [RUNNING node2 gpu3 19:27] |
-| V3-0c | `gobjvi_rot_hfoot_s95` | `config/gobj_rot_hfoot.yaml` | **(20:15)** rot_raw + hidden **foot** — rot_hshell(+0.716, vi 최고)의 foot 버전 | [PENDING] |
+| V3-0c | `gobjvi_rot_hfoot_s95` | `config/gobj_rot_hfoot.yaml` | **(20:15)** rot_raw + hidden **foot** — rot_hshell(+0.716, vi 최고)의 foot 버전 | [QUEUED node2 (다음 빈 GPU)] |
 | V3-0b | `gobjvi_foot_all_s95` | `config/gobj_foot_all.yaml` | **(19:40)** foot 입력 + foot hidden + 회전 v/o — shell_all(+0.63, vi 최고)의 foot 버전 | [QUEUED node2 (다음 빈 GPU)] |
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [RUNNING node2 gpu0 19:16] |
 | V3-2 | `gobjvi_asym_ck_qa_vo_s95` | `config/gobj_asym_ck_qa_vo.yaml` | V3-1 + 회전 v/o carrier (레시피 후보) | [RUNNING node2 gpu1 19:20] |
@@ -120,6 +120,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ### (보류) orbit 백로그 — vi 큐가 완전히 빈 뒤에만, node1이 별도 지시할 때
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
+| W2-00 | `gobj_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | vi 최고 레시피(입력 회전 + hidden chord + carrier)의 orbit 교차 확인 (`DATA=gobj`) — vi 큐가 빈 뒤 첫 orbit 셀 | [HOLD → 우선] |
 | W2-0a | `gobj_anchor_in_s95` | `config/gobj_anchor_in.yaml` | H3b 입력 (orbit) | [HOLD] |
 | W2-0b | `gobj_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b hidden (orbit) | [HOLD] |
 | W2-1 | `gobj_raygta_s95` | `config/gobj_raygta.yaml` | H6 (orbit) | [HOLD] |
@@ -217,6 +218,10 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   이번엔 4셀이 모두 학습 중이라 대기 체인이 없어서 **다음 회차 체인 4개를 새로 걸었다**(기존 4개는 건드리지 않음).
   후보 순서: **V3-0b foot_all** → V3-4 asym_ak_qc → V2-1 anchor_h → V2-2 → V2-3 → V2-4 → V2-5.
   가장 먼저 비는 GPU(gpu0, V3-1 21:10경)가 foot_all을 집는다.
+- 2026-08-31 20:16 (node2): V3-0c `rot_hfoot` 확인(`rot_raw+h_foot`, F_hseg 84, L6/d256/p16) 후 큐 최상단에.
+  후보 순서: **V3-0c rot_hfoot → V3-0b foot_all** → V3-4 asym_ak_qc → V2-1 → V2-2 → V2-3 → V2-4 → V2-5.
+  체인 교체 시 실행 중/대기 중을 자식 프로세스로 구분해서(대기=`sleep 30`, 실행=`run_gobj.sh`) 대기 4개만 죽였다.
+  현재 4셀 모두 정상 진행 중, 락 4/4. gpu0(V3-1)이 21:10경 먼저 비면 rot_hfoot을 집는다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
