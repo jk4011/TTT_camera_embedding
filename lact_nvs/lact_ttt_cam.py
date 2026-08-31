@@ -1124,7 +1124,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # oracle-depth diagnostics, hidden image ropes, hidden rotation action.
                  "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot",
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
-                 "raygta", "rot_content", "od_coords", "vo_rope", "iso"}
+                 "raygta", "rot_content", "od_coords", "vo_rope", "iso",
+                 "hh_in", "hh_vo", "layer_pt", "h_layer_pt"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1172,7 +1173,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
                        "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content", "gate_shell_rot"}
         assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
-        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot"}
+        self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot", "layer_pt"}
         if "asym_in" in self.cam_modes:
             # ASYMMETRIC store/read codes (TTT-native, 2026-08-31): the KEY (stored) and the
             # QUERY (read) get DIFFERENT phase coordinates on the same K x 3 x F pair budget.
@@ -1194,9 +1195,19 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             # weights after the layer (c_proj, next blocks) choose which depth to trust.
             # Zero extra compute, no depth prediction anywhere.
             assert self.num_heads >= 2, "head_anchor needs >= 2 fast-weight heads"
-        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot"}
+        self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_layer_pt"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
         hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump"} | self.seg_h_modes
+        if self.cam_modes & {"hh_in", "hh_vo"}:
+            # HOUSEHOLDER PE (overnight 2026-09-01, non-rotary): per-token orthogonal reflection
+            # H = I - 2 n n^T on every 3-block, n = unit(x_c - p*) (the FOOT DIRECTION -- matched
+            # pairs share x_c, hence n, hence H_j H_i ~ I; ray directions would not). hh_in:
+            # address (q,k); hh_vo: carrier (v on update, o on apply; H is its own inverse).
+            # Degeneracy: central rays have x_c ~ p* -> n noisy; blended toward the camera-from-
+            # focus direction below a radius eps. Parameter-free.
+            assert not (self.cam_modes & ({"prope_raw", "rot_raw", "prope_in_raw", "prope_orig",
+                                           "prope_imgrope", "raygta", "rot_content",
+                                           "gate_shell_rot"} | ({"vo_rel", "vo_rope"} if "hh_vo" in self.cam_modes else set())))
         assert len(hidden_fams & self.cam_modes) <= 1, "one hidden-site mechanism at a time"
         if self.cam_modes & {"ms2", "res2"}:
             assert {"h_pra", "h_dpra"} & self.cam_modes, "ms2/res2 require a hidden rotary mode"
@@ -1356,7 +1367,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             i = torch.arange(n, dtype=torch.float32) + 0.5
             th = torch.acos(1 - i / n); ph = math.pi * (1 + 5 ** 0.5) * i
             return torch.stack([th.sin() * ph.cos(), th.sin() * ph.sin(), th.cos()], -1)
-        if self.cam_modes & ((self.seg_in_modes | self.seg_h_modes) - {"foot_in", "h_foot"}):
+        if self.cam_modes & ((self.seg_in_modes | self.seg_h_modes) - {"foot_in", "h_foot"}):  # layer_pt keeps the chord radius
             # (foot modes use no chord -> no radius; an unused parameter would trip DDP)
             self.shell_r_raw = nn.Parameter(torch.tensor(float(shell_r)))
         if self.cam_modes & self.seg_in_modes:
@@ -1771,8 +1782,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         """cos/sin for the shell / oracle modes at the input ('in') or hidden ('h') site."""
         modes = self.cam_modes
         foot_here = ("foot_in" in modes) if site == "in" else ("h_foot" in modes)
+        layer_here = ("layer_pt" in modes) if site == "in" else ("h_layer_pt" in modes)
+        foot_here = foot_here or layer_here
         if foot_here:
-            t1 = t2 = None
+            t1 = t2 = None          # (layer_pt computes its own chord inside)
         else:
             t1, t2 = self._chord_t(info)
         oracle = {"pt_gt", "pt_gt_in"} if site == "in" else {"h_pt_gt", "h_pt_gt_in"}
@@ -1805,9 +1818,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             sn = torch.stack(ss, dim=1).flatten(0, 1)
             return c, sn
         if foot_here:
-            # Simplest 3D-point coordinate: the ray's closest-approach point to the focus
-            # point, x_c = o + t_c d (no integral, no radius; env = 1).
-            tc = info["tok_tc"].clamp_min(0.02)
+            if layer_here:
+                # LAYER-INDEXED PLANE SWEEP (free): layer l reads/stores at chord fraction
+                # (l%6 + 0.5)/6 -- the six memories cover six depth slices; the residual
+                # stream integrates. Needs no estimate anywhere.
+                t1l, t2l = self._chord_t(info)
+                fr = ((self.layer_idx % 6) + 0.5) / 6.0
+                tc = (t1l + fr * (t2l - t1l)).clamp_min(0.02)
+            else:
+                # Simplest 3D-point coordinate: the ray's closest-approach point to the focus
+                # point, x_c = o + t_c d (no integral, no radius; env = 1).
+                tc = info["tok_tc"].clamp_min(0.02)
             c, sn = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
         elif modes & {"anchor_in", "h_anchor"}:
             # H3b: K FIXED anchor points along the chord (plane-sweep phases, env = 1 each).
@@ -1982,6 +2003,29 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if modes & {"prope_raw", "rot_raw"}:
                 v = apply_tiled_mat4(v, P_inv_h, tpv, span)
                 prope_raw_P_h = P_h
+
+        hh_H = None
+        if modes & {"hh_in", "hh_vo"}:
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                xc_t = info["tok_o"] + info["tok_tc"].clamp_min(0.02) * info["tok_d"]
+                rel_t = xc_t - info["focus"][:, None, :]
+                rn = rel_t.norm(dim=-1, keepdim=True)
+                # central-ray degeneracy: blend toward the camera-from-focus direction
+                cam_dir = info["tok_o"] - info["focus"][:, None, :]
+                cam_dir = cam_dir / (cam_dir.norm(dim=-1, keepdim=True) + 1e-8)
+                wgt = (rn / 0.05).clamp(0.0, 1.0)
+                n_t = rel_t / (rn + 1e-8) * wgt + cam_dir * (1.0 - wgt)
+                n_t = n_t / (n_t.norm(dim=-1, keepdim=True) + 1e-8)
+                eye3 = torch.eye(3, device=x.device)
+                H_t = eye3[None, None] - 2.0 * n_t[..., :, None] * n_t[..., None, :]
+                hh_H = to_heads(H_t, nh)                                  # [(b nh), L, 3, 3]
+            if "hh_in" in modes:
+                q = apply_block_rot(q, hh_H)
+                k = apply_block_rot(k, hh_H)
+                q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+                k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+            if "hh_vo" in modes:
+                v = apply_block_rot(v, hh_H)
 
         raygta_M = None
         if "raygta" in modes:
@@ -2412,6 +2456,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             wts = torch.softmax(logits, dim=1)
             o_tgt = (wts[..., None] * cands.float()).sum(1).to(output.dtype)
             output = torch.cat([o_main[:, :n_in_], o_tgt], dim=1)
+        if hh_H is not None and "hh_vo" in modes:
+            output = apply_block_rot(output, hh_H)     # H is its own inverse
         if vo_rope_coeffs is not None:
             output = apply_rotary_pairs(output, vo_rope_coeffs[0], vo_rope_coeffs[1], inverse=True)
         if "vo_rel" in modes:

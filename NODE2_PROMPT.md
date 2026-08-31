@@ -109,7 +109,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V3-0h | `gobjvi_od_in_vo_s95` | `config/gobj_od_in_vo.yaml` | (o,d) 입력 + (o,d) v/o 위상 transport | [DONE 22.004 (+0.023 vs base, +0.044 vs od_in)] |
 | V3-0i | `gobjvi_od_in_vod_s95` | `config/gobj_od_in_vod.yaml` | (o,d) 입력 + d-only v/o 위상 transport | [RUNNING node1 gpu1 22:20] — node1이 가져감 |
 | V3-0j | `gobjvi_od_h_s95` | `config/gobj_od_h.yaml` | (o,d) hidden만 | [SKIP 23:15 — od_h 중단, 아래 V3-0k로 교체] |
-| V3-0k | `gobjvi_foot_both_s95` | `config/gobj_foot_both.yaml` | foot 입력 + foot hidden (carrier 없음) — foot_all(+0.717) 분해의 빠진 항 | [RUNNING node2 gpu2 23:12] |
+| V3-0k | `gobjvi_foot_both_s95` | `config/gobj_foot_both.yaml` | foot 입력 + foot hidden (carrier 없음) — foot_all(+0.717) 분해의 빠진 항 | [DONE 22.532 (+0.551 vs base, -0.166 vs foot_all)] |
 | V3-0l | `gobjvi_foot_h_s95` | `config/gobj_foot_h.yaml` | foot hidden만 (foot 사이트 분해 완성: in / h / both / +vo / all) | [RUNNING node1 gpu1 00:10] — node1 |
 | V3-0m | `gobjvi_foot_hshell_vo_s95` | `config/gobj_foot_hshell_vo.yaml` | foot 입력 + **chord** hidden + 회전 v/o (두 공동 최고 rot_hshell/foot_all의 교배) | [RUNNING node1 gpu2 00:20] — node1 |
 | V3-1 | `gobjvi_asym_ck_qa_s95` | `config/gobj_asym_ck_qa.yaml` | **wave 3 최우선** 비대칭 코드: key=chord(저장), query=3 anchor 블록(조회) — "query의 어느 깊이 가설이 key의 chord 위에 있나" | [DONE 22.209 (+0.228 vs base, -0.018 vs shell_in)] |
@@ -127,6 +127,20 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | V2-5 | `gobjvi_camray_hrot_s95` | `config/gobj_camray_hrot.yaml` | H7+H4 (vi에서의 재확인용, 후순위) | [RUNNING node2 gpu0 02:05] |
 모두 `DATA=gobj_vi`, 기준 `gobjvi_base_s95/eval_v2.json`(21.981). orbit 백로그(아래)는 vi 큐가 빈 뒤에만.
 
+### wave 5 — 야간 자율 라운드 (2026-09-01 02:55; 사용자 취침 ~11:00, node1이 계속 갱신)
+사용자 야간 지시: TTT-정렬 신규 PE 개발 + 최대한 많은 실험. 아래를 빈 GPU가 생기는 대로 순서대로
+(vi = `DATA=gobj_vi`). 스모크는 전부 통과 상태. node1도 같은 표에서 가져간다(태그 선변경 규칙 유지).
+| # | exp | config | 무엇인가 | 상태 |
+|---|---|---|---|---|
+| W5-1 | `gobjvi_rot_hshell_iso_s95` | `config/gobj_rot_hshell_iso.yaml` | 현 최고 rot_hshell의 hidden chord를 정20면체 6방향으로 (iso가 chord에 +0.09였음) | [PENDING] |
+| W5-2 | `gobjvi_hh_all_s95` | `config/gobj_hh_all.yaml` | **비-RoPE 신규**: Householder 반사 PE — H = I−2nnᵀ, n = foot 방향(x_c−p*); 주소(q/k)+carrier(v/o) 모두, 파라미터 0 | [PENDING] |
+| W5-3 | `gobjvi_layer_all_s95` | `config/gobj_layer_all.yaml` | **층-색인 plane sweep**: 층 ℓ이 chord 분율 (ℓ+½)/6의 점을 주소로 (6개 메모리 = 6개 깊이 슬라이스) + carrier | [PENDING] |
+| W5-4 | `gobjvi_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | foot_all의 두 사이트를 6방향 좌표로 | [PENDING] |
+| W5-5 | `gobjvi_h4_base_s95` | `config/gobj_h4_base.yaml` | 4-head 기준선 (W5-6의 짝) | [PENDING] |
+| W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [PENDING] |
+| W5-7 | 최종 후보 시드: `gobjvi_rot_hshell_s137/s211`, `gobjvi_foot_all_s137/s211` (`SEED` 인자) | 각 config | 큐가 비면 (논문 표용 3-seed; 야간 지시 '최대한 많은 실험'에 따름) | [PENDING] |
+브레인스토밍(5 에이전트) 결과에서 추가 셀이 나오면 node1이 이 표에 append한다.
+
 ### wave 4 — noisy-oracle 보정 (orbit, GT depth 필요: `DEPTH_DIR=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobj_depth_patch DATA=gobj`) — 2026-09-01 00:55, **V2-1…5보다 먼저**
 "메모리가 깊이를 오차 σ로 추정하면 몇 dB인가"의 곡선. node1이 σ=0.07을 돌리는 중(≈02:00). 명령 예:
 `DEPTH_DIR=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobj_depth_patch DATA=gobj NODE=node2 setsid nohup ./run_gobj.sh <g> gobj_oracle_n04_s95 config/gobj_oracle_n04.yaml 95 > outputs/gobj_oracle_n04_s95.launch.log 2>&1 < /dev/null &`
@@ -135,8 +149,8 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 |---|---|---|---|---|
 | V3-0n | `gobjvi_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **(01:05)** rot_raw + hidden **3-anchor**(anchor_h 단독 +0.30 > shell_h +0.06) — rot_hshell(+0.716)을 넘는지; `DATA=gobj_vi` | [RUNNING node2 gpu3 00:46] |
 | V3-0o | `gobjvi_foot_iso_in_s95` | `config/gobj_foot_iso_in.yaml` | **(01:15)** foot 점을 정20면체 6방향 × 21 rung으로 (shell_iso가 축정렬 chord보다 +0.09) — foot_in(+0.47)을 넘는지 | [RUNNING node1 gpu1 01:35] — node1이 가져감 |
-| V3-0p | `gobjvi_foot_all_pvo_s95` | `config/gobj_foot_all_pvo.yaml` | **(사용자 질문 02:15)** foot_all의 carrier를 회전 행렬 대신 **foot 점 위상**으로 (`vo_rope`, `vo_coords: foot`) — "carrier는 행렬이어야 하나, 좌표가 문제였나" 최종 분리 | [PENDING] |
-| V4-1 | `gobj_oracle_n04_s95` | `config/gobj_oracle_n04.yaml` | GT depth + N(0, 0.04²) (orbit) | [RUNNING node2 gpu1 00:43] |
+| V3-0p | `gobjvi_foot_all_pvo_s95` | `config/gobj_foot_all_pvo.yaml` | **(사용자 질문 02:15)** foot_all의 carrier를 회전 행렬 대신 **foot 점 위상**으로 (`vo_rope`, `vo_coords: foot`) — "carrier는 행렬이어야 하나, 좌표가 문제였나" 최종 분리 | [RUNNING node2 gpu1 02:32] |
+| V4-1 | `gobj_oracle_n04_s95` | `config/gobj_oracle_n04.yaml` | GT depth + N(0, 0.04²) (orbit) | [DONE 23.174 (+0.981 vs base, -1.100 vs noise-0 oracle)] |
 | V4-2 | `gobj_oracle_n12_s95` | `config/gobj_oracle_n12.yaml` | GT depth + N(0, 0.12²) (orbit) | [RUNNING node1 gpu3 01:50] — node1이 가져감 |
 
 ### (보류) orbit 백로그 — vi 큐가 완전히 빈 뒤에만, node1이 별도 지시할 때
@@ -380,6 +394,25 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   gpu0은 마지막 잔여 셀 `camray_hrot`로 전환(02:05). **이걸로 내 큐가 비는데**, 완료 예정은 대략:
   oracle_n04 02:40 / rot_hanchor 02:45 / h_dpra 03:25 / camray_hrot 04:05.
   **다음 지시가 없으면 04:05 이후 4장 모두 유휴가 된다** — 그 전에 §3에 다음 셀을 넣어 주면 끊김 없이 이어간다.
+- 2026-09-01 02:26 (node2, ⚠ 누락 자기보고): **`foot_both`(V3-0k) 결과를 00:56에 보고했어야 했는데 놓쳤다.**
+  모니터 감시 목록에 그 이름이 빠져 있어 완료 알림이 안 왔다(같은 유형의 실수 두 번째다 — 셀이 바뀔 때
+  목록 갱신을 빠뜨렸다). 네가 02:20 메시지에서 +0.551을 인용한 걸 보고 알아차렸다. 지금 `NODE2_RESULTS.md`에
+  세 줄(base/foot_in/foot_all 대비) 추가했다: **22.532 = +0.551**(t=+30.0, 94%), foot_in 대비 +0.079,
+  **foot_all 대비 −0.166**(t=−14.7, 23%).
+  → foot 4항 분해 완성: foot_in +0.472 / foot_both +0.551 / foot_vo +0.595 / foot_all +0.717.
+  주소 두 사이트(+0.079)보다 **carrier(+0.124)** 기여가 크고, 둘은 거의 가산적이다(0.472+0.079+0.124≈0.675 vs 실측 0.717).
+- 2026-09-01 02:26 (node2): V3-0p `foot_all_pvo` 확인(`foot_in+h_foot+vo_rope`, `vo_coords: foot`, F 21/42/84,
+  L6/d256/p16) 후 큐 최상단·4개 체인 모두에 반영. 가장 먼저 비는 GPU(oracle_n04 02:40경)가 집는다.
+  이 셀이 답하는 것: carrier를 **회전 행렬**(foot_all +0.717)이 아니라 **foot 점 위상**으로 바꾸면 어떻게 되는가.
+  기준은 `foot_all_s95`(행렬 carrier)와 `foot_both_s95`(carrier 없음) 둘 다 붙이겠다.
+- 2026-09-01 02:35 (node2): **V4-1 `oracle_n04` 23.174 = +0.981** (t=+29.5, 95%, orbit n=499).
+  noise 0 oracle(24.274) 대비 **−1.100**(t=−53.4, 0% — 499개 scene 전부 열세), orbit PE 최고 `shell_vo`(22.725) 대비 +0.449.
+  → **depth 표준편차 0.04만으로 oracle 이득 +2.08의 절반 이상(1.10)이 사라진다.** 남은 이득 +0.98은 PE 최고보다
+  +0.45 앞선다. n07(너)·n12(너)까지 나오면 3점 감쇠 곡선이 된다.
+  주의: 기준으로 쓴 `gobj_oracle_both_s95`는 `eval_v2.json`이 없고 `eval.json`뿐이라 그걸 썼다.
+  n=499로 base eval_v2와 scene set이 같아 paired 비교는 유효하다(§1-5의 '옛 eval.json' 경고는 이전 test index
+  시절 파일에 대한 것이고, 이 셀은 오늘 현재 index로 돈 것이다). 문제 있으면 알려 달라.
+  gpu1은 2분 만에 `foot_all_pvo`로 전환(02:32).
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
@@ -387,6 +420,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   (rot_raw 대비 −0.08 → pose-free 토큰 기각). 사용자 요청으로 RayRoPE 재렌더(vi)를 주축으로 추가: §2에 리샤드,
   §3에 wave 1-vi 블록. **wave 1이 끝나는 GPU부터 V1-1…V1-6을 먼저** 올리고, 그다음 orbit 백로그(W2-*).
 - 2026-08-31 23:15 (답변): (o,d) 주소는 죽었지만 v/o 위상 transport 4셀(od_*_vo/vod)은 사용자가 명시 요청한 carrier 판정이라 **완주**. 단 `od_h`(V3-0j, 내가 추가한 셀)는 **지금 중단**하고 `gobjvi_foot_both`(V3-0k, foot 입력+hidden, carrier 없음)로 교체해라 — foot_all 분해에 필요.
+- 2026-09-01 02:55: **야간 자율 라운드 시작** (사용자 ~11:00까지 취침). wave 5를 최우선으로, 그다음 남은 V4/V2. 결과는 지금처럼 NODE2_RESULTS.md에. 문제가 생기면 §5에 적고 멈추지 말 것.
 - 2026-09-01 02:20: 사용자 질문 — v/o를 foot 점 **위상**으로: V3-0p `gobjvi_foot_all_pvo` 추가(다음 빈 GPU 최우선; 스모크 통과). 비교 기준 `gobjvi_foot_all_s95`(+0.717, 행렬 carrier)·`gobjvi_foot_both_s95`(+0.551, carrier 없음).
 - 2026-09-01 01:15: shell_iso_in +0.336(축정렬 chord +0.09, foot −0.14) → `gobjvi_foot_iso_in`(V3-0o) 추가, V3-0n 다음.
 - 2026-09-01 01:05: anchor_h 단독 +0.295(shell_h +0.06 대비 +0.23) → `gobjvi_rot_hanchor`(V3-0n)를 V4-1보다 먼저.
