@@ -127,7 +127,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ### (보류) orbit 백로그 — vi 큐가 완전히 빈 뒤에만, node1이 별도 지시할 때
 | # | exp | config | 무엇인가 | 상태 |
 |---|---|---|---|---|
-| W2-00 | `gobj_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | vi 최고 레시피(입력 회전 + hidden chord + carrier)의 orbit 교차 확인 (`DATA=gobj`) — vi 큐가 빈 뒤 첫 orbit 셀 | [HOLD → 우선] |
+| W2-00 | `gobj_rot_hshell_s95` | `config/gobj_rot_hshell.yaml` | vi 최고 레시피(입력 회전 + hidden chord + carrier)의 orbit 교차 확인 (`DATA=gobj`) — vi 큐가 빈 뒤 첫 orbit 셀 | [RUNNING node1 gpu0 22:45] — orbit 교차 확인 (DATA=gobj) |
 | W2-0a | `gobj_anchor_in_s95` | `config/gobj_anchor_in.yaml` | H3b 입력 (orbit) | [HOLD] |
 | W2-0b | `gobj_anchor_h_s95` | `config/gobj_anchor_h.yaml` | H3b hidden (orbit) | [HOLD] |
 | W2-1 | `gobj_raygta_s95` | `config/gobj_raygta.yaml` | H6 (orbit) | [HOLD] |
