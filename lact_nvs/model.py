@@ -236,7 +236,7 @@ def compute_rays(fxfycxcy, c2w, h, w):
 
 
 def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input_views,
-                        cam_scene_random=False, tok_t_gt=None):
+                        cam_scene_random=False, tok_t_gt=None, focus_mode="ls"):
     """Per-token / per-view camera tensors for camera-conditioned TTT layers.
 
     All views (input + target) are covered; token order matches the
@@ -362,6 +362,63 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
     prior = c_in.mean(1) + f_mean                                         # 1 unit ahead of the mean cam
     bvec = torch.einsum("bvij,bvj->bi", Pm, c_in) + lam * prior
     focus = torch.linalg.solve(A, bvec)                                   # [b, 3]
+
+    # ---- Baseline (2-view) geometry for EPIPOLAR-PLANE codes (P2 program, 2026-09-01).
+    # Line through the input camera centres: b_hat (exact baseline for 2 inputs; first principal
+    # axis for more). For any two cameras on that line and any ray through a scene point X,
+    # b x (X - c_i) is the same vector, so the ANGLE of the ray's epipolar plane about the line,
+    #   phi = atan2(n.e2, n.e1),  n = b_hat x d,
+    # is identical for matched pixels at every depth and every baseline width -- the only
+    # depth-free exact per-token invariant (no scene focus point, no scale). The along-line angle
+    # alpha = acos(b_hat.d) carries the parallax; u = position of the token's camera along the
+    # line (0/1 at the extreme inputs); nu = vergence of the two extreme input axes;
+    # psi_c = alpha + (1/2 - u) nu is the vergence-corrected along-line angle. All angles, so
+    # the frequency ladder has no scene-unit knob.
+    v_all = center.shape[1]; L_tok = tok_o.shape[1]; tpv = L_tok // v_all
+    assert tpv * v_all == L_tok, (L_tok, v_all)
+    cm = c_in.mean(1, keepdim=True)
+    if num_input_views == 2:
+        bvec_ = c_in[:, 1] - c_in[:, 0]
+    else:
+        Xc = c_in - cm
+        _, evecs = torch.linalg.eigh(Xc.transpose(1, 2) @ Xc)
+        bvec_ = evecs[..., -1]
+        sgn = torch.sign(((c_in[:, -1] - c_in[:, 0]) * bvec_).sum(-1, keepdim=True))
+        bvec_ = bvec_ * torch.where(sgn == 0, torch.ones_like(sgn), sgn)
+    bhat = bvec_ / (bvec_.norm(dim=-1, keepdim=True) + 1e-8)                 # [b, 3]
+    proj_in = ((c_in - cm) * bhat[:, None]).sum(-1)                           # [b, v_in]
+    ar = torch.arange(c_in.shape[0], device=c_in.device)
+    i_min, i_max = proj_in.argmin(1), proj_in.argmax(1)
+    c1, c2 = c_in[ar, i_min], c_in[ar, i_max]
+    blen = ((c2 - c1) * bhat).sum(-1, keepdim=True).clamp_min(1e-4)          # [b, 1]
+    f1, f2 = f_in[ar, i_min], f_in[ar, i_max]
+    nu = torch.acos((f1 * f2).sum(-1, keepdim=True).clamp(-1 + 1e-6, 1 - 1e-6))
+    nu = nu.clamp(math.radians(2.0), math.radians(178.0))                    # [b, 1]
+    e1 = f_mean - (f_mean * bhat).sum(-1, keepdim=True) * bhat
+    e1n = e1.norm(dim=-1, keepdim=True)
+    up = torch.tensor([0.0, 1.0, 0.0], device=c2w.device, dtype=bhat.dtype).expand_as(bhat)
+    xax = torch.tensor([1.0, 0.0, 0.0], device=c2w.device, dtype=bhat.dtype).expand_as(bhat)
+    alt = torch.cross(bhat, up, dim=-1)
+    alt = torch.where(alt.norm(dim=-1, keepdim=True) > 0.2, alt, torch.cross(bhat, xax, dim=-1))
+    e1 = torch.where(e1n > 0.2, e1 / (e1n + 1e-8), alt / (alt.norm(dim=-1, keepdim=True) + 1e-8))
+    e2 = torch.cross(bhat, e1, dim=-1)
+    u_view = ((center - c1[:, None]) * bhat[:, None]).sum(-1) / blen          # [b, v_all]
+    tok_u = u_view.repeat_interleave(tpv, dim=1)[..., None]                   # [b, L, 1]
+    n_tok = torch.cross(bhat[:, None].expand_as(tok_d), tok_d, dim=-1)        # [b, L, 3]
+    tok_epi_env = (n_tok.norm(dim=-1, keepdim=True) / 0.2).clamp(0.0, 1.0)    # 0 at the epipole
+    tok_phi = torch.atan2((n_tok * e2[:, None]).sum(-1, keepdim=True),
+                          (n_tok * e1[:, None]).sum(-1, keepdim=True))        # [b, L, 1]
+    tok_alpha = torch.acos((tok_d * bhat[:, None]).sum(-1, keepdim=True).clamp(-1 + 1e-6, 1 - 1e-6))
+    tok_psic = tok_alpha + (0.5 - tok_u) * nu[:, None]
+    if focus_mode == "vergence":
+        # p_nu: the point on the mean axis where the baseline subtends the vergence angle
+        # (isosceles construction). = p* for look-at rigs; a well-defined far point when the axes
+        # diverge; clamped to [1/4, 16] baselines so forward walks get a focus "at infinity"
+        # instead of an ill-conditioned LS solve.
+        rho = (blen / (2.0 * torch.tan(0.5 * nu))).clamp(0.25 * blen, 16.0 * blen)
+        focus = 0.5 * (c1 + c2) + rho * f_mean
+    else:
+        assert focus_mode == "ls", focus_mode
     rel = focus[:, None, :] - tok_o                                       # [b, L, 3]
     tok_tc = (rel * tok_d).sum(-1, keepdim=True)                          # [b, L, 1]
     tok_b2 = (rel.pow(2).sum(-1, keepdim=True) - tok_tc.pow(2)).clamp_min(0.0)
@@ -371,6 +428,8 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
         "tok_o": tok_o, "tok_d": tok_d, "tok_m": tok_m, "tok_uv": tok_uv,
         "tok_d_delta": tok_d_delta, "tok_m_delta": tok_m_delta,
         "tok_tc": tok_tc, "tok_b2": tok_b2, "focus": focus, "view_fdist": view_fdist,
+        "tok_phi": tok_phi, "tok_alpha": tok_alpha, "tok_psic": tok_psic, "tok_u": tok_u,
+        "tok_epi_env": tok_epi_env, "bip_nu": nu, "bhat": bhat,
         "cam_feat": cam_feat, "cam_feat_lr": cam_feat_lr,
         "view_rot": rot, "view_w2c": w2c, "view_c2w": c2w,
         "view_K_norm": K_norm, "view_pose11": view_pose11,
@@ -389,7 +448,7 @@ class LaCTLVSM(nn.Module):
                  ttt_chunk_per_view=False, ttt_view_tour=False,
                  ttt_num_chunks=1,
                  cam_scene_random=False,
-                 input_raymap="world"):
+                 input_raymap="world", focus_mode="ls"):
         super().__init__()
         self.patch_size = patch_size
         self.dim = dim
@@ -403,6 +462,10 @@ class LaCTLVSM(nn.Module):
         #               true c2w via compute_camera_info), making the whole model relative.
         assert input_raymap in ("world", "camray"), input_raymap
         self.input_raymap = input_raymap
+        # focus_mode (P2 program): "ls" = LS intersection of input optical axes (stock);
+        # "vergence" = p_nu, the isosceles vergence focus (p*-free, well-conditioned on walks).
+        assert focus_mode in ("ls", "vergence"), focus_mode
+        self.focus_mode = focus_mode
         # Camera-scheduled TTT updates: one update chunk per input view
         # (multi-step inner optimization), optionally ordered far-from-target
         # -> near-target so that target-adjacent views are written last
@@ -516,6 +579,7 @@ class LaCTLVSM(nn.Module):
                 all_fxfycxcy, all_c2w, h, w, self.patch_size,
                 all_ray_o, all_ray_d, num_input_views,
                 cam_scene_random=self.cam_scene_random, tok_t_gt=tok_t_gt,
+                focus_mode=self.focus_mode,
             )
 
         # Running the model

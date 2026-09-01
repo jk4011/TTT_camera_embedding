@@ -1107,6 +1107,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         cfr_gamma: float = 3.1,
         qh_kappa: float = 1.0,
         env_gamma: float = 1.0,
+        num_freqs_epi: int = 21,
+        num_freqs_hepi: int = 42,
+        bf_alpha_h: int = 4,
+        bf_coord: str = "alpha",
+        lam_pairs: int = 8,
+        epi_env: bool = True,
         vo_coords: str = "6d",
         fejer_h: bool = False,
         fejer_omega0: float = 0.5,
@@ -1129,7 +1135,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content", "od_coords", "vo_rope", "iso",
                  "hh_in", "hh_vo", "layer_pt", "h_layer_pt", "near_in", "h_near", "ff_vo",
-                 "cfr_in", "vo_store", "h_qh"}
+                 "cfr_in", "vo_store", "h_qh", "epi_in", "h_epi", "bf_in", "h_bf", "h_lam"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1201,7 +1207,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert self.num_heads >= 2, "head_anchor needs >= 2 fast-weight heads"
         self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_layer_pt", "h_near"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
-        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump", "h_qh"} | self.seg_h_modes
+        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump", "h_qh", "h_epi", "h_bf"} | self.seg_h_modes
+        if "h_lam" in self.cam_modes:
+            assert self.cam_modes & {"h_epi", "h_bf"}, "h_lam is a modifier of h_epi / h_bf"
         if "h_qh" in self.cam_modes:
             # QH -- quaternion half-angle hidden code (algebra agent P1): per-token unit
             # quaternion u_i for the geodesic rotation e -> n_i (foot direction), applied as
@@ -1214,6 +1222,34 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         # env_gamma (algebra agent P3): raise the sinc envelope of segment codes to a learnable
         # power -- Muon re-amplifies mildly suppressed directions, so only deep nulls stick.
         self.env_gamma = nn.Parameter(torch.tensor(float(env_gamma))) if env_gamma != 1.0 else None
+        # ---- Epipolar-plane codes (P2 program, 2026-09-01). Integer harmonics of phi (the ray's
+        # epipolar-plane angle about the input baseline, see model.compute_camera_info): phi is
+        # 2pi-periodic, so integer harmonics are wrap-free and need no scene-unit ladder. 'bf'
+        # adds harmonics of the along-line angle (alpha, or the vergence-corrected psi_c) --
+        # sharp at the input site (squared kernel), only a few low harmonics at the hidden site
+        # (linear kernel: parallax must stay inside the first half-period). 'h_lam' adds a few
+        # hidden pairs rotated by the camera's position along the baseline (nearer-view weighting).
+        self.bf_coord = bf_coord; self.epi_env = epi_env
+        if self.cam_modes & {"epi_in", "bf_in"}:
+            P = num_freqs_epi
+            assert 2 * P <= head_dim, (P, head_dim)
+            if "bf_in" in self.cam_modes:
+                Pp = P // 2; Pa = P - Pp
+                self.register_buffer("m_alp_in", torch.arange(1, Pa + 1).float(), persistent=False)
+                self.gain_alp_in = nn.Parameter(torch.ones(Pa))
+            else:
+                Pp = P
+            self.register_buffer("m_epi_in", torch.arange(1, Pp + 1).float(), persistent=False)
+            self.gain_epi_in = nn.Parameter(torch.ones(Pp))
+        if self.cam_modes & {"h_epi", "h_bf"}:
+            P = num_freqs_hepi
+            self.register_buffer("m_epi_h", torch.arange(1, P + 1).float(), persistent=False)
+            self.gain_epi_h = nn.Parameter(torch.ones(P))
+            if "h_bf" in self.cam_modes:
+                self.register_buffer("m_alp_h", torch.arange(1, bf_alpha_h + 1).float(), persistent=False)
+                self.gain_alp_h = nn.Parameter(torch.ones(bf_alpha_h))
+            if "h_lam" in self.cam_modes:
+                self.gain_lam = nn.Parameter(torch.full((lam_pairs,), math.pi / 2))
         if "cfr_in" in self.cam_modes:
             # CFR -- Cayley Foot Rotation (overnight): per-token orthogonal rotation about the
             # foot DIRECTION u by the bounded angle 2 atan(gamma*rho/2) (rho = |x_c - p*|).
@@ -1795,6 +1831,34 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             env = env.abs().clamp_min(1e-4).pow(self.env_gamma.clamp(0.5, 4.0)) * env.sign()
         return env * phase.cos(), env * phase.sin()
 
+    def _epi_coeffs(self, info, site):
+        """Epipolar-plane angle codes, [(b h), L, P]. phi harmonics (optionally enveloped near the
+        epipole, where phi is undefined), + along-line-angle harmonics (bf), + baseline-position
+        pairs (h_lam, hidden only)."""
+        phi = info["tok_phi"]                                                # [b, L, 1]
+        a = info["tok_psic"] if self.bf_coord == "psic" else info["tok_alpha"]
+        env = info["tok_epi_env"] if self.epi_env else torch.ones_like(phi)
+        modes = self.cam_modes
+        cos_parts, sin_parts = [], []
+        def add(theta, e=None):
+            c, sn = theta.cos(), theta.sin()
+            if e is not None:
+                c, sn = c * e, sn * e
+            cos_parts.append(c); sin_parts.append(sn)
+        if site == "in":
+            add(phi * (self.m_epi_in * self.gain_epi_in), env)
+            if "bf_in" in modes:
+                add(a * (self.m_alp_in * self.gain_alp_in))
+        else:
+            if modes & {"h_epi", "h_bf"}:
+                add(phi * (self.m_epi_h * self.gain_epi_h), env)
+            if "h_bf" in modes:
+                add(a * (self.m_alp_h * self.gain_alp_h))
+            if "h_lam" in modes:
+                add(info["tok_u"] * self.gain_lam)
+        c = torch.cat(cos_parts, -1); sn = torch.cat(sin_parts, -1)
+        return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
+
     def _asym_coeffs(self, info, code, t1, t2):
         """Coefficients [b, L, K*n*F] for one role of asym_in ('chord'/'foot'/'anchor')."""
         dirs, om, gn = self.dirs_in, self.omega_seg3, self.gain_seg3
@@ -2239,6 +2303,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             k = apply_rotary_pairs(k, to_heads(kc, nh), to_heads(ks, nh))
             q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
             k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+        elif modes & {"epi_in", "bf_in"}:
+            ec, es = self._epi_coeffs(info, "in")
+            q = apply_rotary_pairs(q, ec, es)
+            k = apply_rotary_pairs(k, ec, es)
+            q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
+            k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
         elif modes & self.seg_in_modes:
             ec, es = self._point_site_coeffs(info, "in")
             q_pre = q
@@ -2413,7 +2483,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             )
             fw_state_extra["wb"] = wb
             fw_state_extra["wc"] = wc
-        elif ({"h_pra", "h_dpra", "h_strat", "h_img", "h_bump"} | self.seg_h_modes) & modes:
+        elif ({"h_pra", "h_dpra", "h_strat", "h_img", "h_bump", "h_epi", "h_bf"} | self.seg_h_modes) & modes:
             if "h_bump" in modes:
                 with torch.autocast(device_type=x.device.type, enabled=False):
                     centre = info["view_c2w"][..., :3, 3].float()                # [b, V, 3]
@@ -2425,6 +2495,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                                     * (1.0 - u_tok @ self.bump_centres.t()))     # [b, L, P]
                 hcos = to_heads(amp, nh)
                 hsin = torch.zeros_like(hcos)
+            elif modes & {"h_epi", "h_bf"}:
+                hcos, hsin = self._epi_coeffs(info, "h")
             elif modes & self.seg_h_modes:
                 hcos, hsin = self._point_site_coeffs(info, "h")
             elif "h_img" in modes:
