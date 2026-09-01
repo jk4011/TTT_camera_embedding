@@ -5,6 +5,7 @@ DS = {
   "re10k":    dict(base="base_s137", input="pra_hi_s137", hidden="h_pra_hi_s137", both="pra_h_hi_s137"),
   "dl3dvw48": dict(base="dl3dvw48_base_s137", input="dl3dvw48_input_s137", hidden="dl3dvw48_hidden_s137", both="dl3dvw48_both_s137"),
   "gobjv60":  dict(base="gobjvi_base_s95", input="gobjvi_input_s95", hidden="gobjvi_hidden_s95", both="gobjvi_both_s95"),
+  "dl3dvu":   dict(base="dl3dvu_base_s137", input="dl3dvu_input_s137", hidden="dl3dvu_hidden_s137", both="dl3dvu_both_s137"),
   "gobj":     dict(base="gobj_base_s95", input="gobj_input_s95", hidden="gobj_hidden_s95", both="gobj_both_s95", focus="gobj_prah_mfocus_s95"),
 }
 VIEWS = [4, 8, 12, 20, 32, 48]
