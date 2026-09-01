@@ -3248,3 +3248,17 @@ F81 addendum 4 update (12:48): RE10K one-recipe check of the vi headline -- `re1
 under-performs both foot_all (+0.481) and the Plucker family (input +0.508, input+hidden +0.971, F-series):
 the coordinate follows the baseline width (ray coordinates when corresponding rays nearly coincide, 3D point
 coordinates when correspondence is intersection). `re10k_foot_all_iso_s95` (x1) in flight.
+
+## F81 addendum 5 (2026-09-01 13:20): vi 3-seed table complete (seed means +- sd; base 21.984 +- 0.099)
+| cell | s95 | s137 | s211 | mean +- sd | delta vs base mean |
+|---|---|---|---|---|---|
+| foot_all_iso_h2x | 22.997 | 22.960 | 23.048 | **23.002 +- 0.044** | **+1.018** |
+| foot_all_iso | 22.832 | 22.776 | 22.819 | **22.809 +- 0.029** | **+0.825** |
+| rot_hshell | 22.697 | 22.548 | 22.546 | 22.597 +- 0.087 | +0.613 |
+| foot_all | 22.698 | 22.561 | 22.347 | 22.535 +- 0.176 | +0.551 |
+| base | 21.981 | 21.887 | 22.085 | 21.984 +- 0.099 | -- |
+(rot_hanchor 2-seed 22.746 / 22.663.) The iso cells are the most seed-stable (sd 0.03-0.04, below the
+baseline's 0.10); plain foot_all is the least (sd 0.18) -- the 6-direction coordinate removes most of the
+seed sensitivity, which is itself an argument for it beyond the mean gain. Per-seed paired deltas for the
+record: foot_all_iso +0.851 / +0.890 / +0.734; foot_all_iso_h2x +1.016 / +1.074 / +0.962; rot_hshell +0.716 /
++0.661 / +0.461; foot_all +0.717 / +0.674 / +0.261.
