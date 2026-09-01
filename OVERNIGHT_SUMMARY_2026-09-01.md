@@ -1,4 +1,4 @@
-# 야간 결과 요약 (2026-09-01 02:45 → 09:30, 26셀 착지; 세부: RESULTS_DOSSIER.md F81, OBJ_ANALYSIS.md §7/§7.1)
+# 야간 결과 요약 (2026-09-01 02:45 → 10:00, 29셀 착지; 세부: RESULTS_DOSSIER.md F81, OBJ_ANALYSIS.md §7/§7.1)
 
 ## 1. 헤드라인 — vi에서 PE-only 첫 +1 dB
 - **`foot_all_iso_h2x` 22.997 = +1.016 dB** (t=50.4, 승률 98.8%, seed 95, n=500; base 21.981)
@@ -31,6 +31,8 @@
 | per-token foot-frame carrier | foot_all −0.279 | ❌ carrier는 per-view 직교 |
 | 층상 메모리(head=깊이층, 4-head) | 자기 대조군 +0.750, foot_all −0.131 | ❌ head 분할 비용(−0.163) 못 메움 |
 | 층별 좌표 변주 / anchor 혼합 / 비대칭 store-read / camray | 0 / −0.042 / −0.119 / −1.90 | ➖❌❌❌ |
+| ENV² 깊은 null 봉투 (대수 P3) | rot_hshell −0.048 | ❌ 반증(약) — 대수 스코어: P4 적중, P1·P3 반증 |
+| ω-split(사다리 ×0.5) / store-only carrier(o 역사상 없음) | foot_all −0.063 / −0.150 | ❌❌ — 사다리는 높여야, carrier는 양방향이어야 |
 
 ## 4. 깊이 추정 경로의 정량 종결
 oracle σ-곡선(orbit): σ=0 +2.08 → 0.04 +0.98 → 0.07 +0.77 → **0.12 +0.08**. 추정기는 장면 스케일 4% 안에
