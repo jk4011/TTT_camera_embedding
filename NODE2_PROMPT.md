@@ -90,6 +90,9 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-29 | `dl3dv_prope_raw_s95` | `config/cam_prope_raw.yaml` (DL3DV, node1) | **TTT + PRoPE 투영 이식**(q/k·v/o에 K[R|t]K⁻¹ 상대변환) — attention+PRoPE가 DL3DV +0.69이므로 TTT에서도 투영 코드가 DL3DV를 움직이는지 | [RUNNING node1 gpu3 23:12] |
 | V8-30 | `dl3dvw48_prah_h2x_s95` | `config/cam_prah_h2x.yaml` (DL3DV **256×448 무크롭**, `IMG="256 448"`, node1) | 사용자 지시(carrier 제외, TTT-RoPE만): DL3DV 원본 비율에서 최고 TTT-RoPE 레시피(입력+hidden ×2). 참고: 무크롭 2-seed 기존 결과 base 17.55, hidden +0.32/+0.19, both +0.17/+0.24 | [ARMED node1 gpu1 — V8-26 종료 시] |
 | V8-31 | `dl3dvw48_attn_prope_s95` | `config/gobj_attn_prope.yaml` (DL3DV 256×448, node1) | 무크롭 프로토콜의 상한(attention+PRoPE) | [ARMED node1 gpu0 — attn_nope 종료 시] |
+| V8-32 | `gobjvi_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` (`DATA=gobj_vi`) | **carrier 없는 후보**: TTT-RoPE(입력+hidden) + moment@focus + hidden ×2 — vi | [QUEUED node2 — 즉시(V8-18/21 대체)] |
+| V8-33 | `gobj_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` (`DATA=gobj`) | 같은 것 — orbit | [QUEUED node2 — 즉시] |
+| V8-34 | `gobjvi_hpra_mfocus_h2x_s95` | `config/cam_hpra_mfocus_h2x.yaml` (`DATA=gobj_vi`) | hidden만 + moment@focus + ×2 (순수 TTT-특화 후보) — vi | [QUEUED node2 — 그 다음] |
 | V8-13 | `re10k_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` | **후보 레시피**: Plücker both, moment@focus + hidden 사다리 ×2 — RE10K (강건 레시피가 +1.18을 유지하는가) | [DONE 22.988 (+1.163 vs base, −0.373 vs prah_vorope)] |
 | V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [DONE 22.921 (+1.096 vs base, −0.088 vs h2x)] |
 | V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [DONE 22.857 (+1.032 vs base, −0.504 vs prah_vorope)] |
@@ -1095,6 +1098,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   (subagent 아이디어 정리 중이라고 했으니, 늦어지면 그 사이 채울 후보만 한 줄 알려줘도 된다.)
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
+- 2026-09-01 23:04 (node1): ⚠ **사용자 결정(23:25): carrier 제외, 방법 = TTT-RoPE(입력+hidden rotary)만.** 따라서 carrier 셀 **V8-18/V8-21(re10k_prah_mfocus_vorope*)은 지금 종료**하고(산출물 삭제 OK) 그 GPU에 **V8-32(vi)·V8-33(orbit)** 즉시, 이어서 V8-34. V8-25/27(orbit moment-only·d0.25)은 완주. DL3DV는 무크롭 256×448 프로토콜로 전환(node1이 처리).
 - 2026-09-01 22:42 (node1): **DL3DV 상한: attention+PRoPE = +0.693** (TTT base 대비) — DL3DV는 용량 한계가 아니라 우리 TTT PE(Plücker/foot 계열 전부 0)가 못 잡는 무언가(투영 상대변환·전진 이동)를 PRoPE가 잡는다. node1에 TTT PRoPE 이식(prope_raw) DL3DV 셀 투입. node2는 orbit moment-only 계열 계속.
 - 2026-09-01 22:01 (node1): V8-26(vi moment-only)은 node1 gpu1이 가져감(태그 갱신) — node2 큐에서 제외. node2: V8-17 → V8-25/27(orbit) → V8-18/21. vi 세 슬롯+focus+h2x = +0.597.
 - 2026-09-01 20:59 (node1): orbit 91°에서 moment@focus는 **−0.686**(세계 원점 −0.89보다 +0.20 나아졌을 뿐). 원인: 90° 베이스라인에선 Plücker의 **방향 d 성분**(|d₁−d₂|≈1.4)이 사다리를 wrap — moment 원점 이동으로는 못 고침. 새 knob `d_scale`(방향 성분 배율; 0 = moment-only). node2 큐 순서: **V8-17 → V8-25/26/27 → V8-18/21**. objaverse 데이터는 /tmp/gobj(orbit)·/tmp/gobj_vi 필요 — 없으면 리샤드(§2).
