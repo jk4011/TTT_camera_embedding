@@ -3262,3 +3262,20 @@ baseline's 0.10); plain foot_all is the least (sd 0.18) -- the 6-direction coord
 seed sensitivity, which is itself an argument for it beyond the mean gain. Per-seed paired deltas for the
 record: foot_all_iso +0.851 / +0.890 / +0.734; foot_all_iso_h2x +1.016 / +1.074 / +0.962; rot_hshell +0.716 /
 +0.661 / +0.461; foot_all +0.717 / +0.674 / +0.261.
+
+## F81 addendum 6 (2026-09-01 15:15): closing numbers of the foot_all_iso program
+- Orbit 3-seed (base eval_v2 22.193 / 22.298 / 22.078 = 22.190 +- 0.11): foot_all_iso 23.008 / 22.911 / 22.827 =
+  **22.915 +- 0.09, delta +0.725**; per-seed paired +0.815 / +0.620 / +0.749.
+- RE10K 8-view/30k: foot_all_iso 22.164 = **+0.339** (t=12.1) vs base_s95 -- below foot_all (+0.481) and far below
+  Plucker input+hidden (+0.971): the 6-direction coordinate pays only at wide baseline.
+- DL3DV: foot_all_iso 16.315 = **-0.083** (t=-2.6): slightly harmful (foot_all -0.015, rot_hshell -0.001).
+- Hidden-ladder curve on vi (foot_all_iso family): x1 22.832 / x2 22.997 / x4 23.055 / **x8 23.070** (+1.089 vs base;
+  increments +0.165 / +0.059 / +0.015 -- saturating, never negative on vi; harmful on orbit and on chord hidden).
+- Zero-training 2-view diagnostic (8-view-trained RE10K models, 2 inputs at the ends of a 90-frame window, 4 midpoint
+  targets, n=256): base 18.739; Plucker input **-0.101**; Plucker hidden **+0.225**; both -0.167. With two stored views
+  only the hidden code survives out of distribution, at a quarter of its 8-view gain; the input-site Plucker ladder
+  tuned for 8 views hurts at the 90-frame gap. This motivates the P2 program's exact-invariant (epipolar-plane angle)
+  codes and a coarser input ladder (P2-14).
+Program verdict: `foot_all_iso` is a wide-baseline (object-centric) recipe: vi +0.825 (3 seeds), orbit +0.725 (3 seeds),
+RE10K +0.34, DL3DV -0.08. It does not meet the user's new bar (simple-or-TTT-specific, robust incl. RE10K >= +1.0);
+the P2 program (2-view / 80k) takes over from here (F82+).
