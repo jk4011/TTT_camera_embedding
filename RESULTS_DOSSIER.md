@@ -3451,3 +3451,20 @@ v60 renders sample 20 stratified-random azimuths (18-deg sectors, jitter; elevat
 FOV 20-80 per variant), frame order = azimuth order, so the uniform-index eval covers V of 20 sectors: targets are
 unseen angles until V >= 20. gObjaverse orbit, by contrast, is a fixed grid (24 azimuths at 26 deg elevation, 13
 at -1 deg, two poles; distance 1.8, FOV 39.6 fixed) and was a genuine novel-view test from the start.
+
+## F84 addendum 2 (2026-09-02 02:05): gObjaverse ORBIT view sweep (the objaverse set of record after the user
+## retired the vi/v60 renders: same-position triplets). Seed 95 arms, 499 scenes, 40-frame grid (views <= 32).
+| V | base | input | hidden | both (TTT-RoPE) | both + focus origin |
+|---|---|---|---|---|---|
+| 4 | 19.486 | -0.515 | -0.498 | -1.021 | -0.754 |
+| 8 | 22.193 | -0.412 | -0.566 | -0.888 | -0.686 |
+| 12 | 22.388 | -0.314 | -0.593 | -0.749 | -0.498 |
+| 20 | 22.445 | -0.146 | -0.521 | -0.557 | -0.384 |
+| 32 | 22.176 | -0.208 | -0.564 | -0.635 | -0.448 |
+(all |t| >= 9). On the true 91-deg orbit every TTT-RoPE arm is negative at every view count; the focus origin
+removes ~0.2 dB of the damage but never crosses zero, and unlike v60 the gain does not appear at high view counts
+(fixed distance 1.8 / FOV 39.6: matched rays still differ by |d1-d2| ~ 1.4 in direction, which the moment origin
+cannot fix). Note the standard orbit eval has one near-duplicate target (frame 24 = frame 0's pose); the other
+three targets are 15-45 deg from the nearest input. Under the user's scope (simplest TTT-RoPE, no ladder / direction
+knobs, no foot codes), objaverse-orbit is a documented limitation: TTT-RoPE is a narrow-to-medium-baseline method
+(RE10K +1.15..+1.61, DL3DV window-128 +0.04..+0.37 with views; uncropped DL3DV pending).
