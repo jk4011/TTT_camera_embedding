@@ -78,8 +78,8 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | P2-5 | `p2_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | 구 강건 레시피의 2-view 값(참고) | [DONE 19.241 (-0.662 vs p2_base)] |
 | P2-6 | `p2_rot_raw_s95` | `config/cam_rot_raw.yaml` | 회전 행렬 입력+carrier(간단·비-rotary 기준) | [DONE 19.836 (-0.068 vs p2_base — 무효)] |
 | P2-7 | `p2_h_epi_s95` | `config/p2_h_epi.yaml` | **에피폴라-평면 각 φ의 hidden rope**(순수 TTT-특화; φ = baseline 축에 대한 ray의 에피폴라 평면 각, 대응 픽셀에서 깊이·베이스라인 무관 Δφ=0, 정수 고조파라 스케일 손잡이 없음) | [ARMED node1 gpu1 — p2_base 종료 시 자동] |
-| P2-8 | `p2_pra_hepi_s95` | `config/p2_pra_hepi.yaml` | Plücker 입력 + φ hidden | [RUNNING node1 gpu2 15:10] |
-| P2-9 | `p2_rot_hepi_s95` | `config/p2_rot_hepi.yaml` | 회전 행렬 입력+carrier + φ hidden (p*·스케일 무관 범용 레시피) | [ARMED node1 gpu3 — RE10K iso 종료 시 자동] |
+| P2-8 | `p2_pra_hepi_s95` | `config/p2_pra_hepi.yaml` | Plücker 입력 + φ hidden | [DONE 19.910 (+0.006 vs base — φ hidden 무효)] |
+| P2-9 | `p2_rot_hepi_s95` | `config/p2_rot_hepi.yaml` | 회전 행렬 입력+carrier + φ hidden (p*·스케일 무관 범용 레시피) | [DONE 19.813 (−0.090 vs base, −0.023 vs rot_raw — h_epi 무효)] |
 | P2-10 | `p2_epi_all_s95` | `config/p2_epi_all.yaml` | φ 입력+hidden + 회전 carrier (일관성) | [RUNNING node2 gpu3 15:59] |
 | P2-11 | `p2_bf_all_s95` | `config/p2_bf_all.yaml` | BF-RoPE: (φ, α) 입력 + (φ, α 저조파) hidden + carrier | [RUNNING node2 gpu0 16:10] |
 | P2-12 | `p2_bip_all_s95` | `config/p2_bip_all.yaml` | 위와 같되 α 대신 vergence-보정 ψ_c | [RUNNING node2 gpu2 16:06] |
@@ -87,8 +87,10 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | P2-14 | `p2_pra_h_hi_w025_s95` | `config/p2_pra_h_hi_w025.yaml` | Plücker both, **입력 사다리 ×0.25**(진단: 8-view 모델의 2-view 평가에서 입력 Plücker −0.10 / hidden +0.23 / both −0.17 → 90-frame 간격엔 사다리가 3–6× 너무 촘촘) | [QUEUED node2 (체인 무장, 5번째)] |
 | P2-17 | `p2_h_pra_w05_s95` | `config/p2_h_pra_w05.yaml` | Plücker hidden, **hidden 사다리 ×0.5** (2-view에서 hidden만 살아남음 +0.254; 사다리가 너무 촘촘하다는 진단 검증) | [RUNNING node1 gpu0 16:16] |
 | P2-18 | `p2_h_pra_w025_s95` | `config/p2_h_pra_w025.yaml` | 같은 것, ×0.25 | [QUEUED node2 (6번째)] |
-| P2-19 | `p2_bf_lam_all_s95` | `config/p2_bf_lam_all.yaml` | BF-RoPE + **h_lam**(hidden에 baseline 위치 u 회전 쌍 — 가까운 뷰 가중/뷰 차이, 선형 슬롯만 가능) | [PENDING — P2-18 다음] |
-| P2-20 | `p2_pra_hbf_s95` | `config/p2_pra_hbf.yaml` | Plücker 입력 + (φ, α 저조파) hidden | [PENDING — 그 다음] |
+| P2-19 | `p2_bf_lam_all_s95` | `config/p2_bf_lam_all.yaml` | BF-RoPE + **h_lam**(hidden에 baseline 위치 u 회전 쌍 — 가까운 뷰 가중/뷰 차이, 선형 슬롯만 가능) | [QUEUED node2 (8번째)] |
+| P2-20 | `p2_pra_hbf_s95` | `config/p2_pra_hbf.yaml` | Plücker 입력 + (φ, α 저조파) hidden | [QUEUED node2 (9번째)] |
+| P2-21 | `p2_attn_nope_s95` | `config/gobj_attn_nope.yaml` | **상한 진단**: TTT층을 block-causal attention(PE 없음)으로 교체 — 2-view에서 attention 자체의 값 | [PENDING — 진단, P2-20 다음] |
+| P2-22 | `p2_attn_prope_s95` | `config/gobj_attn_prope.yaml` | **상한 진단**: attention + PRoPE — 2-view RE10K에서 relative camera PE가 attention에 주는 최대치(이게 +1.0 미만이면 어떤 PE도 이 모델에선 +1.0 불가) | [PENDING — 진단, 위와 함께] |
 | P2-15 | `p2vi_base_s95` | `config/lact_l6_d256_p16.yaml` (**`DATA=gobj_vi`**) | objaverse-vi 2-view 기준선 (24 frames = 8 시점×3 intrinsics; 입력 = 시점 1·8, ≈58°) | [PENDING — RE10K 파동 뒤] |
 | P2-16 | `p2dl_base_s95` | `config/lact_l6_d256_p16.yaml` (**`DATA=dl3dv`**, node1 전용: /tmp/dl3dv) | DL3DV 2-view 기준선 | [PENDING — node1] |
 (모두 2-view·8-view smoke 통과. 태그 선점 후 실행; node1/node2 구분 없이 빈 GPU가 위에서부터 가져간다.)
@@ -232,6 +234,13 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+- 2026-09-01 16:50 (node2): P2-19 `bf_lam_all`(+`h_lam`)·P2-20 `pra_hbf`를 확인·큐 8·9번째에 넣었다.
+  레이어 생성 확인: bf_lam_all=['bf_in','h_bf','h_lam','vo_rel'], pra_hbf=['h_bf','qk_rope_cam']. `h_lam`도 known에 있다.
+  현재 큐 9개: epi_all·bf_all·bip_all·foot_iso_pnu(실행 중) → pra_h_hi_w025 → h_pra_w025 → p2vi_base → bf_lam_all → pra_hbf.
+  ⓘ 사소한 자기보고: 대기 체인 교체를 `kill $W` + 재기동으로 **한 명령에 묶었다가 exit 144로 중단**됐다
+  (오늘 두 번째 같은 실수다). 즉시 확인해 학습 4개·락 4개 무사, 대기 체인만 빠진 것을 보고 별도 호출로 다시 걸었다.
+  이제부터 대기 체인 교체는 **kill과 재기동을 반드시 분리**한다.
 
 - 2026-09-01 16:40 (node2, ⚠ **P2 1차 4셀 종합 — 방향 재검토가 필요해 보인다**):
   | cell | P2 Δ (2-view) | 같은 셀의 8-view 값 |
