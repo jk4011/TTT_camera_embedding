@@ -1104,6 +1104,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         asym_k: int = 3,
         omega_scale_h: float = 1.0,
         omega_scale_hpra: float = 1.0,
+        d_scale: float = 1.0,
         oracle_noise: float = 0.0,
         cfr_gamma: float = 3.1,
         qh_kappa: float = 1.0,
@@ -1231,6 +1232,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         # (linear kernel: parallax must stay inside the first half-period). 'h_lam' adds a few
         # hidden pairs rotated by the camera's position along the baseline (nearer-view weighting).
         self.bf_coord = bf_coord; self.epi_env = epi_env
+        self.d_scale = float(d_scale)
         if self.cam_modes & {"epi_in", "bf_in"}:
             P = num_freqs_epi
             assert 2 * P <= head_dim, (P, head_dim)
@@ -1781,6 +1783,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         omega = self.omega if omega is None else omega
         gain = self.freq_gain if gain is None else gain
         coords = self._coords6(info)  # [b, L, 6]
+        if getattr(self, "d_scale", 1.0) != 1.0:
+            # d_scale (V8 program): scale the DIRECTION half of the Plucker code (coords[..., :3] = d).
+            # 0 = moment-only code: at 90-deg baselines the direction part wraps (|d1-d2| ~ 1.4) while
+            # the focus-origin moment stays small for object points.
+            coords = torch.cat([coords[..., :3] * self.d_scale, coords[..., 3:]], dim=-1)
         theta = coords[..., None] * (omega[None, None, None] * gain[None, None])
         theta = theta.flatten(2)  # [b, L, 6F]
         if dOmega is not None:
