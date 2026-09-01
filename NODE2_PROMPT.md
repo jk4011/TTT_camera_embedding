@@ -83,12 +83,12 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-8 | `re10k_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | hidden만, moment@focus — RE10K | [DONE 22.668 (+0.843 vs base, −0.129 vs pra_h_hi)] |
 | V8-11 | `gobjvi_prah_mfocus_vo_s95` | `config/cam_prah_mfocus_vo.yaml` | moment@focus + 회전 carrier(vo_rel) — vi | [KILLED 20:25 — V8-19(위상 carrier)로 대체] |
 | V8-12 | `gobjvi_prah_mfocus_w05_s95` | `config/cam_prah_mfocus_w05.yaml` | moment@focus + 입력·hidden 사다리 ×0.5 (wide-baseline wrap 완화) — vi | [KILLED 20:25 — h2x 방향으로 대체] |
-| V8-25 | `gobj_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj`) | **moment-only Plücker**(d_scale 0: 방향 성분 제거, focus-moment 3좌표만) — orbit 91° (d wrap 가설 검증) | [QUEUED node2 — V8-17 다음 최우선] |
-| V8-26 | `gobjvi_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj_vi`) | 같은 것 — vi | [QUEUED node2] |
-| V8-27 | `gobj_prah_mfocus_d025_s95` | `config/cam_prah_mfocus_d025.yaml` (`DATA=gobj`) | 방향 성분 ×0.25 — orbit | [QUEUED node2] |
+| V8-25 | `gobj_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj`) | **moment-only Plücker**(d_scale 0: 방향 성분 제거, focus-moment 3좌표만) — orbit 91° (d wrap 가설 검증) | [QUEUED node2 (체인 무장)] |
+| V8-26 | `gobjvi_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj_vi`) | 같은 것 — vi | [QUEUED node2 (체인 무장)] |
+| V8-27 | `gobj_prah_mfocus_d025_s95` | `config/cam_prah_mfocus_d025.yaml` (`DATA=gobj`) | 방향 성분 ×0.25 — orbit | [QUEUED node2 (체인 무장)] |
 | V8-13 | `re10k_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` | **후보 레시피**: Plücker both, moment@focus + hidden 사다리 ×2 — RE10K (강건 레시피가 +1.18을 유지하는가) | [RUNNING node2 20:16] |
 | V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [RUNNING node2 20:16] |
-| V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [RUNNING node2 20:16] |
+| V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [DONE **22.857 (+1.032 vs base; +0.133 vs h_pra_hi)** — hidden만으로 +1.0 돌파] |
 | V8-16 | `gobjvi_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` (`DATA=gobj_vi`) | 후보 레시피 — vi | [PENDING — node1 다음 빈 GPU] |
 | V8-17 | `re10k_prah_vorope_h2x_s95` | `config/cam_prah_vorope_h2x.yaml` | 세 슬롯 Plücker + hidden 사다리 ×2 — RE10K (두 이득 합성) | [RUNNING node2 gpu1 20:21] |
 | V8-18 | `re10k_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` | 세 슬롯 Plücker + moment@focus — RE10K 보존 확인 | [QUEUED node2 (체인 무장)] |
@@ -270,6 +270,17 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+- 2026-09-01 21:05 (node2): V8-25/26/27(monly·d025) 확인·큐 앞쪽에 넣었다(네 '최우선' 표시 반영):
+  **monly(gobj) → monly(vi) → d025(gobj) → mfocus_vorope → mfocus_vorope_h2x.**
+  ⓘ **런처가 갈리는 문제를 처리했다**: 이번 3셀은 `gobj`/`gobj_vi`라 `run_gobj.sh`가 필요한데 기존 대기 체인은
+  `run_re10k.sh`를 부르는 chain9였다. 그대로 뒀으면 orbit 셀이 **RE10K 데이터로** 돌 뻔했다.
+  data 필드로 런처를 고르는 `chain10.sh`를 만들어 4장에 다시 걸었다(re10k→run_re10k.sh, gobj*→DATA=… run_gobj.sh).
+  이제 한 큐에 데이터셋을 섞어도 안전하다.
+  config 확인: monly/d025는 `cam_prah_mfocus.yaml`과 **`d_scale` 한 줄만 다르다**(0.0 / 0.25).
+  `d_scale`은 lact_ttt_cam.py:1107 선언·1235 저장·**1786에서 Plücker의 방향(d) 절반에만 곱해진다** — 즉
+  monly는 진짜 'moment만', d025는 '방향 1/4'이다. 세 config가 서로, 그리고 기존 mfocus와도 구분되는 것을 확인했다.
+  /tmp/gobj(19500)·/tmp/gobj_vi(20000) 모두 살아 있어 바로 돌 수 있다.
 
 - 2026-09-01 20:25 (node2): 최우선 `prah_vorope_h2x`를 유휴 gpu1에 즉시 올렸다(20:21, 유휴 ~2분). **4장 full.**
   나머지 둘(`prah_mfocus_vorope`, `prah_mfocus_vorope_h2x`)은 큐에 넣고 **V8 전용 체인 `chain9.sh`**(run_re10k.sh 호출)를
