@@ -154,7 +154,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-7b | `gobjvi_base_s211` | `config/lact_l6_d256_p16.yaml` (SEED 211) | s211 짝 기준 (node1 담당으로 변경) | [DONE 22.085 — s211 짝 기준]] |
 | W5-7c | `gobjvi_foot_all_iso_s211` | `config/gobj_foot_all_iso.yaml` (SEED 211) | headline 3번째 시드 (node1 담당) | [DONE 22.819 (+0.734 vs base_s211) — iso 3-seed 평균 +0.825]] |
 | W5-22 | `gobjvi_foot_all_iso_h2x_s137` | `config/gobj_foot_all_iso_h2x.yaml` (SEED 137) | 신규 headline 시드 재현 (node1) | [DONE 22.960 (+1.074 vs base_s137 — headline 재현)] |
-| W5-23 | `gobj_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` | 신규 headline **orbit 쌍둥이** — `DATA=gobj` | [RUNNING node2 gpu3 09:30] |
+| W5-23 | `gobj_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` | 신규 headline **orbit 쌍둥이** — `DATA=gobj` | [DONE 22.837 (+0.644 vs orbit base; rot_hshell과 동률)] |
 | W5-24 | `gobjvi_foot_all_iso_h4x_s95` | `config/gobj_foot_all_iso_h4x.yaml` | **반증 셀**: hidden ladder ×4 — 유도는 최적이 ×2(입력 kernel 제곱 → 2ω)라고 예측하므로 ×4는 **더 좋아지면 안 됨**; smoke 통과 | [RUNNING node1 gpu0 09:55] |
 | W5-22b | `gobjvi_foot_all_iso_h2x_s211` | `config/gobj_foot_all_iso_h2x.yaml` (SEED 211) | 신규 headline 3번째 시드 (node1) | [RUNNING node1 gpu1 10:42] |
 | W5-25 | `re10k_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` (RE10K, launch_exp.sh) | 신규 headline의 **RE10K 한-레시피 검증** (node1 gpu2, 체인 `outputs/_smoke/re10k_headline_chain.sh`) | [RUNNING node1 gpu2 10:55] |
@@ -636,6 +636,16 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   **폭이 0.198 dB**로 내가 08:37에 어림한 0.09보다 크다. 상위 5셀이 절대 PSNR 기준 0.064 dB 안에 몰려 있으니
   **base 변동이 셀 간 격차의 3배**다 — 단일 시드 절대값 비교는 확실히 무의미하고, 시드별 Δ로만 읽어야 한다.
   이 세 숫자는 논문 표의 시드 열에도 그대로 필요할 테니 함께 적어 둔다.
+- 2026-09-01 11:35 (node2, **headline 교차검증 결과 — 주의해서 읽어라**):
+  **W5-23 `gobj_foot_all_iso_h2x_s95`(orbit) 22.837 = +0.644** vs orbit base (t=+27.0, 91%).
+  vi에서는 이 레시피가 **+1.0 dB로 1위**였는데 orbit에서는 **+0.644**이고, 더 중요한 건 orbit 기존 셀들과의 관계다:
+  `shell_vo` +0.112 / `foot_all` +0.080 / **`rot_hshell`(22.835) +0.002 — 완전 동률**(t=+0.1, 52%).
+  → **orbit에서는 headline이 기존 최고 대비 이득이 없다.** vi에서 얻은 +0.165(vs foot_all_iso)와 iso·h2x의 합성 이득이
+  orbit으로 옮겨오지 않는다.
+  해석은 네 몫이지만 한 줄 덧붙이면: iso(6방향)와 hidden ladder ×2는 둘 다 **뷰별 FOV·거리가 무작위인 vi**에서
+  주소 해상도를 늘리는 장치인데, orbit은 고정 반경·고정 intrinsics라 그 여유가 쓸모없을 수 있다.
+  → 논문에 'one recipe'로 쓰려면 이 격차를 설명하거나, orbit·vi 각각의 최적을 따로 보고해야 한다.
+  네 RE10K 검증(W5-25)이 나오면 세 데이터셋 그림이 완성된다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
