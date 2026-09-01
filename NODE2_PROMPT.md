@@ -81,7 +81,7 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-6 | `re10k_prah_vorope_s95` | `config/cam_prah_vorope.yaml` | Plücker를 세 슬롯 모두에(입력+hidden+위상 carrier) — RE10K에서 +1.0 돌파 시도 | [DONE 23.361 (+1.536 vs base, +0.565 vs pra_h_hi) — **RE10K 최고**] |
 | V8-7 | `re10k_prah_h2x_s95` | `config/cam_prah_h2x.yaml` | hidden Plücker 사다리 ×2 — RE10K | [DONE 23.009 (+1.183 vs base, +0.212 vs pra_h_hi — **+1.0 돌파**)] |
 | V8-8 | `re10k_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | hidden만, moment@focus — RE10K | [DONE 22.668 (+0.843 vs base, −0.129 vs pra_h_hi)] |
-| V8-11 | `gobjvi_prah_mfocus_vo_s95` | `config/cam_prah_mfocus_vo.yaml` | moment@focus + 회전 carrier(vo_rel) — vi | [KILLED 20:25 — V8-19(위상 carrier)로 대체] |
+| V8-11 | `gobjvi_prah_mfocus_vo_s95` | `config/cam_prah_mfocus_vo.yaml` | moment@focus + 회전 carrier(vo_rel) — vi | [ARMED node1 gpu2 — V8-22 종료 시 자동 (재큐잉: vi에서 위상 carrier +0.03뿐 → 회전 carrier 비교)] |
 | V8-12 | `gobjvi_prah_mfocus_w05_s95` | `config/cam_prah_mfocus_w05.yaml` | moment@focus + 입력·hidden 사다리 ×0.5 (wide-baseline wrap 완화) — vi | [KILLED 20:25 — h2x 방향으로 대체] |
 | V8-25 | `gobj_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj`) | **moment-only Plücker**(d_scale 0: 방향 성분 제거, focus-moment 3좌표만) — orbit 91° (d wrap 가설 검증) | [RUNNING node2 gpu3 21:55] |
 | V8-26 | `gobjvi_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj_vi`) | 같은 것 — vi | [RUNNING node1 gpu1 — node2가 양보(22:12)] |
@@ -90,11 +90,11 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [DONE 22.921 (+1.096 vs base, −0.088 vs h2x)] |
 | V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [DONE 22.857 (+1.032 vs base, −0.504 vs prah_vorope)] |
 | V8-16 | `gobjvi_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` (`DATA=gobj_vi`) | 후보 레시피 — vi | [PENDING — node1 다음 빈 GPU] |
-| V8-17 | `re10k_prah_vorope_h2x_s95` | `config/cam_prah_vorope_h2x.yaml` | 세 슬롯 Plücker + hidden 사다리 ×2 — RE10K (두 이득 합성) | [DONE 23.363 (+1.538; vs vorope +0.002 — h2x 비가산)] |
+| V8-17 | `re10k_prah_vorope_h2x_s95` | `config/cam_prah_vorope_h2x.yaml` | 세 슬롯 Plücker + hidden 사다리 ×2 — RE10K (두 이득 합성) | [DONE 23.363 (+1.538 vs base; prah_vorope와 완전 동률)] |
 | V8-18 | `re10k_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` | 세 슬롯 Plücker + moment@focus — RE10K 보존 확인 | [RUNNING node2 gpu0 22:13] |
 | V8-19 | `gobjvi_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` (`DATA=gobj_vi`) | 세 슬롯 Plücker + moment@focus — **vi (강건성 판정)** | [DONE 22.426 (+0.445 vs base)] |
 | V8-20 | `gobjvi_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` (`DATA=gobj_vi`) | 위 + hidden ×2 — vi | [DONE 22.578 (+0.597 vs base; prah_mfocus 대비 +0.185)] |
-| V8-21 | `re10k_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` | 후보 최종 레시피 — RE10K | [QUEUED node2 (체인 무장)] |
+| V8-21 | `re10k_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` | 후보 최종 레시피 — RE10K | [RUNNING node2 gpu1 22:20] |
 | V8-22 | `gobjvi_both_norecenter_s95` | `config/cam_pra_h_hi.yaml` + `POSE_NORM=norecenter` (`DATA=gobj_vi`) | **원인 분리 진단**(사용자 제안): 장면 정규화에서 평균 이동만 제거(렌더의 물체 중심 원점 유지, 회전 정렬·스케일은 유지) + 세계 원점 Plücker both → moment@focus(+0.41)와 같으면 '원점' 단독 효과 확정 | [ARMED node1 gpu2 — DL3DV 종료 시 자동] |
 | V8-23 | `dl3dv_attn_prope_s95` | `config/gobj_attn_prope.yaml` (DL3DV, node1) | **DL3DV 상한 진단**: TTT층 → attention+PRoPE. 이것도 ≈0이면 DL3DV(F50 프로토콜, base 16.4)는 PE로 못 움직이는 용량/콘텐츠 한계 | [ARMED node1 gpu3 — orbit 종료 시 자동] |
 | V8-24 | `dl3dv_attn_nope_s95` | `config/gobj_attn_nope.yaml` (DL3DV, node1) | 짝 대조군 attention(PE 없음) | [RUNNING node1 gpu0 22:30] |
@@ -270,6 +270,15 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+- 2026-09-01 22:25 (node2, **V8-17 결과 — 포화 확인**): `prah_vorope_h2x` **23.363 = +1.538**,
+  `prah_vorope`(23.361) 대비 **+0.002 (t=+0.3, 52%) — 완전 동률**.
+  → **세 슬롯을 채우면 hidden 사다리 ×2가 아무 것도 더하지 않는다.** 두 슬롯일 때 ×2는 +0.212였는데(h2x),
+  carrier가 들어가면 그 이득이 사라진다 → **두 장치가 같은 부족분을 메우고 있었다**는 뜻이다(가산이 아니라 중복).
+  이건 논문 논거에 쓸모가 있다: '세 슬롯 일관성'이 사다리 튜닝을 **불필요하게 만든다**고 말할 수 있다
+  (하이퍼파라미터 하나를 지울 근거).
+  진행 중인 2×2 격자(Δ vs base): world×1 **+1.536** / world×2 **+1.538** / focus×1·focus×2 진행 중(23:40경).
+  focus 두 칸이 나오면 moment 원점과 사다리의 상호작용까지 완결된다. 큐는 비었고 4장 모두 실행 중이다.
 
 - 2026-09-01 22:15 (node2, **중복 2회차 — 내가 양보, 손실 3분**): `gobjvi_prah_mfocus_monly_s95`를 두 노드가 동시에 돌렸다.
   타임라인: **21:58:01 node2 claim+시작 → 22:01:10 node1 락 등장**(3분 뒤). 공유 train.log의 Iter가 1000→100으로
