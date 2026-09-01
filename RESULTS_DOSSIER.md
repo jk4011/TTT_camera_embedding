@@ -3176,3 +3176,25 @@ Notes. `gobj_oracle_n12_s95/train.log` is not usable as a learning curve (a node
 the same directory; the 03:17 checkpoint and 03:18 eval are from the single completed node1 run and were
 verified intact). All cells trained with the F51 recipe; iso cells use num_freqs_seg 21 / hseg 42 (the
 2*n_dirs*freqs <= head_dim budget), h2x sets omega_scale_h 2.0 on the hidden ladder only.
+
+## F81 addendum (2026-09-01 11:25): seeds and orbit twins of the F81 cells -- `foot_all_iso` is the robust
+## cross-dataset recipe (vi 3-seed mean +0.825, orbit +0.815); the hidden-ladder x2 gain is vi-specific
+
+| cell | vi s95 | vi s137 (base 21.887) | vi s211 (base 22.085) | orbit s95 (base 22.193) |
+|---|---|---|---|---|
+| foot_all_iso | +0.851 | **+0.890** (22.776, t=45.9) | **+0.734** (22.819, t=40.6) | **+0.815** (23.008, t=35.2; +0.173 vs orbit rot_hshell, t=9.7) |
+| foot_all_iso_h2x | +1.016 | **+1.074** (22.960, t=50.7; +0.184 vs iso_s137, t=19.1) | in flight | +0.644 (22.837; **-0.171 vs orbit foot_all_iso**, t=-14.1; tie with orbit rot_hshell) |
+| rot_hshell | +0.716 | +0.661 (22.548, t=41.6) | in flight (node2) | +0.642 (F79) |
+| rot_hanchor | +0.765 | in flight (node2) | -- | +0.576 (22.769; -0.066 vs orbit rot_hshell, t=-4.7) |
+Baseline seeds: 21.981 / 21.887 / 22.085 (spread 0.20 dB -- only paired deltas are meaningful).
+
+Reading. The iso-foot recipe replicates across three seeds and transfers to the 91-deg orbit; the doubled
+hidden ladder replicates on vi (+0.165 / +0.184) but HURTS on orbit (-0.171). The ladder is a fixed constant
+in normalized scene units, and the two datasets normalize differently (orbit: fixed distance and FOV; vi:
+per-view random FOV/distance), so the frequency that matches the squared input kernel on vi is off on
+orbit -- the SPEC-2x direction is right (F81: lowering the ladder hurts, raising it helps on vi) but its
+magnitude is a dataset knob, not a universal 2x. Paper-facing recipe: `foot_all_iso` (zero new parameters,
+robust); report `foot_all_iso_h2x` as the vi best with the caveat. Follow-up (not run): scale the ladder by
+the per-scene spread of foot coordinates instead of a constant. Still in flight at 11:25: the x4
+falsification cell (vi), rot_hshell_h2x (SPEC-2x on the matrix+chord family), RE10K one-recipe check of
+foot_all_iso_h2x, foot_all_iso_h2x_s211, node2's remaining seed trio.
