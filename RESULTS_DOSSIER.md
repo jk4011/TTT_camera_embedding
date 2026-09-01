@@ -1488,15 +1488,16 @@ PROTOCOL NOTES, all shared by the four arms, none comparable outside this grid:
 - Eval-window geometry measured through the actual loader, as the angle between camera
   forward axes over the 12 views served: median 34.5 deg, mean 49.0 (RE10K ~7 at the
   same protocol). A different convention in the launch brief reports 20.6 deg for the
-  same data; both say the geometry contrast survives the loader's window, which is the
-  load-bearing part. (CORRECTED 2026-09-01: this line previously said "the 128-frame
-  window". The loader is `Re10KDataset` with its default `window=192` -- eval serves a
-  CENTRED min(num_frames, 192) run with inputs uniformly spaced and targets at midpoints
-  (`data_re10k.py:118-129`), while TRAINING draws a random contiguous run whose length is
-  itself random in [num_views*3, 192] = [45, 192] (`data_re10k.py:132-135`). There is no
-  128-frame window anywhere; 128 appears only as an extra eval width in
-  `run_dl3dv_window.sh`. `run_dl3dv_grid.sh` passes no --window, so F50 used the 192
-  default.)
+  same data; both say the geometry contrast survives the 128-frame window, which is the
+  load-bearing part. (VERIFIED 2026-09-01 against the code -- the "128" is right, and note
+  that TRAIN and EVAL use DIFFERENT windows: `eval.py --window` defaults to **128** and is
+  handed to `Re10KDataset(window=...)`, which serves a CENTRED min(num_frames, 128) run with
+  inputs uniformly spaced and targets at midpoints (`eval.py:29,63`; `data_re10k.py:118-129`);
+  `train.py --window` defaults to **192** and training draws a random contiguous run whose
+  length is itself random in [num_views*3, 192] = [45, 192] (`train.py:38`;
+  `data_re10k.py:132-135`). `Re10KDataset`'s own default is 192, which eval.py overrides.
+  `run_dl3dv_window.sh`'s "the existing dl3dv_* runs are the wide arm (window 192)" refers to
+  the TRAINING window, not this eval one.)
 - Throughput note: DL3DV and RE10K train at the SAME speed once matched by phase
   (~11.3 it/s before LPIPS, ~4.9 after, both datasets). An earlier read of ~2.3x was an
   artifact of comparing DL3DV's pre-LPIPS rate to RE10K's post-LPIPS rate.
@@ -3171,7 +3172,7 @@ iso address (+0.007), so the headline keeps the simpler rotation carrier.
 | vi (500) | +0.716 | +0.717 (iso +0.851; iso_h2x +1.016) | wide baseline, main axis |
 | orbit 91 deg (499) | +0.642 (F79) | +0.564 (F79) | holds |
 | RE10K narrow (256) | 22.092 **+0.266** (t=12.1, 79%; LPIPS +0.005 worse) | 22.306 **+0.481** (t=15.3, 80%); +0.214 over rot_hshell (t=12.6) | narrow baseline also gains; foot_all clearly better |
-| DL3DV partial arc (140) | 16.398 -0.001 (t=-0.02) | 16.383 -0.015 (t=-0.5) | exactly neutral: p* (LS intersection of optical axes) is only weakly determined here -- DL3DV is a LARGE-RADIUS walk-around orbit (capture guideline: circle/half-circle of 30-45 s walking diameter, 180-360 deg horizontal, two heights at overhead and waist), the loader serves only a contiguous sub-run of each scene (`Re10KDataset` default window 192: eval a centred 192-frame run, training a random contiguous run of random length 45-192), and unbounded outdoor scenes with ~5 scattered instances have no single well-defined centre. F50 measured median 34.5 deg / mean 49.0 deg PAIRWISE angle between forward axes over the 12 served views. Large radius + partial arc + no compact centre -> the intersection sits far away and unstable relative to scene scale, the coordinates degenerate, and the learnable gains mute the code: no harm, no gain. CORRECTED 2026-09-01: this row previously read "ill-conditioned on forward-walking paths", which is wrong -- DL3DV's documented capture is circular/semi-circular, and forward walking would put the forward axes near-parallel (~0 deg), contradicting the measured 34.5 deg. Numbers unchanged; only the mechanism attribution is corrected. |
+| DL3DV partial arc (140) | 16.398 -0.001 (t=-0.02) | 16.383 -0.015 (t=-0.5) | exactly neutral: p* (LS intersection of optical axes) is only weakly determined here -- DL3DV is a LARGE-RADIUS walk-around orbit (capture guideline: circle/half-circle of 30-45 s walking diameter, 180-360 deg horizontal, two heights at overhead and waist), the loader serves only a contiguous sub-run of each scene (eval: a CENTRED min(num_frames, 128) run, `eval.py --window` default 128; training: a random contiguous run of random length 45-192, `train.py --window` default 192), and unbounded outdoor scenes with ~5 scattered instances have no single well-defined centre. F50 measured median 34.5 deg / mean 49.0 deg PAIRWISE angle between forward axes over the 12 served views. Large radius + partial arc + no compact centre -> the intersection sits far away and unstable relative to scene scale, the coordinates degenerate, and the learnable gains mute the code: no harm, no gain. CORRECTED 2026-09-01: this row previously read "ill-conditioned on forward-walking paths", which is wrong -- DL3DV's documented capture is circular/semi-circular, and forward walking would put the forward axes near-parallel (~0 deg), contradicting the measured 34.5 deg. Numbers unchanged; only the mechanism attribution is corrected. |
 
 ### Oracle sigma-curve completed (orbit, GT surface point with Gaussian depth noise, F73/W4)
 sigma = 0 / 0.04 / 0.07 / 0.12  ->  +2.08 / +0.98 / +0.77 / **+0.077** (22.270, t=2.8, win 50.5%).
@@ -3324,3 +3325,58 @@ foot recipe collapses when p* is the LS intersection of two nearly parallel axes
 task is capacity/ambiguity-limited rather than addressing-limited for this model; the user reverted to the
 8-view / 30k protocol (F83+). New knobs kept in the code: epipolar codes (`epi_in/h_epi/bf_in/h_bf/h_lam`),
 `focus_mode=vergence`, per-target PSNR in eval.py (`per_view_psnr`), `omega_scale_hpra`.
+
+## F83: back to 8-view / 30k -- Plucker at all THREE slots is the RE10K record (+1.536), the hidden ladder
+## x2 alone crosses +1.0 (hidden-only +1.032), and moving the Plucker moment origin to the scene focus
+## turns Plucker positive at wide baseline (vi +0.10 -> +0.41 .. +0.60) but not on the 91-deg orbit
+## (2026-09-01 17:40-22:45; seed 95; RE10K n=256 base_s95 21.825; vi n=500 base 21.981; orbit n=499 base 22.193)
+
+Criteria (user, 13:30): methods must be SIMPLE or TTT-SPECIFIC (Plucker fine; foot rejected as complex and
+not TTT-specific; hidden rope ideal) and ROBUST across datasets with RE10K >= +1.0. One-line knobs added:
+`plucker_origin: focus` (m* = (o - p*) x d, p* = LS intersection of the input optical axes), `plucker_norm`
+(per-scene RMS of the input tokens' moment), `omega_scale_hpra` (hidden Plucker ladder scale), `d_scale`
+(direction half of the Plucker code), `pose_norm_mode: norecenter` (diagnostic: keep the data origin).
+
+### RE10K (8-view, 30k)
+| cell (cam_mode) | PSNR | d vs base (t, win) | note |
+|---|---|---|---|
+| Plucker input + hidden (`qk_rope_cam+h_pra`, F-series ref) | 22.797 | +0.971 | |
+| **+ Plucker phase carrier on v/o (`+vo_rope`, 6d)** | **23.361** | **+1.536** (39.7, 99%) | +0.565 over both (t=41); consistency law: same code in all three slots |
+| three slots + hidden x2 | 23.363 | +1.538 | +0.002 vs three slots: h2x does not stack on the carrier |
+| both + hidden ladder x2 (`omega_scale_hpra 2`) | 23.009 | +1.183 | +0.212 over both (t=19) |
+| both + hidden x4 | 22.921 | +1.096 | x2 is the peak on RE10K |
+| both + moment@focus | 22.786 | +0.961 | -0.010 vs both: the focus origin is neutral at narrow baseline |
+| both + moment@focus + hidden x2 | 22.988 | +1.163 | -0.020 vs h2x (noise) |
+| **hidden only, ladder x2 (`h_pra`, x2)** | **22.857** | **+1.032** (39.7, 99%) | the pure TTT-specific cell crosses +1.0 (+0.133 over hidden x1) |
+| hidden only + moment@focus | 22.668 | +0.843 | -0.056 vs hidden x1 |
+
+### Wide baseline (vi re-renders; orbit 91 deg; DL3DV F50)
+| cell | vi | orbit | DL3DV |
+|---|---|---|---|
+| Plucker both, world origin (refs) | +0.10 | -0.89 | -0.009 |
+| Plucker hidden only, world origin | -0.10 | -- | -- |
+| both + moment@focus | **+0.411** (22.2, 87%) | **-0.686** (+0.203 vs world) | -0.018 |
+| hidden only + moment@focus | +0.195 | -- | -- |
+| both + moment@focus + RMS norm | +0.452 | -- | -- |
+| both + vergence focus p_nu | +0.104 (rejected) | -- | -- |
+| three slots + moment@focus | +0.445 | -- | -- |
+| three slots + moment@focus + hidden x2 | **+0.597** | -- | -- |
+(foot_all_iso for scale: vi +0.825, orbit +0.725, RE10K +0.34, DL3DV -0.08.)
+
+Reading. (1) RE10K: the missing +0.5 dB was the CARRIER. Writing the Plucker phases into the value/output
+path (v <- R(-theta_i) v on update, o <- R(theta_j) o on apply) makes retrieval exact for the stored view's
+pose in all three factors of the readout; the rotation-matrix carrier was neutral on RE10K, the Plucker phase
+carrier is worth +0.57 -- consistency of the CODE across slots matters more than the carrier's algebraic form.
+The hidden ladder wants a higher band than the input (x2 = +0.21 alone) but the carrier already supplies
+that resolution (x2 on top of three slots = 0). (2) Why the moment origin matters only at wide baseline:
+for matched rays d(m) = X x (d1 - d2) = (o1 - o2) x d + O(|Delta d|): at narrow baseline it is bounded by the
+inter-camera distance regardless of the origin (RE10K neutral, -0.010); at wide baseline the term
+|X - origin| |d1 - d2| dominates, and the mean-camera origin used by `normalize_with_mean_pose` puts
+|X - origin| ~ the camera distance for object renders, whereas the focus origin makes it ~ the object radius
+(vi +0.10 -> +0.41). The user's observation that the RENDER frames already have the object at the origin --
+our scene normalisation had moved it to the mean camera -- is being checked directly (`norecenter`, V8-22).
+(3) On the 91-deg orbit the DIRECTION half of the Plucker code still wraps (|d1 - d2| ~ 1.4), which the
+origin cannot fix: moment-only (`d_scale 0`) and direction x0.25 cells are queued. (4) DL3DV stays exactly
+flat for every Plucker variant; attention +/- PRoPE controls are running to learn whether any PE can move it.
+Status: RE10K target met by two simple recipes (hidden x2: +1.03; three-slot Plucker: +1.54); the robust
+single recipe is not yet found -- the wide-baseline gap is the direction code, not the moment.
