@@ -3243,3 +3243,8 @@ a higher band" is not a law of the slot but a property of the envelope-free poin
 mechanism section keeps the qualitative slot algebra (squared input / linear hidden / orthogonal carrier) and
 drops the spectral-matching claim. Robust recipe unchanged: `foot_all_iso` (x1). In flight: x8 (vi), x0.5
 (orbit), RE10K foot_all_iso and foot_all_iso_h2x, DL3DV foot_all_iso.
+F81 addendum 4 update (12:48): RE10K one-recipe check of the vi headline -- `re10k_foot_all_iso_h2x_s95` 22.014,
++0.189 vs base_s95 (t=6.6, 66%), LPIPS +0.015 worse. On the narrow-baseline set the wide-baseline recipe
+under-performs both foot_all (+0.481) and the Plucker family (input +0.508, input+hidden +0.971, F-series):
+the coordinate follows the baseline width (ray coordinates when corresponding rays nearly coincide, 3D point
+coordinates when correspondence is intersection). `re10k_foot_all_iso_s95` (x1) in flight.
