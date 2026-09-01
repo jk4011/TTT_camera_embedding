@@ -155,6 +155,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-7c | `gobjvi_foot_all_iso_s211` | `config/gobj_foot_all_iso.yaml` (SEED 211) | headline 3번째 시드 (node1 담당) | [RUNNING node1 gpu2 09:01] |
 | W5-22 | `gobjvi_foot_all_iso_h2x_s137` | `config/gobj_foot_all_iso_h2x.yaml` (SEED 137) | 신규 headline 시드 재현 (node1) | [RUNNING node1 gpu3 09:27] |
 | W5-23 | `gobj_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` | 신규 headline **orbit 쌍둥이** — `DATA=gobj` | [PENDING — 다음 빈 GPU 최우선] |
+| W5-24 | `gobjvi_foot_all_iso_h4x_s95` | `config/gobj_foot_all_iso_h4x.yaml` | **반증 셀**: hidden ladder ×4 — 유도는 최적이 ×2(입력 kernel 제곱 → 2ω)라고 예측하므로 ×4는 **더 좋아지면 안 됨**; smoke 통과 | [PENDING — W5-23 다음] |
 | W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [DONE 22.262 (+0.281 vs base, rot_raw보다 낮음 — QH 기각: 비음 kernel이 hidden에서 해로움)] |
 | W5-15 | `gobjvi_foot_all_h2x_s95` | `config/gobj_foot_all_h2x.yaml` | SPEC-2x: hidden ladder ×2 (입력 kernel이 제곱이므로 유도 스펙트럼이 2ω — L4의 정량 귀결) | [DONE 22.772 (+0.791 vs base, +0.073 vs foot_all — SPEC-2x 예측 적중)] |
 | W5-16 | `gobjvi_rot_hshell_env2_s95` | `config/gobj_rot_hshell_env2.yaml` | ENV²: sinc 봉투를 학습 지수로 깊게 (Muon이 얕은 억제를 되살리므로 깊은 null만 유효) | [RUNNING node2 gpu1 07:59] |
