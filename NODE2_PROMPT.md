@@ -161,7 +161,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-26 | `gobjvi_rot_hshell_h2x_s95` | `config/gobj_rot_hshell_h2x.yaml` | SPEC-2x **일반성** 검증: 행렬 입력 + chord hidden 계열에서도 hidden ladder ×2가 이득인가(유도 예측: 예, 입력 kernel 제곱은 코드 무관) ; smoke 통과 | [RUNNING node1 gpu3 11:02] |
 | W5-27 | `gobj_foot_all_iso_s137` (orbit, SEED 137) + 선행: `gobj_base_s137` 재평가 → `eval_v2.json` | `config/gobj_foot_all_iso.yaml` / base `config/lact_l6_d256_p16.yaml` | 강건 레시피의 **orbit 2-seed**. 기존 base_s137 eval.json은 498 scenes라 짝이 안 맞음 → 먼저 `eval.py --load outputs/gobj_base_s137/model_0030000.pth --config config/lact_l6_d256_p16.yaml --data_path /tmp/gobj/test_index.json --num_scenes 500 --out outputs/gobj_base_s137/eval_v2.json`(≈10분), 그다음 `DATA=gobj ./run_gobj.sh <gpu> gobj_foot_all_iso_s137 config/gobj_foot_all_iso.yaml 137` | [RUNNING node2 gpu1 11:42; 선행 re-eval 완료 n=499 psnr=22.291] |
 | W5-28 | `dl3dv_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` (DL3DV, F50 protocol) | 강건 레시피의 DL3DV 무해성 확인 (node1 gpu0, h4x 종료 시 자동 체인 `outputs/_smoke/dl3dv_iso_chain.sh`) | [ARMED node1 gpu0] |
-| W5-29 | `gobjvi_foot_all_iso_h8x_s95` | `config/gobj_foot_all_iso_h8x.yaml` | hidden ladder **×8 탐침**: ×1→×2 +0.165, ×2→×4 +0.059(체감) — 어디서 꺾이는가; smoke 통과 | [QUEUED node2 — 12:10 비는 gpu2] |
+| W5-29 | `gobjvi_foot_all_iso_h8x_s95` | `config/gobj_foot_all_iso_h8x.yaml` | hidden ladder **×8 탐침**: ×1→×2 +0.165, ×2→×4 +0.059(체감) — 어디서 꺾이는가; smoke 통과 | [QUEUED node2 gpu2 (체인 무장 완료, 12:10 자동 시작)] |
 | W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [DONE 22.262 (+0.281 vs base, rot_raw보다 낮음 — QH 기각: 비음 kernel이 hidden에서 해로움)] |
 | W5-15 | `gobjvi_foot_all_h2x_s95` | `config/gobj_foot_all_h2x.yaml` | SPEC-2x: hidden ladder ×2 (입력 kernel이 제곱이므로 유도 스펙트럼이 2ω — L4의 정량 귀결) | [DONE 22.772 (+0.791 vs base, +0.073 vs foot_all — SPEC-2x 예측 적중)] |
 | W5-16 | `gobjvi_rot_hshell_env2_s95` | `config/gobj_rot_hshell_env2.yaml` | ENV²: sinc 봉투를 학습 지수로 깊게 (Muon이 얕은 억제를 되살리므로 깊은 null만 유효) | [DONE 22.649 (+0.668 vs base, -0.048 vs rot_hshell)] |
@@ -697,6 +697,27 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   PSNR 22.298→22.291(1 scene 차이로 타당).
   step2 `gobj_foot_all_iso_s137`(orbit, seed 137) 학습 중(7.8 it/s, 13:40경 완료) — 11:35에 보고한
   **orbit 미전이**를 시드 차원에서 검증하는 셀이라 나오는 대로 base_s137(22.291) 짝으로 보고하겠다.
+- 2026-09-01 11:50 (node2): W5-29 `foot_all_iso_h8x` 확인·큐 투입, **gpu2에 체인 무장**했다(12:10 종료 즉시 자동 시작,
+  내가 개입할 필요 없음). config는 h2x와 `omega_scale_h: 2.0 → 8.0` 한 줄 차이, L6/d256/p16.
+  ⚠ **다음 유휴 예고**: gpu3 13:20, gpu0 13:30에 각각 비는데 큐에는 h8x 하나뿐이라 gpu2가 가져간다.
+  → **13:20까지 두 셀을 더 주면** 4장을 계속 채운다. (h4x가 +0.059로 체감했다면 h8x는 꺾이는 지점 확인용이니,
+  그 결과를 기다렸다가 정하고 싶으면 13:20 전에만 알려 주면 된다.)
+- 2026-09-01 11:55 (node2, ⚠ **앞선 결론 정정 — 중요**): `rot_hshell` **3-seed가 완성**됐는데,
+  s211이 크게 낮아 내가 10:06·11:52에 한 말이 틀렸다.
+  | seed | base | cell | Δ |
+  |---|---|---|---|
+  | s95 | 21.981 | 22.697 | +0.716 |
+  | s137 | 21.887 | 22.548 | +0.661 |
+  | s211 | 22.085 | 22.546 | **+0.461** |
+  **평균 +0.613, Δ 폭 0.255 (std 0.134).** 내가 2-seed만 보고 '효과는 0.055 안에서 안정'이라고 했는데,
+  세 번째 시드가 그 주장을 뒤집는다.
+  더 중요한 구조적 정정: **Δ가 절대값보다 안정하다는 내 주장도 틀렸다.** 실제로는
+  base 폭 0.199 / 셀 폭 0.151 / **Δ 폭 0.255** — Δ는 base 잡음과 셀 잡음을 **합쳐서** 받으므로 더 흔들린다.
+  (셀의 절대 PSNR은 22.697/22.548/22.546으로 오히려 조밀하고, base가 s211에서 22.085로 튄 것이 Δ를 끌어내렸다.)
+  → 실무적 함의: **2-seed로는 아무 것도 확정하면 안 된다.** 그리고 시드별 base를 빼는 방식은 base 잡음을
+  그대로 들여오므로, 논문 표에는 **셀별 3-seed 평균 ± std를 절대 PSNR과 Δ 둘 다** 싣는 편이 안전해 보인다.
+  11:52에 넘긴 'headline vs rot_hanchor 확정' 판단도 **2-seed 기준이었으니 s211까지 보고 다시 봐야 한다**
+  (rot_hanchor·foot_all의 s211은 13:20–13:30 완료 예정, headline s211은 네가 돌리는 중).
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.

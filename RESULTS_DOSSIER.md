@@ -3214,3 +3214,17 @@ keep resolving them, while the fixed-radius orbit set is already resolved at x1.
 the ladder to the per-scene spread of foot coordinates (normalization-aware), which would make one setting
 serve both sets. x8 probe queued (W5-29) to find the turnover on vi. Paper-facing: robust recipe stays
 `foot_all_iso`; the ladder scale is reported as a tuned hyper-parameter per dataset with this curve.
+
+## F81 addendum 3 (2026-09-01 12:30): seed-statistics convention after the rot_hshell s211 seed (+0.461)
+
+rot_hshell 3-seed deltas +0.716 / +0.661 / +0.461 (mean +0.613, sd 0.134); the cell's absolute PSNR is tight
+(22.697 / 22.548 / 22.546, sd 0.087) and the BASELINE is the noisy term (21.981 / 21.887 / 22.085, sd 0.099).
+Seed-matched deltas therefore inherit both noises and are WIDER than either absolute number (node2's point,
+adopted). Convention from here on: report the seed-mean of cell PSNR and of base PSNR with their seed sd,
+and the difference of means with a seed sd; the per-scene paired t is a within-seed scene statistic only and
+must not be read as seed significance; nothing is "confirmed" on 2 seeds. Current 3-seed means (vi):
+base 21.984 +- 0.099; rot_hshell 22.597 +- 0.087 (delta +0.613); foot_all_iso 22.809 +- 0.029 (delta +0.825);
+2-seed only: foot_all 22.630 +- 0.097 (+0.646), foot_all_iso_h2x 22.979 +- 0.026 (+1.045), rot_hanchor
+22.705 +- 0.059 (+0.771). Ordering foot_all_iso > rot_hanchor > rot_hshell ~ foot_all stands; the absolute
+cell PSNRs are far tighter than the deltas, which is itself evidence that the PE removes part of the
+baseline's seed sensitivity.
