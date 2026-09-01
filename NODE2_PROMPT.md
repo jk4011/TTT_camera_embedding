@@ -155,12 +155,13 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-7c | `gobjvi_foot_all_iso_s211` | `config/gobj_foot_all_iso.yaml` (SEED 211) | headline 3번째 시드 (node1 담당) | [DONE 22.819 (+0.734 vs base_s211) — iso 3-seed 평균 +0.825]] |
 | W5-22 | `gobjvi_foot_all_iso_h2x_s137` | `config/gobj_foot_all_iso_h2x.yaml` (SEED 137) | 신규 headline 시드 재현 (node1) | [DONE 22.960 (+1.074 vs base_s137 — headline 재현)] |
 | W5-23 | `gobj_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` | 신규 headline **orbit 쌍둥이** — `DATA=gobj` | [DONE 22.837 (+0.644 vs orbit base; rot_hshell과 동률)] |
-| W5-24 | `gobjvi_foot_all_iso_h4x_s95` | `config/gobj_foot_all_iso_h4x.yaml` | **반증 셀**: hidden ladder ×4 — 유도는 최적이 ×2(입력 kernel 제곱 → 2ω)라고 예측하므로 ×4는 **더 좋아지면 안 됨**; smoke 통과 | [RUNNING node1 gpu0 09:55] |
+| W5-24 | `gobjvi_foot_all_iso_h4x_s95` | `config/gobj_foot_all_iso_h4x.yaml` | **반증 셀**: hidden ladder ×4 — 유도는 최적이 ×2(입력 kernel 제곱 → 2ω)라고 예측하므로 ×4는 **더 좋아지면 안 됨**; smoke 통과 | [DONE 23.055 (+1.074 vs base, **+0.059 vs h2x** — '×2 최적' 예측 반증, vi 신규 1위) |
 | W5-22b | `gobjvi_foot_all_iso_h2x_s211` | `config/gobj_foot_all_iso_h2x.yaml` (SEED 211) | 신규 headline 3번째 시드 (node1) | [RUNNING node1 gpu1 10:42] |
 | W5-25 | `re10k_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` (RE10K, launch_exp.sh) | 신규 headline의 **RE10K 한-레시피 검증** (node1 gpu2, 체인 `outputs/_smoke/re10k_headline_chain.sh`) | [RUNNING node1 gpu2 10:55] |
 | W5-26 | `gobjvi_rot_hshell_h2x_s95` | `config/gobj_rot_hshell_h2x.yaml` | SPEC-2x **일반성** 검증: 행렬 입력 + chord hidden 계열에서도 hidden ladder ×2가 이득인가(유도 예측: 예, 입력 kernel 제곱은 코드 무관) ; smoke 통과 | [RUNNING node1 gpu3 11:02] |
-| W5-27 | `gobj_foot_all_iso_s137` (orbit, SEED 137) + 선행: `gobj_base_s137` 재평가 → `eval_v2.json` | `config/gobj_foot_all_iso.yaml` / base `config/lact_l6_d256_p16.yaml` | 강건 레시피의 **orbit 2-seed**. 기존 base_s137 eval.json은 498 scenes라 짝이 안 맞음 → 먼저 `eval.py --load outputs/gobj_base_s137/model_0030000.pth --config config/lact_l6_d256_p16.yaml --data_path /tmp/gobj/test_index.json --num_scenes 500 --out outputs/gobj_base_s137/eval_v2.json`(≈10분), 그다음 `DATA=gobj ./run_gobj.sh <gpu> gobj_foot_all_iso_s137 config/gobj_foot_all_iso.yaml 137` | [QUEUED node2 — 유휴 gpu1] |
+| W5-27 | `gobj_foot_all_iso_s137` (orbit, SEED 137) + 선행: `gobj_base_s137` 재평가 → `eval_v2.json` | `config/gobj_foot_all_iso.yaml` / base `config/lact_l6_d256_p16.yaml` | 강건 레시피의 **orbit 2-seed**. 기존 base_s137 eval.json은 498 scenes라 짝이 안 맞음 → 먼저 `eval.py --load outputs/gobj_base_s137/model_0030000.pth --config config/lact_l6_d256_p16.yaml --data_path /tmp/gobj/test_index.json --num_scenes 500 --out outputs/gobj_base_s137/eval_v2.json`(≈10분), 그다음 `DATA=gobj ./run_gobj.sh <gpu> gobj_foot_all_iso_s137 config/gobj_foot_all_iso.yaml 137` | [RUNNING node2 gpu1 11:42; 선행 re-eval 완료 n=499 psnr=22.291] |
 | W5-28 | `dl3dv_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` (DL3DV, F50 protocol) | 강건 레시피의 DL3DV 무해성 확인 (node1 gpu0, h4x 종료 시 자동 체인 `outputs/_smoke/dl3dv_iso_chain.sh`) | [ARMED node1 gpu0] |
+| W5-29 | `gobjvi_foot_all_iso_h8x_s95` | `config/gobj_foot_all_iso_h8x.yaml` | hidden ladder **×8 탐침**: ×1→×2 +0.165, ×2→×4 +0.059(체감) — 어디서 꺾이는가; smoke 통과 | [QUEUED node2 — 12:10 비는 gpu2] |
 | W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [DONE 22.262 (+0.281 vs base, rot_raw보다 낮음 — QH 기각: 비음 kernel이 hidden에서 해로움)] |
 | W5-15 | `gobjvi_foot_all_h2x_s95` | `config/gobj_foot_all_h2x.yaml` | SPEC-2x: hidden ladder ×2 (입력 kernel이 제곱이므로 유도 스펙트럼이 2ω — L4의 정량 귀결) | [DONE 22.772 (+0.791 vs base, +0.073 vs foot_all — SPEC-2x 예측 적중)] |
 | W5-16 | `gobjvi_rot_hshell_env2_s95` | `config/gobj_rot_hshell_env2.yaml` | ENV²: sinc 봉투를 학습 지수로 깊게 (Muon이 얕은 억제를 되살리므로 깊은 null만 유효) | [DONE 22.649 (+0.668 vs base, -0.048 vs rot_hshell)] |
@@ -689,6 +690,13 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   앞으로 시드 셀은 네가 표에 적은 것만 올리겠다.** (지금 gpu1이 놀고 있어도 새 셀을 임의로 만들지 않는 이유이기도 하다.)
 - 2026-09-01 11:58 (node2): gpu1 유휴 확정(체인이 NO_CANDIDATE 기록). gpu2는 12:10, gpu3 13:20, gpu0 13:30 종료 예정.
   §3에 행을 추가하거나 §6에 '셀이름 config data[:seed]'만 적어 주면 즉시 큐에 넣는다.
+- 2026-09-01 11:45 (node2): **W5-27 착수, gpu1 유휴 종료(11:36–11:42, 약 6분).**
+  선행 re-eval 완료: `gobj_base_s137/eval_v2.json` **n=499, PSNR 22.291**(옛 eval.json은 498/22.298).
+  base_s95 eval_v2도 499라 이제 orbit 시드 짝이 맞는다. 소요는 1분 미만이었다(네 ≈10분 추정보다 훨씬 빠름 —
+  eval은 B200에서 대체로 1분 내다). 무효 실행이 아닌지 확인했다: 파일 mtime 오늘 11:42, scene 498→499,
+  PSNR 22.298→22.291(1 scene 차이로 타당).
+  step2 `gobj_foot_all_iso_s137`(orbit, seed 137) 학습 중(7.8 it/s, 13:40경 완료) — 11:35에 보고한
+  **orbit 미전이**를 시드 차원에서 검증하는 셀이라 나오는 대로 base_s137(22.291) 짝으로 보고하겠다.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.

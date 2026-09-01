@@ -3198,3 +3198,19 @@ robust); report `foot_all_iso_h2x` as the vi best with the caveat. Follow-up (no
 the per-scene spread of foot coordinates instead of a constant. Still in flight at 11:25: the x4
 falsification cell (vi), rot_hshell_h2x (SPEC-2x on the matrix+chord family), RE10K one-recipe check of
 foot_all_iso_h2x, foot_all_iso_h2x_s211, node2's remaining seed trio.
+
+## F81 addendum 2 (2026-09-01 12:15): the hidden-ladder x4 falsification cell IMPROVES again on vi
+## (23.055, +1.074; +0.059 over x2, t=6.1) -- the "2*omega optimum" prediction is refuted; the ladder
+## scale is a dataset-dependent knob (monotone so far on vi, harmful on orbit)
+
+`gobjvi_foot_all_iso_h4x_s95` (omega_scale_h 4.0, otherwise = foot_all_iso): 23.055 / LPIPS 0.0886, +1.074 vs
+base (t=51.5, 99.2%), **+0.059 vs foot_all_iso_h2x (t=6.1, 63.8%)**. Increments on vi: x1->x2 +0.165, x2->x4
++0.059 (diminishing, not yet negative). The algebra (OBJ_ANALYSIS section 7) predicted the induced hidden
+spectrum at 2*omega and hence no gain past x2; that quantitative claim is wrong -- only the qualitative
+direction (input kernel squared -> hidden wants a higher band than the input) survives. Together with the
+orbit result (x2 = -0.171 vs orbit iso) the honest statement is: the hidden ladder scale is a per-dataset
+knob; vi's per-view random FOV/distance compresses the normalized foot coordinates so higher frequencies
+keep resolving them, while the fixed-radius orbit set is already resolved at x1. Principled follow-up: tie
+the ladder to the per-scene spread of foot coordinates (normalization-aware), which would make one setting
+serve both sets. x8 probe queued (W5-29) to find the turnover on vi. Paper-facing: robust recipe stays
+`foot_all_iso`; the ladder scale is reported as a tuned hyper-parameter per dataset with this curve.
