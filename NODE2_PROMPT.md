@@ -77,13 +77,14 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | P2-4 | `p2_pra_hi_s95` | `config/cam_pra_hi.yaml` | Plücker 입력만 | [ARMED node1 gpu0 — DL3DV iso 종료 시 자동] |
 | P2-5 | `p2_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | 구 강건 레시피의 2-view 값(참고) | [RUNNING node2 gpu1 13:35] |
 | P2-6 | `p2_rot_raw_s95` | `config/cam_rot_raw.yaml` | 회전 행렬 입력+carrier(간단·비-rotary 기준) | [RUNNING node2 gpu2 13:43] |
-| P2-7 | `p2_h_epi_s95` | `config/p2_h_epi.yaml` | **에피폴라-평면 각 φ의 hidden rope**(순수 TTT-특화; φ = baseline 축에 대한 ray의 에피폴라 평면 각, 대응 픽셀에서 깊이·베이스라인 무관 Δφ=0, 정수 고조파라 스케일 손잡이 없음) | [PENDING — 우선순위 1] |
-| P2-8 | `p2_pra_hepi_s95` | `config/p2_pra_hepi.yaml` | Plücker 입력 + φ hidden | [PENDING — 2] |
-| P2-9 | `p2_rot_hepi_s95` | `config/p2_rot_hepi.yaml` | 회전 행렬 입력+carrier + φ hidden (p*·스케일 무관 범용 레시피) | [PENDING — 3] |
+| P2-7 | `p2_h_epi_s95` | `config/p2_h_epi.yaml` | **에피폴라-평면 각 φ의 hidden rope**(순수 TTT-특화; φ = baseline 축에 대한 ray의 에피폴라 평면 각, 대응 픽셀에서 깊이·베이스라인 무관 Δφ=0, 정수 고조파라 스케일 손잡이 없음) | [ARMED node1 gpu1 — p2_base 종료 시 자동] |
+| P2-8 | `p2_pra_hepi_s95` | `config/p2_pra_hepi.yaml` | Plücker 입력 + φ hidden | [ARMED node1 gpu2 — orbit iso s211 종료 시 자동] |
+| P2-9 | `p2_rot_hepi_s95` | `config/p2_rot_hepi.yaml` | 회전 행렬 입력+carrier + φ hidden (p*·스케일 무관 범용 레시피) | [ARMED node1 gpu3 — RE10K iso 종료 시 자동] |
 | P2-10 | `p2_epi_all_s95` | `config/p2_epi_all.yaml` | φ 입력+hidden + 회전 carrier (일관성) | [PENDING — 4] |
 | P2-11 | `p2_bf_all_s95` | `config/p2_bf_all.yaml` | BF-RoPE: (φ, α) 입력 + (φ, α 저조파) hidden + carrier | [PENDING — 5] |
 | P2-12 | `p2_bip_all_s95` | `config/p2_bip_all.yaml` | 위와 같되 α 대신 vergence-보정 ψ_c | [PENDING — 6] |
 | P2-13 | `p2_foot_iso_pnu_s95` | `config/p2_foot_iso_pnu.yaml` | foot_all_iso + **vergence focus p_ν**(LS p* 대체, 3줄) | [PENDING — 7] |
+| P2-14 | `p2_pra_h_hi_w025_s95` | `config/p2_pra_h_hi_w025.yaml` | Plücker both, **입력 사다리 ×0.25**(진단: 8-view 모델의 2-view 평가에서 입력 Plücker −0.10 / hidden +0.23 / both −0.17 → 90-frame 간격엔 사다리가 3–6× 너무 촘촘) | [PENDING — 8] |
 (모두 2-view·8-view smoke 통과. 태그 선점 후 실행; node1/node2 구분 없이 빈 GPU가 위에서부터 가져간다.)
 
 
