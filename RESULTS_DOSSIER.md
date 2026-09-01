@@ -3468,3 +3468,13 @@ cannot fix). Note the standard orbit eval has one near-duplicate target (frame 2
 three targets are 15-45 deg from the nearest input. Under the user's scope (simplest TTT-RoPE, no ladder / direction
 knobs, no foot codes), objaverse-orbit is a documented limitation: TTT-RoPE is a narrow-to-medium-baseline method
 (RE10K +1.15..+1.61, DL3DV window-128 +0.04..+0.37 with views; uncropped DL3DV pending).
+
+## F85: TRUE uncropped DL3DV (256x448, default window; `dl3dvu_*`, seed 137, 140 scenes) -- 4 arms at 8 views and
+## the input-view sweep (2026-09-02 03:35)
+8 views: base 16.404; input +0.236 (t=11.0); hidden +0.245 (t=12.7); both (TTT-RoPE) +0.185 (t=7.3). Cropped 256x256
+at the same seed: both +0.116 -- removing the crop (98.5% of the horizontal field kept) raises the gain.
+Sweep (base / +input / +hidden / +both): V4 15.42 / 0.00 / +0.01 / -0.12; V8 16.40 / +0.24 / +0.25 / +0.19;
+V12 16.56 / +0.29 / +0.32 / +0.27; V20 16.70 / +0.46 / +0.45 / **+0.50**; V32 16.74 / +0.56 / +0.52 / **+0.65**;
+V48 16.75 / +0.58 / +0.54 / **+0.69** (t=26). The base saturates at ~16.75 from 20 views while TTT-RoPE keeps rising
+to 17.44 -- the same shape as RE10K (F84) at roughly 40% of its size; single-site codes lead below 20 views, the
+combined code leads above (where the stored views overlap enough for both slots to help).
