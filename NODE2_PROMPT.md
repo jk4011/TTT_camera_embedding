@@ -92,12 +92,12 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-16 | `gobjvi_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` (`DATA=gobj_vi`) | 후보 레시피 — vi | [PENDING — node1 다음 빈 GPU] |
 | V8-17 | `re10k_prah_vorope_h2x_s95` | `config/cam_prah_vorope_h2x.yaml` | 세 슬롯 Plücker + hidden 사다리 ×2 — RE10K (두 이득 합성) | [RUNNING node2 gpu1 20:21] |
 | V8-18 | `re10k_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` | 세 슬롯 Plücker + moment@focus — RE10K 보존 확인 | [QUEUED node2 (체인 무장)] |
-| V8-19 | `gobjvi_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` (`DATA=gobj_vi`) | 세 슬롯 Plücker + moment@focus — **vi (강건성 판정)** | [RUNNING node1 gpu0 20:25] |
+| V8-19 | `gobjvi_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` (`DATA=gobj_vi`) | 세 슬롯 Plücker + moment@focus — **vi (강건성 판정)** | [DONE 22.426 (+0.445 vs base)] |
 | V8-20 | `gobjvi_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` (`DATA=gobj_vi`) | 위 + hidden ×2 — vi | [DONE 22.578 (+0.597 vs base; prah_mfocus 대비 +0.185)] |
 | V8-21 | `re10k_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` | 후보 최종 레시피 — RE10K | [QUEUED node2 (체인 무장)] |
 | V8-22 | `gobjvi_both_norecenter_s95` | `config/cam_pra_h_hi.yaml` + `POSE_NORM=norecenter` (`DATA=gobj_vi`) | **원인 분리 진단**(사용자 제안): 장면 정규화에서 평균 이동만 제거(렌더의 물체 중심 원점 유지, 회전 정렬·스케일은 유지) + 세계 원점 Plücker both → moment@focus(+0.41)와 같으면 '원점' 단독 효과 확정 | [ARMED node1 gpu2 — DL3DV 종료 시 자동] |
 | V8-23 | `dl3dv_attn_prope_s95` | `config/gobj_attn_prope.yaml` (DL3DV, node1) | **DL3DV 상한 진단**: TTT층 → attention+PRoPE. 이것도 ≈0이면 DL3DV(F50 프로토콜, base 16.4)는 PE로 못 움직이는 용량/콘텐츠 한계 | [ARMED node1 gpu3 — orbit 종료 시 자동] |
-| V8-24 | `dl3dv_attn_nope_s95` | `config/gobj_attn_nope.yaml` (DL3DV, node1) | 짝 대조군 attention(PE 없음) | [PENDING — node1] |
+| V8-24 | `dl3dv_attn_nope_s95` | `config/gobj_attn_nope.yaml` (DL3DV, node1) | 짝 대조군 attention(PE 없음) | [RUNNING node1 gpu0 22:30] |
 | V8-9 | `gobj_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (`DATA=gobj`) | orbit 91° 검증 | [DONE 21.507 (−0.686 vs orbit base; 세계 원점 Plücker both −0.89 대비 +0.20) — orbit 91°에선 방향 d 성분이 wrap] |
 | V8-10 | `dl3dv_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (DL3DV, node1) | DL3DV 검증 | [DONE 16.380 (−0.018 vs base; 세계 원점 Plücker both도 −0.009) — DL3DV 여전히 0] |
 
