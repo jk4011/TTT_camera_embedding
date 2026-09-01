@@ -3425,3 +3425,13 @@ verdict (-0.89) generalises; the focus-origin moment halves the damage and turns
 is therefore: RE10K +1.15 (8 views) .. +1.61 (48), DL3DV uncropped +0.04 .. +0.37, objaverse-v60 negative below
 20 views and small positive above only with the one-line focus origin. The objaverse axis remains the open problem;
 its training data (24 views/object) does not contain the true novel-view regime the 60-view eval measures.
+
+## F84 CORRECTION (2026-09-02 00:05): `dl3dvw48_*` is the DL3DV **window-48** protocol (256x256 crop, train/eval
+## frame window 48 = high overlap), NOT an uncropped 256x448 protocol. The uncropped protocol had not been run.
+Evidence: `outputs/dl3dvw48_base_s137/eval.json` == `eval_w48.json` (17.545, window 48) while `eval_w128.json`
+(window 128) = 16.316 ~ the sweep's 8-view base 16.327 (window 128). So the F84 DL3DV row and the F83 addendum's
+"uncropped (256x448) exists" statement are wrong: those numbers are window-128 evaluations of window-48-trained,
+centre-cropped models (the sweep passed --image_size 256 448 to crop-trained models; resolution-agnostic tokens
+made it run, but it is not the intended protocol). The +1.15 "from the wider view" was from the NARROWER window.
+The true uncropped cells (`dl3dvu_*`, 256x448, default window, seed 137) are launched now; the DL3DV sweep will
+be redone on them. The RE10K and objaverse-v60 rows of F84 are unaffected.
