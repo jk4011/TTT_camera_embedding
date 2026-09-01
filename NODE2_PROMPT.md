@@ -73,16 +73,18 @@ focus 근처 점의 대응 ray moment가 거의 같아짐), 선택적으로 `plu
 vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10); RE10K base_s95 21.825, pra_h_hi_s95 22.797(+0.971), h_pra_hi_s95 22.724.
 | ID | exp | config | 목적 | 상태 |
 |---|---|---|---|---|
-| V8-1 | `gobjvi_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` | Plücker both, moment@focus — vi | [RUNNING node1 gpu0 17:42] |
-| V8-2 | `gobjvi_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | Plücker hidden만, moment@focus — vi (순수 TTT-특화) | [RUNNING node1 gpu1 17:42] |
-| V8-3 | `gobjvi_prah_mfocus_norm_s95` | `config/cam_prah_mfocus_norm.yaml` | + 장면별 RMS 정규화 — vi | [RUNNING node1 gpu2 17:42] |
+| V8-1 | `gobjvi_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` | Plücker both, moment@focus — vi | [DONE 22.392 (+0.411 vs base; world-origin Plücker both는 +0.10)] |
+| V8-2 | `gobjvi_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | Plücker hidden만, moment@focus — vi (순수 TTT-특화) | [DONE 22.176 (+0.195; world-origin hidden은 −0.10)] |
+| V8-3 | `gobjvi_prah_mfocus_norm_s95` | `config/cam_prah_mfocus_norm.yaml` | + 장면별 RMS 정규화 — vi | [DONE 22.433 (+0.452)] |
 | V8-4 | `gobjvi_prah_mfocus_pnu_s95` | `config/cam_prah_mfocus_pnu.yaml` | + vergence focus p_ν — vi | [RUNNING node1 gpu3 17:42] |
-| V8-5 | `re10k_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` | moment@focus가 RE10K의 +0.97을 해치지 않는가 | [QUEUED node2] |
-| V8-6 | `re10k_prah_vorope_s95` | `config/cam_prah_vorope.yaml` | Plücker를 세 슬롯 모두에(입력+hidden+위상 carrier) — RE10K에서 +1.0 돌파 시도 | [QUEUED node2] |
-| V8-7 | `re10k_prah_h2x_s95` | `config/cam_prah_h2x.yaml` | hidden Plücker 사다리 ×2 — RE10K | [QUEUED node2] |
-| V8-8 | `re10k_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | hidden만, moment@focus — RE10K | [QUEUED node2] |
+| V8-5 | `re10k_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` | moment@focus가 RE10K의 +0.97을 해치지 않는가 | [RUNNING node2 gpu0 17:38] |
+| V8-6 | `re10k_prah_vorope_s95` | `config/cam_prah_vorope.yaml` | Plücker를 세 슬롯 모두에(입력+hidden+위상 carrier) — RE10K에서 +1.0 돌파 시도 | [RUNNING node2 gpu1 17:38] |
+| V8-7 | `re10k_prah_h2x_s95` | `config/cam_prah_h2x.yaml` | hidden Plücker 사다리 ×2 — RE10K | [RUNNING node2 gpu2 17:38] |
+| V8-8 | `re10k_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | hidden만, moment@focus — RE10K | [RUNNING node2 gpu3 17:38] |
+| V8-11 | `gobjvi_prah_mfocus_vo_s95` | `config/cam_prah_mfocus_vo.yaml` | moment@focus + 회전 carrier(vo_rel) — vi | [RUNNING node1 gpu0 19:20] |
+| V8-12 | `gobjvi_prah_mfocus_w05_s95` | `config/cam_prah_mfocus_w05.yaml` | moment@focus + 입력·hidden 사다리 ×0.5 (wide-baseline wrap 완화) — vi | [RUNNING node1 gpu1 19:20] |
 | V8-9 | `gobj_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (`DATA=gobj`) | orbit 91° 검증 | [PENDING] |
-| V8-10 | `dl3dv_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (DL3DV, node1) | DL3DV 검증 | [PENDING — node1] |
+| V8-10 | `dl3dv_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (DL3DV, node1) | DL3DV 검증 | [RUNNING node1 gpu2 19:20 — run_dl3dv.sh] |
 
 ### 3.P2 — 새 프로그램 (2026-09-01 13:40, 사용자 지시): **2-view 입력 / 80k step**, 간단하거나 TTT-특화, 다중 데이터 강건
 런처: `lact_nvs/run_p2.sh <gpu> <exp> <config> [seed]` (env `NODE=node2`, `DATA=re10k|gobj_vi|dl3dv`; 학습 2+4 view,
@@ -253,6 +255,19 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+- 2026-09-01 17:45 (node2): **V8-5~V8-8 네 셀 모두 기동(17:38). 유휴는 총 ~4분**(17:35 P2 종료 → 17:38 V8 시작).
+  gpu0 `re10k_prah_mfocus` / gpu1 `re10k_prah_vorope` / gpu2 `re10k_prah_h2x` / gpu3 `re10k_hpra_mfocus`.
+  프로토콜 확인: `--data_path /tmp/re10k/train_index.json --steps 30000 --num_input_views 8` — 8-view/30k 복귀 정상.
+  `run_re10k.sh`도 확인했다(launch_exp.sh에 STEPS=30000 WARMUP=1500 전달, /tmp/re10k 존재 검사, 락, `main()` 래핑).
+  네 config 검증(내가 늘 하는 확인):
+  - `plucker_origin`/`plucker_norm`은 **최상위 키**라 kwargs 보호를 못 받는데, model.py:240/424/431/467/485에서
+    실제로 읽고 assert까지 하는 것을 확인했다(무시되면 mfocus 셀 3개가 전부 기존 셀 재실행이 될 뻔했다).
+  - V8-5 `prah_mfocus`와 V8-7 `prah_h2x`는 **cam_mode가 같다**(`qk_rope_cam+h_pra`). 각각 `plucker_origin: focus` /
+    `omega_scale_hpra: 2.0`으로 갈리는 것을 확인했다.
+  RE10K 기준은 네가 준 base_s95 21.825 / pra_h_hi 22.797(+0.971)을 쓰겠다 — 결과는 그 둘 대비로 보고한다.
+  ⓘ 16:19부터 붙어 있는 `eval_video2_generate.py` 4개(29 GB/GPU)는 그대로다. V8 셀은 11.0 it/s로 정상 기동했으니
+  치명적이진 않지만, 평소 8-view 속도(약 16 it/s)보다는 낮다 — **30k 완료가 ~45분이 아니라 ~75분**으로 늘 것 같다.
 
 - 2026-09-01 17:40 (node2): **P2 전면 종료 완료. 내 GPU 4장 모두 비었다.**
   중단한 것: 실행 중 4셀(epi_all 40.6k / bf_all 38.0k / bip_all 31.6k / foot_iso_pnu 25.0k) + 대기 체인 4개 + 큐 11개.
