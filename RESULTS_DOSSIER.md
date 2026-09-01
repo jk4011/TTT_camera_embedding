@@ -3435,3 +3435,19 @@ centre-cropped models (the sweep passed --image_size 256 448 to crop-trained mod
 made it run, but it is not the intended protocol). The +1.15 "from the wider view" was from the NARROWER window.
 The true uncropped cells (`dl3dvu_*`, 256x448, default window, seed 137) are launched now; the DL3DV sweep will
 be redone on them. The RE10K and objaverse-v60 rows of F84 are unaffected.
+
+## F84 addendum (2026-09-02 01:40): objaverse-v60 sweep on SEED 137 (vi-trained base / TTT-RoPE / TTT-RoPE with the
+## focus-origin moment) -- reproduces the seed-95 picture
+| V | base | TTT-RoPE (world origin) | TTT-RoPE + focus origin |
+|---|---|---|---|
+| 4 | 19.528 | -1.252 (t=-32) | -0.638 (t=-20) |
+| 8 | 20.845 | -0.719 (t=-19) | -0.199 (t=-6.5) |
+| 12 | 20.880 | -0.806 (t=-22) | -0.181 (t=-6.4) |
+| 20 | 21.389 | -0.146 (t=-6.6) | **+0.236** (t=+12) |
+| 32 | 21.299 | +0.144 (t=+6.0) | **+0.427** (t=+20) |
+| 48 | 21.166 | -0.070 (t=-2.8) | **+0.313** (t=+14) |
+On the 24-view vi test the same s137 models give TTT-RoPE +0.243 and +focus +0.470 (near-duplicate regime). The
+v60 renders sample 20 stratified-random azimuths (18-deg sectors, jitter; elevation -10..30, distance 1.0-4.5,
+FOV 20-80 per variant), frame order = azimuth order, so the uniform-index eval covers V of 20 sectors: targets are
+unseen angles until V >= 20. gObjaverse orbit, by contrast, is a fixed grid (24 azimuths at 26 deg elevation, 13
+at -1 deg, two poles; distance 1.8, FOV 39.6 fixed) and was a genuine novel-view test from the start.
