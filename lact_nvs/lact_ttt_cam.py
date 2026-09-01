@@ -1103,6 +1103,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         asym_query: str = "anchor",
         asym_k: int = 3,
         omega_scale_h: float = 1.0,
+        omega_scale_hpra: float = 1.0,
         oracle_noise: float = 0.0,
         cfr_gamma: float = 3.1,
         qh_kappa: float = 1.0,
@@ -1515,7 +1516,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert 2 * 6 * num_freqs_h <= d_h
             omega_h = math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), num_freqs_h, base=2.0
-            )
+            ) * omega_scale_hpra   # P2 program: coarser hidden Plucker ladder for wide 2-view gaps
             self.register_buffer("omega_h", omega_h, persistent=False)
             self.gain_h = _gain("gain_h", 6, num_freqs_h)
 

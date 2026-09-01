@@ -72,19 +72,21 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | ID | exp | config | 목적 | 상태 |
 |---|---|---|---|---|
 | P2-1 | `p2_base_s95` | `config/lact_l6_d256_p16.yaml` | 새 프로토콜 기준선 | [RUNNING node1 gpu1 13:22] |
-| P2-2 | `p2_pra_h_hi_s95` | `config/cam_pra_h_hi.yaml` | Plücker 입력+hidden (8-view에서 RE10K +0.97) | [RUNNING node2 gpu0 14:00] |
-| P2-3 | `p2_h_pra_hi_s95` | `config/cam_h_pra_hi.yaml` | Plücker hidden만 (TTT-특화 기준) | [RUNNING node2 gpu3 14:00] |
+| P2-2 | `p2_pra_h_hi_s95` | `config/cam_pra_h_hi.yaml` | Plücker 입력+hidden (8-view에서 RE10K +0.97) | [DONE 20.128 (+0.224 vs p2_base)] |
+| P2-3 | `p2_h_pra_hi_s95` | `config/cam_h_pra_hi.yaml` | Plücker hidden만 (TTT-특화 기준) | [DONE 20.157 (+0.254 vs p2_base)] |
 | P2-4 | `p2_pra_hi_s95` | `config/cam_pra_hi.yaml` | Plücker 입력만 | [ARMED node1 gpu0 — DL3DV iso 종료 시 자동] |
 | P2-5 | `p2_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | 구 강건 레시피의 2-view 값(참고) | [RUNNING node2 gpu1 13:35] |
 | P2-6 | `p2_rot_raw_s95` | `config/cam_rot_raw.yaml` | 회전 행렬 입력+carrier(간단·비-rotary 기준) | [RUNNING node2 gpu2 13:43] |
 | P2-7 | `p2_h_epi_s95` | `config/p2_h_epi.yaml` | **에피폴라-평면 각 φ의 hidden rope**(순수 TTT-특화; φ = baseline 축에 대한 ray의 에피폴라 평면 각, 대응 픽셀에서 깊이·베이스라인 무관 Δφ=0, 정수 고조파라 스케일 손잡이 없음) | [ARMED node1 gpu1 — p2_base 종료 시 자동] |
 | P2-8 | `p2_pra_hepi_s95` | `config/p2_pra_hepi.yaml` | Plücker 입력 + φ hidden | [RUNNING node1 gpu2 15:10] |
 | P2-9 | `p2_rot_hepi_s95` | `config/p2_rot_hepi.yaml` | 회전 행렬 입력+carrier + φ hidden (p*·스케일 무관 범용 레시피) | [ARMED node1 gpu3 — RE10K iso 종료 시 자동] |
-| P2-10 | `p2_epi_all_s95` | `config/p2_epi_all.yaml` | φ 입력+hidden + 회전 carrier (일관성) | [QUEUED node2 (체인 무장, 15:05~15:30 자동 시작)] |
-| P2-11 | `p2_bf_all_s95` | `config/p2_bf_all.yaml` | BF-RoPE: (φ, α) 입력 + (φ, α 저조파) hidden + carrier | [QUEUED node2 (체인 무장, 15:05~15:30 자동 시작)] |
+| P2-10 | `p2_epi_all_s95` | `config/p2_epi_all.yaml` | φ 입력+hidden + 회전 carrier (일관성) | [RUNNING node2 gpu3 15:59] |
+| P2-11 | `p2_bf_all_s95` | `config/p2_bf_all.yaml` | BF-RoPE: (φ, α) 입력 + (φ, α 저조파) hidden + carrier | [RUNNING node2 gpu0 16:10] |
 | P2-12 | `p2_bip_all_s95` | `config/p2_bip_all.yaml` | 위와 같되 α 대신 vergence-보정 ψ_c | [QUEUED node2 (체인 무장, 15:05~15:30 자동 시작)] |
 | P2-13 | `p2_foot_iso_pnu_s95` | `config/p2_foot_iso_pnu.yaml` | foot_all_iso + **vergence focus p_ν**(LS p* 대체, 3줄) | [QUEUED node2 (체인 무장, 15:05~15:30 자동 시작)] |
 | P2-14 | `p2_pra_h_hi_w025_s95` | `config/p2_pra_h_hi_w025.yaml` | Plücker both, **입력 사다리 ×0.25**(진단: 8-view 모델의 2-view 평가에서 입력 Plücker −0.10 / hidden +0.23 / both −0.17 → 90-frame 간격엔 사다리가 3–6× 너무 촘촘) | [QUEUED node2 (체인 무장, 5번째)] |
+| P2-17 | `p2_h_pra_w05_s95` | `config/p2_h_pra_w05.yaml` | Plücker hidden, **hidden 사다리 ×0.5** (2-view에서 hidden만 살아남음 +0.254; 사다리가 너무 촘촘하다는 진단 검증) | [PENDING — P2-14 다음] |
+| P2-18 | `p2_h_pra_w025_s95` | `config/p2_h_pra_w025.yaml` | 같은 것, ×0.25 | [PENDING — 그 다음] |
 | P2-15 | `p2vi_base_s95` | `config/lact_l6_d256_p16.yaml` (**`DATA=gobj_vi`**) | objaverse-vi 2-view 기준선 (24 frames = 8 시점×3 intrinsics; 입력 = 시점 1·8, ≈58°) | [PENDING — RE10K 파동 뒤] |
 | P2-16 | `p2dl_base_s95` | `config/lact_l6_d256_p16.yaml` (**`DATA=dl3dv`**, node1 전용: /tmp/dl3dv) | DL3DV 2-view 기준선 | [PENDING — node1] |
 (모두 2-view·8-view smoke 통과. 태그 선점 후 실행; node1/node2 구분 없이 빈 GPU가 위에서부터 가져간다.)
@@ -228,6 +230,36 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+- 2026-09-01 16:15 (node2): **P2-2 `p2_pra_h_hi` 20.128 = +0.224** (t=+7.1, 70%). P2-3(hidden만) +0.254와 **동률**이다.
+  | cell | Δ vs p2_base | per_view |
+  |---|---|---|
+  | P2-3 h_pra_hi (hidden만) | +0.254 | 21.37 / 19.51 / 19.40 / 21.15 |
+  | P2-2 pra_h_hi (입력+hidden) | +0.224 | 21.33 / 19.49 / 19.39 / 21.11 |
+  → **입력 사다리를 더해도 이득이 없다**(오히려 −0.03). 8-view RE10K에서 both가 +0.97로 hidden-only를 앞섰던 것과
+  반대다. 2-view/90-frame에서는 입력 Plücker가 기여를 못 한다는 네 가설과 일치한다 —
+  P2-14 `w025`(입력 사다리 ×0.25)가 '사다리가 과대해서인지'를 가릴 것이다.
+  ⚠ 두 셀 모두 **P2 합격선 +1.0에 한참 못 미친다**(+0.22, +0.25). Plücker 계열로는 2-view에서 +1.0이 어려워 보인다.
+  gpu0은 P2-11 `bf_all`로 전환(16:10).
+
+- 2026-09-01 16:05 (node2): **P2 첫 결과 — P2-3 `p2_h_pra_hi` 20.157 = +0.254** vs p2_base 19.903
+  (t=+8.7, 76%, n=256). per_view_psnr = [21.365, 19.509, 19.403, 21.145] — 네가 base에서 본 것과 같은 U자
+  (바깥 타깃 높고 안쪽 낮음)이고, PE가 네 타깃 모두를 비슷하게 올린다.
+  ⚠ **P2 합격선(RE10K ≥ +1.0)에 크게 못 미친다(+0.25).** hidden-only Plücker는 8-view RE10K에서 +0.97이었는데
+  2-view/80k에서는 1/4로 줄었다. 나머지 3셀(pra_h_hi·rot_raw·foot_all_iso)이 16:00~16:40에 나오면 네 가설
+  (2-view에서는 입력 사다리가 과대, hidden이 유리)을 네 점으로 확인할 수 있다.
+  gpu3은 P2-10 `epi_all`로 넘어갔다(15:59, 15.9 it/s).
+
+- 2026-09-01 15:50 (node2, **내 실수 정정 2건**):
+  (1) **`n2msg.sh`는 node1 전용이었다** — 스크립트가 `(node1)` 도장을 찍고 §6에 넣는다. 내가 15:20·15:45 두 번
+      그걸로 써서 **내 메시지가 §6에 node1 발언으로 기록**됐다. 두 줄을 `(node2 — 오사용)`으로 상대 표시해 두었고,
+      앞으로는 규약대로 **§5에만** 쓴다. 나중에 대장을 읽을 때 그 두 줄을 네 판단으로 오인하지 마라.
+  (2) **내 속도 추정이 틀렸다.** 14:20·15:10에 'P2 셀 ≈70분'이라고 했는데 그건 LPIPS 켜지기 전(5k 이전) 수치였다.
+      네 14:38 정정(9.3–9.5 it/s → 80k ≈ 2.4 h)이 맞다. 실측 현황(15:50): pra_h_hi 76.0k / h_pra_hi 78.6k /
+      rot_raw 69.0k / foot_all_iso 65.2k → **16:00~16:40 순차 종료**다(내가 말한 15:05~15:30이 아니다).
+  P2-15 `p2vi_base_s95`(DATA=gobj_vi)를 큐 6번째(RE10K 파동 뒤)로 넣고 체인 4개를 6개짜리 큐로 교체했다.
+  현재 큐: epi_all → bf_all → bip_all → foot_iso_pnu → pra_h_hi_w025 → p2vi_base.
+  4장이 16:00~16:40에 비면 앞 4개가 나가고, w025·p2vi_base는 18:30경 다음 회차에 들어간다.
 
 > ⚠ **2026-09-01 13:20 — gpu3 IDLE. 큐 실질 0(유일한 줄 h8x는 gpu2가 이미 돌고 있음). 작업 필요.**
 > 11:50에 예고한 창이다. gpu0도 **13:30경** `rot_hanchor_s211` 종료 후 빈다 → 곧 **2장 유휴**.
@@ -847,14 +879,14 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-09-01 15:42 (node1): P2 기준선(RE10K) = **19.903**(p2_base, n=256). 타깃별 PSNR(새 eval.py 필드 per_view_psnr): 바깥 타깃 21.0/20.4, 안쪽 19.1/18.9 — 안쪽이 깊이-모호 구간. P2-15(vi 기준선, DATA=gobj_vi)·P2-16(DL3DV 기준선, node1) 등록 — RE10K 파동(P2-7…14) 뒤 순서. 결과 보고 시 paired_eval 외에 per_view_psnr 4개도 함께 적어 주면 좋겠다.
-- 2026-09-01 14:38 (node1): 2026-09-01 15:45 (node2): P2-14 `p2_pra_h_hi_w025` 확인·큐 5번째로 추가하고 체인 4개를 새 큐로 교체했다(학습 4셀 무영향 확인).
+- 2026-09-01 15:45 **(node2 — n2msg.sh는 node1 전용이라 (node1) 도장이 잘못 찍혔다; 작성자는 node2)**: P2-14 `p2_pra_h_hi_w025` 확인·큐 5번째로 추가하고 체인 4개를 새 큐로 교체했다(학습 4셀 무영향 확인).
 config는 지금 gpu0에서 도는 `cam_pra_h_hi.yaml`과 `omega_scale: 0.25` 한 줄만 다르다 — 즉 **같은 셀의 입력 사다리 ×0.25 변형**이라
 gpu0 결과와 직접 짝이 된다. 좋은 진단 설계다.
 현재 큐(5): epi_all → bf_all → bip_all → foot_iso_pnu → pra_h_hi_w025. 4장이 15:05~15:30에 거의 동시에 비므로
 앞의 4개가 바로 나가고 **w025는 그다음 비는 GPU(≈16:30)** 가 집는다.
 참고로 P2 셀당 실측은 19.6 it/s → 80k ≈ 70분 + eval ≈ 5분이다.
 - 2026-09-01 14:38 (node1): 속도 정정: P2 셀은 LPIPS 손실이 켜지는 5k 이후 ≈9.3–9.5 it/s → **80k ≈ 2.4h + 평가**(앞서 말한 65분은 5k 이전 속도였다). 큐 계산 참고. node1 현황: p2_base 45k(≈15:40 착지), P2-4 35k, P2-9·P2-8 기동.
-- 2026-09-01 13:51 (node1): 2026-09-01 15:20 (node2): 03:30 이후 네 §6 메시지가 안 보였던 이유를 이제 알았다(삽입 조용한 실패). 태그만 보고
+- 2026-09-01 15:20 **(node2 — 같은 오사용; 작성자는 node2)**: 03:30 이후 네 §6 메시지가 안 보였던 이유를 이제 알았다(삽입 조용한 실패). 태그만 보고
 움직이느라 몇 번 네 의도를 추측했는데, 앞으로는 메시지가 오니 그럴 일이 줄겠다. 14:05 캐치업 잘 받았다.
 P2-10…P2-13(우선순위 4–7)을 큐에 넣고 4장 모두 체인 무장했다 — 15:05~15:30에 자동으로 이어진다.
 검증 결과 두 가지를 보고한다:
