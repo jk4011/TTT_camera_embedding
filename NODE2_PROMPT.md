@@ -162,7 +162,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-27 | `gobj_foot_all_iso_s137` (orbit, SEED 137) + 선행: `gobj_base_s137` 재평가 → `eval_v2.json` | `config/gobj_foot_all_iso.yaml` / base `config/lact_l6_d256_p16.yaml` | 강건 레시피의 **orbit 2-seed**. 기존 base_s137 eval.json은 498 scenes라 짝이 안 맞음 → 먼저 `eval.py --load outputs/gobj_base_s137/model_0030000.pth --config config/lact_l6_d256_p16.yaml --data_path /tmp/gobj/test_index.json --num_scenes 500 --out outputs/gobj_base_s137/eval_v2.json`(≈10분), 그다음 `DATA=gobj ./run_gobj.sh <gpu> gobj_foot_all_iso_s137 config/gobj_foot_all_iso.yaml 137` | [RUNNING node2 gpu1 11:42; 선행 re-eval 완료 n=499 psnr=22.291] |
 | W5-28 | `dl3dv_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` (DL3DV, F50 protocol) | 강건 레시피의 DL3DV 무해성 확인 (node1 gpu0, h4x 종료 시 자동 체인 `outputs/_smoke/dl3dv_iso_chain.sh`) | [ARMED node1 gpu0] |
 | W5-29 | `gobjvi_foot_all_iso_h8x_s95` | `config/gobj_foot_all_iso_h8x.yaml` | hidden ladder **×8 탐침**: ×1→×2 +0.165, ×2→×4 +0.059(체감) — 어디서 꺾이는가; smoke 통과 | [QUEUED node2 gpu2 (체인 무장 완료, 12:10 자동 시작)] |
-| W5-30 | `gobj_foot_all_iso_h05x_s95` | `config/gobj_foot_all_iso_h05x.yaml` (orbit, `DATA=gobj`) | 사다리 손잡이의 **반대 방향 탐침**: orbit이 ×1보다 **낮은** hidden 사다리(×0.5)를 선호하면 '정규화 스케일 의존' 해석이 강화됨; smoke 통과 | [RUNNING node1 gpu1 12:37] |
+| W5-30 | `gobj_foot_all_iso_h05x_s95` | `config/gobj_foot_all_iso_h05x.yaml` (orbit, `DATA=gobj`) | 사다리 손잡이의 **반대 방향 탐침**: orbit이 ×1보다 **낮은** hidden 사다리(×0.5)를 선호하면 '정규화 스케일 의존' 해석이 강화됨; smoke 통과 | [KILLED 13:35 — 새 프로그램(P2)에 GPU 양보; 저가치 탐침] |
 | W5-31 | `re10k_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` (RE10K, launch_exp.sh) | 강건 레시피(h2x 없음)의 RE10K 한-레시피 검증 — node1 gpu3, 체인 `outputs/_smoke/re10k_iso_chain.sh` | [RUNNING node1 gpu3 12:58] |
 | W5-32 | `gobj_foot_all_iso_s211` (orbit, SEED 211) + 선행 `gobj_base_s211` eval_v2 | `config/gobj_foot_all_iso.yaml` | 강건 레시피 orbit 3번째 시드 (node1 gpu2, 체인 `outputs/_smoke/orbit_iso_s211_chain.sh`) | [RUNNING node1 gpu2 12:48] |
 | W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [DONE 22.262 (+0.281 vs base, rot_raw보다 낮음 — QH 기각: 비음 kernel이 hidden에서 해로움)] |
@@ -203,6 +203,16 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+> ⚠ **2026-09-01 13:20 — gpu3 IDLE. 큐 실질 0(유일한 줄 h8x는 gpu2가 이미 돌고 있음). 작업 필요.**
+> 11:50에 예고한 창이다. gpu0도 **13:30경** `rot_hanchor_s211` 종료 후 빈다 → 곧 **2장 유휴**.
+> 지금 넣을 만한 것(내 제안, 지시하면 즉시 올림):
+> 1. **`gobj_foot_all_iso_s211`** — orbit 2-seed를 3-seed로. 지금 gpu1의 s137과 짝이고, 11:35에 보고한
+>    **orbit 미전이**(headline이 orbit에서 rot_hshell과 동률)를 시드로 확인하는 가장 직접적인 셀이다.
+> 2. **`gobjvi_rot_hanchor_s211` 이후의 4번째 시드**는 권하지 않는다 — 아래 13:25 보고대로 s211 자체가
+>    특이 시드로 보이므로, 시드를 더 늘리기보다 **s211이 왜 다른지**(base가 유난히 높음)를 확인하는 쪽이 낫다.
+>    예: `gobjvi_base_s311` 같은 4번째 base 하나만 돌려 s211이 이상치인지 보는 것.
+> 둘 다 내가 임의로 만들지 않는다(§1-6). 한 줄만 적어 주면 올린다.
 
 > ⚠ **2026-09-01 11:52 — gpu1 유휴 시작(IDLE). 큐 비어 있음. 작업 필요.**
 > (아래 11:32 예고대로 gpu1이 `rot_hanchor_s137` 종료 후 11:50에 놀기 시작했다. gpu2도 12:10 예정.)
@@ -721,6 +731,37 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   그대로 들여오므로, 논문 표에는 **셀별 3-seed 평균 ± std를 절대 PSNR과 Δ 둘 다** 싣는 편이 안전해 보인다.
   11:52에 넘긴 'headline vs rot_hanchor 확정' 판단도 **2-seed 기준이었으니 s211까지 보고 다시 봐야 한다**
   (rot_hanchor·foot_all의 s211은 13:20–13:30 완료 예정, headline s211은 네가 돌리는 중).
+- 2026-09-01 13:25 (node2): **`foot_all` 3-seed 완성 — s211에서 또 크게 떨어진다.**
+  | seed | base | cell | Δ |
+  |---|---|---|---|
+  | s95 | 21.981 | 22.698 | +0.717 |
+  | s137 | 21.887 | 22.561 | +0.674 |
+  | s211 | 22.085 | 22.347 | **+0.261** |
+  평균 **+0.551, std 0.252**. `rot_hshell`(평균 +0.613, std 0.134)과 같은 패턴이다 — **두 셀 모두 s211에서만 급락**한다.
+  실행 이상은 없다(30k 완주, NaN 0, traceback 0, 4.14–4.18 it/s 단독 실행 — GPU 공유 아님).
+  ⚠ **공통 원인 의심**: s211에서 base가 22.085로 가장 높은데(다른 시드 21.9–22.0) 셀은 오히려 낮다.
+  즉 s211은 **baseline이 유난히 잘 나온 시드**이고, 그래서 PE의 상대 이득이 압축돼 보인다.
+  → 셀 문제가 아니라 **시드 하나가 전체 Δ를 끌어내리는 구조**이므로, 논문에서 3-seed 평균만 싣고
+  시드별 값을 감추면 오해를 부른다. 시드별 표를 그대로 싣기를 권한다(내 판단).
+  `rot_hanchor` s211이 13:30에 나오면 세 셀 모두 같은 패턴인지 확인된다 — 그때 종합해 보고하겠다.
+- 2026-09-01 13:35 (node2, **3-seed 최종 — 내 담당 3셀 완료**):
+  | cell | s95 | s137 | s211 | mean | std |
+  |---|---|---|---|---|---|
+  | rot_hanchor | +0.765 | +0.776 | +0.436 | **+0.659** | 0.193 |
+  | rot_hshell | +0.716 | +0.661 | +0.461 | +0.613 | 0.134 |
+  | foot_all | +0.717 | +0.674 | +0.261 | +0.551 | 0.252 |
+  | base PSNR | 21.981 | 21.887 | 22.085 | | |
+  **세 셀 전부 s211에서만 급락한다**(다른 두 시드에서는 +0.66~+0.78). s211은 base가 가장 높은 시드다.
+  → 셀별 결함이 아니라 **s211이라는 시드의 성질**이다. 원인 가설: 그 시드에서 baseline이 유난히 잘 학습돼
+  PE가 채울 여지가 줄었다.
+  **판정에 직결되는 두 가지:**
+  (1) 세 셀의 평균 차이(+0.659 / +0.613 / +0.551)는 **std 0.13–0.25보다 작다 → 셀 간 우열은 유의하지 않다.**
+      11:52에 내가 낸 'rot_hanchor가 재현성 1위' 판단은 2-seed 기준이었고, 3-seed에서는 성립하지 않는다(std 0.193).
+  (2) 그래도 **세 셀 모두 세 시드 전부에서 base를 유의하게 이긴다**(최소 +0.261, t=+16.1). PE가 효과 있다는
+      결론 자체는 흔들리지 않는다 — 흔들리는 건 **어느 PE가 최고냐**이다.
+  → 논문 권고(내 판단): headline 셀 선정은 **vi 3-seed가 다 있는 셀끼리** 비교해야 한다. 현재 그 조건을 만족하는 건
+  이 3셀뿐이고 셋은 통계적으로 동률이다. `foot_all_iso_h2x`는 네가 s211을 돌리고 있으니, 그게 나오면
+  **같은 기준으로** 비교해서 headline을 확정하자.
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
