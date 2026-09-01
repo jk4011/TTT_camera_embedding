@@ -94,6 +94,7 @@ def ssim_fn(a, b):
 
 
 all_psnr, all_lpips, all_ssim = [], [], []
+all_psnr_pv = []   # per-scene, per-target-view PSNR (P2 diagnostic: inner vs outer targets)
 with torch.no_grad():
     for data_dict in loader:
         data_dict = {k: v.cuda() for k, v in data_dict.items()}
@@ -108,6 +109,8 @@ with torch.no_grad():
         # Per-scene PSNR over its target views
         mse = ((rendering - target) ** 2).flatten(1).mean(dim=1)
         psnr = -10.0 * torch.log10(mse)
+        mse_pv = ((rendering - target) ** 2).flatten(2).mean(dim=2)          # [b, n_tgt]
+        all_psnr_pv.extend((-10.0 * torch.log10(mse_pv)).cpu().tolist())
         lp = lpips_model(
             rendering.flatten(0, 1), target.flatten(0, 1), normalize=True
         ).reshape(rendering.size(0), -1).mean(dim=1)
@@ -129,6 +132,8 @@ result = {
     "per_scene_psnr": all_psnr,
     "per_scene_lpips": all_lpips,
     "per_scene_ssim": all_ssim,
+    "per_view_psnr": [float(x) for x in np.mean(np.array(all_psnr_pv), axis=0)],
+    "per_scene_per_view_psnr": all_psnr_pv,
 }
 print(f"PSNR: {result['psnr']:.3f} +- {result['psnr_std_err']:.3f}  SSIM: {result['ssim']:.4f}  LPIPS: {result['lpips']:.4f}  ({result['num_scenes']} scenes)")
 
