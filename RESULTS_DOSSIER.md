@@ -3380,3 +3380,16 @@ origin cannot fix: moment-only (`d_scale 0`) and direction x0.25 cells are queue
 flat for every Plucker variant; attention +/- PRoPE controls are running to learn whether any PE can move it.
 Status: RE10K target met by two simple recipes (hidden x2: +1.03; three-slot Plucker: +1.54); the robust
 single recipe is not yet found -- the wide-baseline gap is the direction code, not the moment.
+
+## F83 addendum (2026-09-01 23:20): RE10K 3-seed table for the TTT-RoPE family (base_s137/s211 evaluated
+## tonight; seed means +- sd). The standard recipe -- no carrier, x1 ladder -- is already +1.13 on 3 seeds.
+| cell | s95 | s137 | s211 | mean +- sd | delta vs base mean |
+|---|---|---|---|---|---|
+| base | 21.825 | 21.610 | 21.646 | 21.694 +- 0.11 | -- |
+| TTT-RoPE input (`qk_rope_cam`) | 22.333 | 22.385 | 22.325 | 22.348 +- 0.03 | +0.654 |
+| TTT-RoPE hidden (`h_pra`) | 22.724 | 22.538 | 22.843 | 22.702 +- 0.15 | **+1.008** |
+| **TTT-RoPE input + hidden** | 22.797 | 22.777 | 22.899 | **22.824 +- 0.07** | **+1.130** |
+Per-seed paired deltas: input +0.508 / +0.775 / +0.679; hidden +0.899 / +0.928 / +1.197; both +0.971 / +1.167 /
++1.253. Seed 95 is the strongest baseline seed, so the s95-only numbers quoted all day (+0.97) understate the
+family. User decision (23:25): the method is TTT-RoPE only -- the v/o carrier (+1.536 on s95) is dropped
+(+0.03 on objaverse); the single-seed V8 cells (h2x, focus origin) still need s137/s211 before any headline.
