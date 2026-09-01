@@ -3230,3 +3230,16 @@ cell PSNRs are far tighter than the deltas, which is itself evidence that the PE
 baseline's seed sensitivity.
 F81 addendum 3 update (12:37): `gobjvi_foot_all_iso_h2x_s211` 23.048 (+0.962 vs base_s211) -> foot_all_iso_h2x
 3-seed 23.002 +- 0.044, delta vs base mean +1.018 -- the vi headline holds on all three seeds (+0.96 .. +1.07).
+
+## F81 addendum 4 (2026-09-01 13:00): the hidden-ladder x2 gain is specific to the foot hidden code --
+## on the matrix + chord family it HURTS (`gobjvi_rot_hshell_h2x_s95` 22.459, -0.238 vs rot_hshell, t=-19.0)
+
+Ladder-scale ledger (vi, seed 95): foot family x1 22.698 -> x2 22.772 (+0.073) ; iso-foot x1 22.832 -> x2 22.997
+(+0.165) -> x4 23.055 (+0.059) ; chord hidden (rot_hshell) x1 22.697 -> x2 22.459 (**-0.238**) ; orbit iso-foot
+x1 23.008 -> x2 22.837 (-0.171). Reading: the chord code carries a sinc envelope whose width scales with 1/omega,
+so doubling the ladder over-narrows the envelope (the depth-uncertainty tolerance the hidden slot needs, F77);
+the foot point code has no envelope and simply gains resolution on vi's compressed coordinates. So "hidden wants
+a higher band" is not a law of the slot but a property of the envelope-free point code on this dataset. The
+mechanism section keeps the qualitative slot algebra (squared input / linear hidden / orthogonal carrier) and
+drops the spectral-matching claim. Robust recipe unchanged: `foot_all_iso` (x1). In flight: x8 (vi), x0.5
+(orbit), RE10K foot_all_iso and foot_all_iso_h2x, DL3DV foot_all_iso.
