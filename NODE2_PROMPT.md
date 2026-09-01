@@ -86,7 +86,7 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-25 | `gobj_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj`) | **moment-only Plücker**(d_scale 0: 방향 성분 제거, focus-moment 3좌표만) — orbit 91° (d wrap 가설 검증) | [RUNNING node2 gpu3 21:55] |
 | V8-26 | `gobjvi_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj_vi`) | 같은 것 — vi | [RUNNING node1 gpu1 — node2가 양보(22:12)] |
 | V8-27 | `gobj_prah_mfocus_d025_s95` | `config/cam_prah_mfocus_d025.yaml` (`DATA=gobj`) | 방향 성분 ×0.25 — orbit | [RUNNING node2 gpu2 22:05] |
-| V8-28 | `gobjvi_base_norecenter_s95` | `config/lact_l6_d256_p16.yaml` + `POSE_NORM=norecenter` (`DATA=gobj_vi`) | V8-22의 대조군: PE 없이 원점만 물체 중심(raymap 입력 특징 변화 분리) | [PENDING — node1 다음 빈 GPU] |
+| V8-28 | `gobjvi_base_norecenter_s95` | `config/lact_l6_d256_p16.yaml` + `POSE_NORM=norecenter` (`DATA=gobj_vi`) | V8-22의 대조군: PE 없이 원점만 물체 중심(raymap 입력 특징 변화 분리) | [ARMED node1 gpu3 — DL3DV attn_prope 종료 시 자동] |
 | V8-13 | `re10k_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` | **후보 레시피**: Plücker both, moment@focus + hidden 사다리 ×2 — RE10K (강건 레시피가 +1.18을 유지하는가) | [DONE 22.988 (+1.163 vs base, −0.373 vs prah_vorope)] |
 | V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [DONE 22.921 (+1.096 vs base, −0.088 vs h2x)] |
 | V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [DONE 22.857 (+1.032 vs base, −0.504 vs prah_vorope)] |
