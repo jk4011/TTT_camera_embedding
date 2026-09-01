@@ -88,6 +88,8 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-27 | `gobj_prah_mfocus_d025_s95` | `config/cam_prah_mfocus_d025.yaml` (`DATA=gobj`) | 방향 성분 ×0.25 — orbit | [RUNNING node2 gpu2 22:05] |
 | V8-28 | `gobjvi_base_norecenter_s95` | `config/lact_l6_d256_p16.yaml` + `POSE_NORM=norecenter` (`DATA=gobj_vi`) | V8-22의 대조군: PE 없이 원점만 물체 중심(raymap 입력 특징 변화 분리) | [PENDING — V8-29에 GPU 양보, 나중] |
 | V8-29 | `dl3dv_prope_raw_s95` | `config/cam_prope_raw.yaml` (DL3DV, node1) | **TTT + PRoPE 투영 이식**(q/k·v/o에 K[R|t]K⁻¹ 상대변환) — attention+PRoPE가 DL3DV +0.69이므로 TTT에서도 투영 코드가 DL3DV를 움직이는지 | [RUNNING node1 gpu3 23:12] |
+| V8-30 | `dl3dvw48_prah_h2x_s95` | `config/cam_prah_h2x.yaml` (DL3DV **256×448 무크롭**, `IMG="256 448"`, node1) | 사용자 지시(carrier 제외, TTT-RoPE만): DL3DV 원본 비율에서 최고 TTT-RoPE 레시피(입력+hidden ×2). 참고: 무크롭 2-seed 기존 결과 base 17.55, hidden +0.32/+0.19, both +0.17/+0.24 | [ARMED node1 gpu1 — V8-26 종료 시] |
+| V8-31 | `dl3dvw48_attn_prope_s95` | `config/gobj_attn_prope.yaml` (DL3DV 256×448, node1) | 무크롭 프로토콜의 상한(attention+PRoPE) | [ARMED node1 gpu0 — attn_nope 종료 시] |
 | V8-13 | `re10k_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` | **후보 레시피**: Plücker both, moment@focus + hidden 사다리 ×2 — RE10K (강건 레시피가 +1.18을 유지하는가) | [DONE 22.988 (+1.163 vs base, −0.373 vs prah_vorope)] |
 | V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [DONE 22.921 (+1.096 vs base, −0.088 vs h2x)] |
 | V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [DONE 22.857 (+1.032 vs base, −0.504 vs prah_vorope)] |
