@@ -325,3 +325,20 @@ hidden 코드는 같은 계수를 **선형으로**(rung마다 cos Δθ) 곱한�
 
 야간 신규 셀 중 이 유도가 직접 낳은 것: QH(hidden에 비음 cos(Δ/2) kernel), SPEC-2x(hidden ladder ×2 —
 입력 제곱 kernel의 유도 스펙트럼 정합), ENV²(Muon 응답 곡선에 맞춘 깊은 null 봉투).
+
+### 7.1 야간 검증 (09:30 추가) — 유도의 예측이 실험으로 어떻게 판정됐나
+- **적중 — SPEC-2x**: "입력 코드는 계수에 제곱으로 들어가므로 유도 스펙트럼은 2ω, hidden 사다리는 거기에
+  맞춰야 한다" → hidden ladder ×2가 foot_all 대비 **+0.073 (t=7.2)**, iso 좌표 위에서는 **+0.165**로
+  합성되어 vi 첫 **+1.016 dB**(`foot_all_iso_h2x`). ×4 반증 셀(W5-24)은 "더 좋아지면 안 된다"가 예측.
+- **반증 — QH**: "hidden은 선형·부호 민감이니 비음 kernel(cos Δ/2 ≥ 0)이 안전하다"는 가설은 **틀렸다**
+  (rot_raw 대비 −0.252). 해석: hidden 슬롯의 빼기(불일치 value의 상쇄)는 결함이 아니라 **선택 기능**이다 —
+  입력 제곱 kernel이 이미 부호 안전을 담당하므로 hidden은 날카롭고 부호 있는 3D 점 kernel이어야 한다.
+- **정정 — carrier**: 위상 carrier의 실패(F75)는 ray 좌표의 실패였다. foot 좌표 위상 carrier는 행렬 carrier를
+  +0.041로 이긴다(직교이므로 L2와 정합). 단 iso 주소 위에서는 포화(+0.007).
+- **정정 — 방향 커버리지**: iso 6방향은 chord/hidden-shell·입력 단독에서는 지고 foot 양 사이트에서만 이긴다
+  (+0.134). 점 코드가 두 사이트에서 일관될 때만 방향 수가 이득이 된다(일관성 법칙의 또 다른 형태).
+- **데이터 의존 — hidden 서열**: anchors vs chord는 vi(+0.049)와 orbit(−0.066)에서 뒤집힌다. 봉투의 폭은
+  데이터의 깊이 불확실성에 맞추는 손잡이이지 법칙이 아니다.
+- **기각 계열**: per-token 회전(CFR), 반사(Householder), 앞 교차점(near-shell), per-token carrier 프레임,
+  층상 head 메모리, 층별 좌표 변주, 비대칭 store/read, camray. 공통 원인은 §7의 세 문장으로 환원된다 —
+  입력은 전역 일관 직교(제곱 슬롯), hidden은 대응점 0 보장 점 코드(선형 슬롯), carrier는 per-view 직교.

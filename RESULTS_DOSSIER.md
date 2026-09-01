@@ -3105,3 +3105,74 @@ Readings:
    (+0.089) -- the separable per-axis kernel was part of the chord's handicap.
 4. All slots pay in the foot decomposition: input +0.472 -> +hidden +0.079 -> +carrier +0.166.
 5. Single seed; seeds for the finalists await the user's decision. RE10K one-recipe check queued.
+
+## F81: overnight wave 5 (2026-09-01 02:45-09:30) -- iso-foot coordinates x doubled hidden ladder
+## give the first +1 dB PE-only cell on vi (22.997, +1.016); the algebra-derived SPEC-2x prediction
+## is confirmed and QH refuted; cross-dataset one-recipe checks land (RE10K +0.27/+0.48, DL3DV 0);
+## the oracle sigma-curve closes at sigma=0.12 -> +0.08 (all seed 95 unless noted, paired per scene)
+
+Protocol: vi re-renders (500 scenes, base `gobjvi_base_s95/eval_v2` 21.981 / LPIPS 0.1005) unless marked
+orbit (499 scenes, base 22.193), RE10K (256 scenes, `base_s95` 21.825) or DL3DV (140 scenes, F50 protocol,
+`dl3dv_base_s95` 16.398). Cells came from five overnight brainstorm agents (TTT-algebra derivation, geometry,
+literature, contrarian, mechanism) filtered by the user's constraints (PE only, no architecture change,
+extra FLOPs ~0, no K-fold apply). 26 cells landed across the two nodes.
+
+### Headline ladder (vi)
+| cell (cam_mode) | PSNR | d vs base (t, win) | d vs its parent (t) |
+|---|---|---|---|
+| **foot_all_iso_h2x** = `foot_in+h_foot+vo_rel+iso`, n_dirs 6, omega_scale_h 2 | **22.997** | **+1.016** (50.4, 98.8%) | +0.165 vs foot_all_iso (16.1); +0.225 vs foot_all_h2x (22.1) |
+| foot_all_iso_pvo (iso + foot-phase carrier) | 22.839 | +0.858 (42.9) | +0.007 vs foot_all_iso (0.6) -- tie |
+| foot_all_iso = `foot_in+h_foot+vo_rel+iso`, n_dirs 6 | 22.832 | +0.851 (43.1, 98.8%) | +0.134 vs foot_all (13.0) |
+| foot_all_h2x (hidden ladder x2, "SPEC-2x") | 22.772 | +0.791 (40.6) | +0.073 vs foot_all (7.2) |
+| rot_hanchor = `rot_raw+h_anchor` | 22.746 | +0.765 (44.1) | +0.049 vs rot_hshell (5.0) |
+| foot_all_pvo (foot-coordinate PHASE carrier) | 22.739 | +0.758 (40.3) | +0.041 vs foot_all (3.9) |
+| foot_all / rot_hshell (F78/F80 finalists) | 22.698 / 22.697 | +0.717 / +0.716 | -- |
+Seed replication of the iso cell: `gobjvi_foot_all_iso_s137` 22.776 vs `gobjvi_base_s137` 21.887 -> **+0.890**
+(t=45.9, 99.2%); s95 +0.851. (`gobjvi_base_s137` = stock L6/d256/p16, verified identical architecture.)
+Seeds of the +1.016 cell (s137, s211) and its orbit twin are in flight at the time of writing.
+
+Reading. Two independent gains found overnight stack super-additively: (i) six axis directions instead of
+three for the foot-point phases at BOTH sites (+0.134 -- note the same `iso` flag LOSES on the hidden chord
+(`rot_hshell_iso` -0.085, t=-7.6) and on the input-only foot (F78 addendum -0.044): direction coverage pays
+only when the point code is consistent across sites); (ii) doubling the hidden frequency ladder (+0.073):
+the TTT-algebra derivation predicts the input code enters the dominant retrieval coefficient SQUARED, so its
+induced spectrum sits at 2*omega and the hidden ladder should be matched to it -- the cell was built from
+that prediction and confirmed it. Together +0.299 over foot_all (> +0.134 + 0.073). The foot-coordinate
+phase carrier beats the rotation-matrix carrier in the plain foot family (+0.041) -- so the F75 "phase
+carriers fail" verdict was a RAY-coordinate failure, not a phase failure -- but the gain saturates on the
+iso address (+0.007), so the headline keeps the simpler rotation carrier.
+
+### New-method verdicts (vi)
+| method (source) | cell | PSNR | verdict |
+|---|---|---|---|
+| SPEC-2x hidden ladder x2 (algebra P4) | foot_all_h2x | 22.772 | **confirmed** +0.073 vs foot_all (t=7.2) |
+| QH quaternion half-angle hidden, cos(D/2)>=0 kernel (algebra P1) | rot_hqh | 22.262 | **refuted** -0.252 vs rot_raw (t=-20.4): a non-negative hidden kernel HURTS -- the hidden slot's sign-sensitivity (subtracting mismatched values) is a feature |
+| CFR angle-matched per-token rotation (geometry) | cfr_hshell / cfr_vo | 22.509 / 22.448 | rejected: -0.188 vs rot_hshell (t=-14.6) / -0.067 vs rot_raw (t=-5.0); per-VIEW global rotation beats per-token matched identity |
+| Householder reflection codes (contrarian) | hh_all | 21.852 | rejected -0.129 vs base (t=-7.2) |
+| near-shell front-intersection point, opacity prior (geometry) | near_all | 22.523 | rejected -0.176 vs foot_all (t=-13.7): closest-approach beats front hit |
+| foot-frame per-token carrier | foot_all_ffvo | 22.420 | rejected -0.279 vs foot_all (t=-21.5): the carrier must be per-view orthogonal (RayGTA lesson, carrier side) |
+| layer-staggered chord-fraction coordinate (L8) | layer_all | 22.682 | neutral -0.017 vs foot_all (t=-1.3) |
+| layered memory: head k = depth layer k + carrier (4 heads) | h4_headanchor_vo | 22.568 | works vs its 4-head control (+0.750 vs h4_base 21.818) but -0.131 vs single-memory foot_all (t=-10.7): head split costs -0.163 by itself; rejected as a method |
+| anchor hidden mixed into the foot+pvo family | foot_hanchor_pvo | 22.698 | -0.042 vs foot_all_pvo (t=-4.0): consistency beats mixing (F80) again |
+| update-side-only hidden Plucker (delta path) | h_dpra | 21.862 | -0.119 (t=-8.1): asymmetric store/read closed |
+| camera-frame raymap + hidden rot | camray_hrot | 20.080 | -1.901: camray closed |
+| hidden-site code ranking | rot_hanchor vs rot_hshell | vi +0.049 (t=5.0), orbit **-0.066** (t=-4.7) | dataset-dependent: anchors win under vi's varied FOV/distance, chord's uncertainty envelope wins on the 91-deg orbit; a tuning knob, not a law |
+
+### Cross-dataset one-recipe checks (same configs as F80, no retuning)
+| data (n) | rot_hshell | foot_all | reading |
+|---|---|---|---|
+| vi (500) | +0.716 | +0.717 (iso +0.851; iso_h2x +1.016) | wide baseline, main axis |
+| orbit 91 deg (499) | +0.642 (F79) | +0.564 (F79) | holds |
+| RE10K narrow (256) | 22.092 **+0.266** (t=12.1, 79%; LPIPS +0.005 worse) | 22.306 **+0.481** (t=15.3, 80%); +0.214 over rot_hshell (t=12.6) | narrow baseline also gains; foot_all clearly better |
+| DL3DV walking (140) | 16.398 -0.001 (t=-0.02) | 16.383 -0.015 (t=-0.5) | exactly neutral: p* (LS intersection of optical axes) is ill-conditioned on forward-walking paths, the coordinates degenerate and the learnable gains mute the code -- no harm, no gain |
+
+### Oracle sigma-curve completed (orbit, GT surface point with Gaussian depth noise, F73/W4)
+sigma = 0 / 0.04 / 0.07 / 0.12  ->  +2.08 / +0.98 / +0.77 / **+0.077** (22.270, t=2.8, win 50.5%).
+A depth estimate must be within ~4% of scene scale to be worth building; the zero-training memory
+probe (F80 era, `probe_depth_from_memory.py`) reaches ~0.07 at best (layer 5 only) -- the estimator route
+is closed for now and the coordinate route (foot / iso-foot) is the right one.
+
+Notes. `gobj_oracle_n12_s95/train.log` is not usable as a learning curve (a node2 orphan run briefly wrote to
+the same directory; the 03:17 checkpoint and 03:18 eval are from the single completed node1 run and were
+verified intact). All cells trained with the F51 recipe; iso cells use num_freqs_seg 21 / hseg 42 (the
+2*n_dirs*freqs <= head_dim budget), h2x sets omega_scale_h 2.0 on the hidden ladder only.
