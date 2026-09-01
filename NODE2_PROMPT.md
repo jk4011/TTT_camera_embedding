@@ -65,6 +65,25 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 
 ## 3. 작업표 (위에서부터; 상태 태그는 node2가 갱신)
 
+### 3.V8 — **8-view / 30k 표준으로 복귀** (2026-09-01 17:40, 사용자 결정; P2 취소). 기준 유지: 간단하거나 TTT-특화 + 다중 데이터 강건(RE10K ≥ +1.0)
+아이디어: RE10K에서 이미 +0.97인 **Plücker 입력+hidden**을 그대로 두고, wide baseline에서 죽는 원인(moment wrap)을 **한 줄로** 고친다 —
+`plucker_origin: focus` (moment를 세계 원점 대신 장면 focus p* 기준으로: m* = (o−p*)×d; 좁은 베이스라인에선 원점 이동일 뿐, 넓은 베이스라인에선
+focus 근처 점의 대응 ray moment가 거의 같아짐), 선택적으로 `plucker_norm: true`(장면별 RMS 정규화 → 사다리 한 설정), `focus_mode: vergence`(p_ν).
+런처: objaverse `DATA=gobj_vi ./run_gobj.sh`, RE10K **`./run_re10k.sh <gpu> <exp> <cfg>`**(신설: launch_exp 30k + eval + 락). 기준: vi base 21.981(eval_v2),
+vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10); RE10K base_s95 21.825, pra_h_hi_s95 22.797(+0.971), h_pra_hi_s95 22.724.
+| ID | exp | config | 목적 | 상태 |
+|---|---|---|---|---|
+| V8-1 | `gobjvi_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` | Plücker both, moment@focus — vi | [RUNNING node1 gpu0 17:42] |
+| V8-2 | `gobjvi_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | Plücker hidden만, moment@focus — vi (순수 TTT-특화) | [RUNNING node1 gpu1 17:42] |
+| V8-3 | `gobjvi_prah_mfocus_norm_s95` | `config/cam_prah_mfocus_norm.yaml` | + 장면별 RMS 정규화 — vi | [RUNNING node1 gpu2 17:42] |
+| V8-4 | `gobjvi_prah_mfocus_pnu_s95` | `config/cam_prah_mfocus_pnu.yaml` | + vergence focus p_ν — vi | [RUNNING node1 gpu3 17:42] |
+| V8-5 | `re10k_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` | moment@focus가 RE10K의 +0.97을 해치지 않는가 | [QUEUED node2] |
+| V8-6 | `re10k_prah_vorope_s95` | `config/cam_prah_vorope.yaml` | Plücker를 세 슬롯 모두에(입력+hidden+위상 carrier) — RE10K에서 +1.0 돌파 시도 | [QUEUED node2] |
+| V8-7 | `re10k_prah_h2x_s95` | `config/cam_prah_h2x.yaml` | hidden Plücker 사다리 ×2 — RE10K | [QUEUED node2] |
+| V8-8 | `re10k_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | hidden만, moment@focus — RE10K | [QUEUED node2] |
+| V8-9 | `gobj_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (`DATA=gobj`) | orbit 91° 검증 | [PENDING] |
+| V8-10 | `dl3dv_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (DL3DV, node1) | DL3DV 검증 | [PENDING — node1] |
+
 ### 3.P2 — 새 프로그램 (2026-09-01 13:40, 사용자 지시): **2-view 입력 / 80k step**, 간단하거나 TTT-특화, 다중 데이터 강건
 런처: `lact_nvs/run_p2.sh <gpu> <exp> <config> [seed]` (env `NODE=node2`, `DATA=re10k|gobj_vi|dl3dv`; 학습 2+4 view,
 80k step, warmup 4k; 평가 2 입력(90-frame 창 양끝)+4 중점 타깃, RE10K 256 scenes). 셀 이름은 `p2_` 접두.
@@ -80,18 +99,18 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | P2-7 | `p2_h_epi_s95` | `config/p2_h_epi.yaml` | **에피폴라-평면 각 φ의 hidden rope**(순수 TTT-특화; φ = baseline 축에 대한 ray의 에피폴라 평면 각, 대응 픽셀에서 깊이·베이스라인 무관 Δφ=0, 정수 고조파라 스케일 손잡이 없음) | [ARMED node1 gpu1 — p2_base 종료 시 자동] |
 | P2-8 | `p2_pra_hepi_s95` | `config/p2_pra_hepi.yaml` | Plücker 입력 + φ hidden | [DONE 19.910 (+0.006 vs base — φ hidden 무효)] |
 | P2-9 | `p2_rot_hepi_s95` | `config/p2_rot_hepi.yaml` | 회전 행렬 입력+carrier + φ hidden (p*·스케일 무관 범용 레시피) | [DONE 19.813 (−0.090 vs base, −0.023 vs rot_raw — h_epi 무효)] |
-| P2-10 | `p2_epi_all_s95` | `config/p2_epi_all.yaml` | φ 입력+hidden + 회전 carrier (일관성) | [RUNNING node2 gpu3 15:59] |
-| P2-11 | `p2_bf_all_s95` | `config/p2_bf_all.yaml` | BF-RoPE: (φ, α) 입력 + (φ, α 저조파) hidden + carrier | [RUNNING node2 gpu0 16:10] |
-| P2-12 | `p2_bip_all_s95` | `config/p2_bip_all.yaml` | 위와 같되 α 대신 vergence-보정 ψ_c | [RUNNING node2 gpu2 16:06] |
-| P2-13 | `p2_foot_iso_pnu_s95` | `config/p2_foot_iso_pnu.yaml` | foot_all_iso + **vergence focus p_ν**(LS p* 대체, 3줄) | [RUNNING node2 gpu1 16:16] |
-| P2-14 | `p2_pra_h_hi_w025_s95` | `config/p2_pra_h_hi_w025.yaml` | Plücker both, **입력 사다리 ×0.25**(진단: 8-view 모델의 2-view 평가에서 입력 Plücker −0.10 / hidden +0.23 / both −0.17 → 90-frame 간격엔 사다리가 3–6× 너무 촘촘) | [QUEUED node2 (체인 무장, 5번째)] |
+| P2-10 | `p2_epi_all_s95` | `config/p2_epi_all.yaml` | φ 입력+hidden + 회전 carrier (일관성) | [CANCELLED 17:35 — iter 40.6k에서 중단] |
+| P2-11 | `p2_bf_all_s95` | `config/p2_bf_all.yaml` | BF-RoPE: (φ, α) 입력 + (φ, α 저조파) hidden + carrier | [CANCELLED 17:35 — iter 38.0k] |
+| P2-12 | `p2_bip_all_s95` | `config/p2_bip_all.yaml` | 위와 같되 α 대신 vergence-보정 ψ_c | [CANCELLED 17:35 — iter 31.6k] |
+| P2-13 | `p2_foot_iso_pnu_s95` | `config/p2_foot_iso_pnu.yaml` | foot_all_iso + **vergence focus p_ν**(LS p* 대체, 3줄) | [CANCELLED 17:35 — iter 25.0k] |
+| P2-14 | `p2_pra_h_hi_w025_s95` | `config/p2_pra_h_hi_w025.yaml` | Plücker both, **입력 사다리 ×0.25**(진단: 8-view 모델의 2-view 평가에서 입력 Plücker −0.10 / hidden +0.23 / both −0.17 → 90-frame 간격엔 사다리가 3–6× 너무 촘촘) | [CANCELLED 17:35 — 미시작] |
 | P2-17 | `p2_h_pra_w05_s95` | `config/p2_h_pra_w05.yaml` | Plücker hidden, **hidden 사다리 ×0.5** (2-view에서 hidden만 살아남음 +0.254; 사다리가 너무 촘촘하다는 진단 검증) | [RUNNING node1 gpu0 16:16] |
-| P2-18 | `p2_h_pra_w025_s95` | `config/p2_h_pra_w025.yaml` | 같은 것, ×0.25 | [QUEUED node2 (6번째)] |
-| P2-19 | `p2_bf_lam_all_s95` | `config/p2_bf_lam_all.yaml` | BF-RoPE + **h_lam**(hidden에 baseline 위치 u 회전 쌍 — 가까운 뷰 가중/뷰 차이, 선형 슬롯만 가능) | [QUEUED node2 (8번째)] |
-| P2-20 | `p2_pra_hbf_s95` | `config/p2_pra_hbf.yaml` | Plücker 입력 + (φ, α 저조파) hidden | [QUEUED node2 (9번째)] |
-| P2-21 | `p2_attn_nope_s95` | `config/gobj_attn_nope.yaml` | **상한 진단**: TTT층을 block-causal attention(PE 없음)으로 교체 — 2-view에서 attention 자체의 값 | [PENDING — 진단, P2-20 다음] |
-| P2-22 | `p2_attn_prope_s95` | `config/gobj_attn_prope.yaml` | **상한 진단**: attention + PRoPE — 2-view RE10K에서 relative camera PE가 attention에 주는 최대치(이게 +1.0 미만이면 어떤 PE도 이 모델에선 +1.0 불가) | [PENDING — 진단, 위와 함께] |
-| P2-15 | `p2vi_base_s95` | `config/lact_l6_d256_p16.yaml` (**`DATA=gobj_vi`**) | objaverse-vi 2-view 기준선 (24 frames = 8 시점×3 intrinsics; 입력 = 시점 1·8, ≈58°) | [PENDING — RE10K 파동 뒤] |
+| P2-18 | `p2_h_pra_w025_s95` | `config/p2_h_pra_w025.yaml` | 같은 것, ×0.25 | [CANCELLED 17:35 — 미시작] |
+| P2-19 | `p2_bf_lam_all_s95` | `config/p2_bf_lam_all.yaml` | BF-RoPE + **h_lam**(hidden에 baseline 위치 u 회전 쌍 — 가까운 뷰 가중/뷰 차이, 선형 슬롯만 가능) | [CANCELLED 17:35 — 미시작] |
+| P2-20 | `p2_pra_hbf_s95` | `config/p2_pra_hbf.yaml` | Plücker 입력 + (φ, α 저조파) hidden | [CANCELLED 17:35 — 미시작] |
+| P2-21 | `p2_attn_nope_s95` | `config/gobj_attn_nope.yaml` | **상한 진단**: TTT층을 block-causal attention(PE 없음)으로 교체 — 2-view에서 attention 자체의 값 | [CANCELLED 17:35 — 미시작] |
+| P2-22 | `p2_attn_prope_s95` | `config/gobj_attn_prope.yaml` | **상한 진단**: attention + PRoPE — 2-view RE10K에서 relative camera PE가 attention에 주는 최대치(이게 +1.0 미만이면 어떤 PE도 이 모델에선 +1.0 불가) | [CANCELLED 17:35 — 미시작] |
+| P2-15 | `p2vi_base_s95` | `config/lact_l6_d256_p16.yaml` (**`DATA=gobj_vi`**) | objaverse-vi 2-view 기준선 (24 frames = 8 시점×3 intrinsics; 입력 = 시점 1·8, ≈58°) | [CANCELLED 17:35 — 미시작] |
 | P2-16 | `p2dl_base_s95` | `config/lact_l6_d256_p16.yaml` (**`DATA=dl3dv`**, node1 전용: /tmp/dl3dv) | DL3DV 2-view 기준선 | [PENDING — node1] |
 (모두 2-view·8-view smoke 통과. 태그 선점 후 실행; node1/node2 구분 없이 빈 GPU가 위에서부터 가져간다.)
 
@@ -234,6 +253,26 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+- 2026-09-01 17:40 (node2): **P2 전면 종료 완료. 내 GPU 4장 모두 비었다.**
+  중단한 것: 실행 중 4셀(epi_all 40.6k / bf_all 38.0k / bip_all 31.6k / foot_iso_pnu 25.0k) + 대기 체인 4개 + 큐 11개.
+  순서는 **큐 비우기 → 대기 체인 → 실행 체인 → 학습 프로세스**로 했다(역순이면 체인이 새 셀을 띄운다).
+  부분 산출물은 지우지 않고 `outputs/_CANCELLED_p2_*_Iter00XXXXX/`로 이름만 바꿨다 — 필요 없으면 지워도 된다.
+  (모니터의 TRAIN_ERROR 4건은 내 kill이 남긴 traceback이다.)
+  ⚠ **주의: 내 GPU 4장에 다른 작업이 올라가 있다.** `lact_ar_video/minVid`의 `eval_video2_generate.py` 4개가
+  **16:19:45에 gpu0–3에 각각 29 GB**로 붙었다(내 것이 아니고, §1-6이 video 그리드를 나에게 금지하므로 네 것이거나 사용자 것이다).
+  남는 메모리는 GPU당 ~154 GB라 8-view 셀(~50 GB)은 문제없이 들어가지만 **SM을 나눠 쓰므로 속도는 떨어진다**.
+  의도한 것이면 그대로 8-view 파동을 올리겠고, 아니면 알려 달라.
+  §3에 새 파동을 등록해 주면 즉시 4장에 올린다(objaverse=run_gobj.sh DATA=gobj_vi, RE10K=launch_exp.sh 30k 확인했다).
+
+- 2026-09-01 17:15 (node2): P2-21/22 attention 상한 진단 2셀을 큐 10·11번째에 넣었다(kill/재기동 분리 규칙 적용).
+  config는 어제 wave-1에서 쓴 `gobj_attn_nope.yaml`·`gobj_attn_prope.yaml` 그대로이고 `run_p2.sh`로 도니
+  **2-view/80k/RE10K 프로토콜**만 바뀐다 — 좋은 설계다(같은 모델을 두 프로토콜에서 비교할 수 있다).
+  참고로 어제 orbit 8-view에서의 같은 두 셀: attn_nope +0.705, attn_prope +1.437(즉 attention에 PRoPE가 +0.73).
+  이번 2-view RE10K에서 attn_prope가 **+1.0을 넘는지**가 곧 'P2 합격선이 애초에 달성 가능한 목표인가'에 대한
+  답이 된다 — attention 상한조차 +1.0을 못 넘으면 TTT 쪽 기준을 낮추는 게 맞다는 뜻이다. 내가 16:40에 제기한
+  기준 재검토 질문과 직결되므로, 이 두 셀을 큐 앞으로 당길지 지시해 달라(지금은 10·11번째라 새벽에나 돈다).
+  현재 큐 11개, 4셀 실행 중(epi_all 30.6k / bf_all 28.2k / bip_all 21.8k / foot_iso_pnu 15.6k).
 
 - 2026-09-01 16:50 (node2): P2-19 `bf_lam_all`(+`h_lam`)·P2-20 `pra_hbf`를 확인·큐 8·9번째에 넣었다.
   레이어 생성 확인: bf_lam_all=['bf_in','h_bf','h_lam','vo_rel'], pra_hbf=['h_bf','qk_rope_cam']. `h_lam`도 known에 있다.
@@ -928,6 +967,8 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   (subagent 아이디어 정리 중이라고 했으니, 늦어지면 그 사이 채울 후보만 한 줄 알려줘도 된다.)
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
+- 2026-09-01 17:37 (node1): §3.V8 등록(8-view/30k 복귀). node2: GPU 비는 대로 **V8-5~V8-8(RE10K, `./run_re10k.sh <gpu> <exp> <cfg>` 신설 런처)** 순서대로. node1은 V8-1~4(vi) 기동.
+- 2026-09-01 17:32 (node1): ⚠ **P2 프로그램 취소(사용자 결정 17:25): 8-view / 30k 표준 프로토콜로 원상복구.** 2-view에서는 모든 PE 이득이 너무 작았다(최고 +0.25). node2: **P2-10/11 및 무장된 P2-12/13/14 체인을 즉시 종료**하고 GPU를 비워 달라(산출물은 지워도 됨). 새 8-view 파동(같은 기준: 간단하거나 TTT-특화 + 강건, RE10K ≥ +1.0)을 §3에 곧 등록한다 — objaverse는 run_gobj.sh(DATA=gobj_vi), RE10K는 launch_exp.sh 30k.
 - 2026-09-01 15:42 (node1): P2 기준선(RE10K) = **19.903**(p2_base, n=256). 타깃별 PSNR(새 eval.py 필드 per_view_psnr): 바깥 타깃 21.0/20.4, 안쪽 19.1/18.9 — 안쪽이 깊이-모호 구간. P2-15(vi 기준선, DATA=gobj_vi)·P2-16(DL3DV 기준선, node1) 등록 — RE10K 파동(P2-7…14) 뒤 순서. 결과 보고 시 paired_eval 외에 per_view_psnr 4개도 함께 적어 주면 좋겠다.
 - 2026-09-01 15:45 **(node2 — n2msg.sh는 node1 전용이라 (node1) 도장이 잘못 찍혔다; 작성자는 node2)**: P2-14 `p2_pra_h_hi_w025` 확인·큐 5번째로 추가하고 체인 4개를 새 큐로 교체했다(학습 4셀 무영향 확인).
 config는 지금 gpu0에서 도는 `cam_pra_h_hi.yaml`과 `omega_scale: 0.25` 한 줄만 다르다 — 즉 **같은 셀의 입력 사다리 ×0.25 변형**이라

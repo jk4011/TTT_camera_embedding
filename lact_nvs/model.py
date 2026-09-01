@@ -236,7 +236,8 @@ def compute_rays(fxfycxcy, c2w, h, w):
 
 
 def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input_views,
-                        cam_scene_random=False, tok_t_gt=None, focus_mode="ls"):
+                        cam_scene_random=False, tok_t_gt=None, focus_mode="ls",
+                        plucker_origin="world", plucker_norm=False):
     """Per-token / per-view camera tensors for camera-conditioned TTT layers.
 
     All views (input + target) are covered; token order matches the
@@ -419,6 +420,20 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
         focus = 0.5 * (c1 + c2) + rho * f_mean
     else:
         assert focus_mode == "ls", focus_mode
+    # ---- Plucker moment options (8-view robustness program, 2026-09-01 17:30).
+    if plucker_origin == "focus":
+        # m* = (o - p) x d: the moment about the scene focus. Matched rays through a point X differ by
+        # (X - p) x (d1 - d2), small for X near the focus even at wide baseline, while at narrow baseline
+        # it is the stock moment with a shifted origin. One line; keeps the Plucker ladder and both sites.
+        assert not cam_scene_random
+        tok_m = torch.cross(tok_o - focus[:, None, :], tok_d, dim=-1)
+    else:
+        assert plucker_origin == "world", plucker_origin
+    if plucker_norm:
+        # per-scene RMS of the INPUT tokens' moment -> the ladder sees a fixed spread on every dataset
+        n_in_tok = num_input_views * tpv
+        rms = tok_m[:, :n_in_tok].pow(2).sum(-1).mean(1, keepdim=True).sqrt().clamp_min(1e-3)   # [b, 1]
+        tok_m = tok_m / rms[..., None] * 0.5
     rel = focus[:, None, :] - tok_o                                       # [b, L, 3]
     tok_tc = (rel * tok_d).sum(-1, keepdim=True)                          # [b, L, 1]
     tok_b2 = (rel.pow(2).sum(-1, keepdim=True) - tok_tc.pow(2)).clamp_min(0.0)
@@ -448,7 +463,8 @@ class LaCTLVSM(nn.Module):
                  ttt_chunk_per_view=False, ttt_view_tour=False,
                  ttt_num_chunks=1,
                  cam_scene_random=False,
-                 input_raymap="world", focus_mode="ls"):
+                 input_raymap="world", focus_mode="ls",
+                 plucker_origin="world", plucker_norm=False):
         super().__init__()
         self.patch_size = patch_size
         self.dim = dim
@@ -466,6 +482,8 @@ class LaCTLVSM(nn.Module):
         # "vergence" = p_nu, the isosceles vergence focus (p*-free, well-conditioned on walks).
         assert focus_mode in ("ls", "vergence"), focus_mode
         self.focus_mode = focus_mode
+        assert plucker_origin in ("world", "focus"), plucker_origin
+        self.plucker_origin = plucker_origin; self.plucker_norm = bool(plucker_norm)
         # Camera-scheduled TTT updates: one update chunk per input view
         # (multi-step inner optimization), optionally ordered far-from-target
         # -> near-target so that target-adjacent views are written last
@@ -580,6 +598,7 @@ class LaCTLVSM(nn.Module):
                 all_ray_o, all_ray_d, num_input_views,
                 cam_scene_random=self.cam_scene_random, tok_t_gt=tok_t_gt,
                 focus_mode=self.focus_mode,
+                plucker_origin=self.plucker_origin, plucker_norm=self.plucker_norm,
             )
 
         # Running the model
