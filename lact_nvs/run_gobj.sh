@@ -56,7 +56,7 @@ main() {
       --rdzv-backend=c10d --rdzv-endpoint=localhost:0 --nproc_per_node=1 \
       train.py --config "$CFG" \
       --data_path $DROOT/train_index.json --dataset re10k --scene_pose_normalize \
-      --min_frames $MINF "${DEPTH_TRAIN[@]}" \
+      --min_frames $MINF --pose_norm_mode "${POSE_NORM:-mean}" "${DEPTH_TRAIN[@]}" \
       --expname "$EXP" \
       --steps "$STEPS" --warmup 1500 --lr 1e-4 --lpips_start 5000 --seed "$SEED" \
       --bs_per_gpu 16 --num_all_views 15 --num_input_views 8 --num_target_views 8 \
@@ -69,7 +69,7 @@ main() {
   [ "${SKIP_EVAL:-0}" = "1" ] && exit 0
   echo "[$EXP] eval start $(date)"
   CUDA_VISIBLE_DEVICES=$GPU $PY eval.py --load "$CKPT" --config "$CFG" \
-    --data_path $DROOT/test_index.json --num_scenes 500 --min_frames $MINF "${DEPTH_EVAL[@]}" \
+    --data_path $DROOT/test_index.json --num_scenes 500 --min_frames $MINF --pose_norm_mode "${POSE_NORM:-mean}" "${DEPTH_EVAL[@]}" \
     > "outputs/$EXP/eval.log" 2>&1
   echo "[$EXP] eval exit=$? $(grep -h 'PSNR:' outputs/$EXP/eval.log | tail -1)"
 }

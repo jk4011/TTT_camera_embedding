@@ -53,6 +53,7 @@ parser.add_argument("--num_input_views", type=int, default=8)
 parser.add_argument("--num_target_views", type=int, default=8)  
 parser.add_argument("--image_size", nargs=2, type=int, default=[256, 256], help="Image size H, W")
 parser.add_argument("--scene_pose_normalize", action="store_true")
+parser.add_argument("--pose_norm_mode", type=str, default="mean", choices=["mean", "norecenter"])
 parser.add_argument("--cam_scene_random", action="store_true",
                     help="Q1 probe: per-scene-constant random rotary-phase coords "
                          "(see model.compute_camera_info); also settable in the config yaml")
@@ -162,7 +163,7 @@ def remove_module_prefix(state_dict):
 # Data
 if args.dataset == "re10k":
     from data_re10k import Re10KDataset
-    dataset = Re10KDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize, min_frames=args.min_frames, window=args.window, depth_dir=args.depth_dir)
+    dataset = Re10KDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize, pose_norm_mode=args.pose_norm_mode, min_frames=args.min_frames, window=args.window, depth_dir=args.depth_dir)
 else:
     dataset = NVSDataset(args.data_path, args.num_all_views, tuple(args.image_size), scene_pose_normalize=args.scene_pose_normalize)
 datasampler = DistributedSampler(dataset)

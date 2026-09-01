@@ -33,6 +33,7 @@ parser.add_argument("--window", type=int, default=128)
 # frames/scene, so 16 inputs => threshold 60 => 0 scenes, PSNR nan). Pin it to keep
 # one scene set across the whole sweep. None keeps the old behaviour.
 parser.add_argument("--min_frames", type=int, default=None)
+parser.add_argument("--pose_norm_mode", type=str, default="mean", choices=["mean", "norecenter"])
 parser.add_argument("--depth_dir", type=str, default=None,
                     help="patch-grid GT depth side files (oracle diagnostics only)")
 parser.add_argument("--bs", type=int, default=8)
@@ -59,7 +60,7 @@ dataset = Re10KDataset(
     args.data_path,
     num_views=n_in + n_tg,
     image_size=tuple(args.image_size),
-    scene_pose_normalize=True,
+    scene_pose_normalize=True, pose_norm_mode=args.pose_norm_mode,
     window=args.window,
     min_frames=args.min_frames,
     eval_mode=True,

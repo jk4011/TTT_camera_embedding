@@ -15,11 +15,13 @@ from torchvision.transforms.v2 import functional as TF
 from data import normalize, normalize_with_mean_pose
 
 
-def normalize_with_mean_pose_scale(c2ws: torch.Tensor):
+def normalize_with_mean_pose_scale(c2ws: torch.Tensor, recenter: bool = True):
     """Bit-identical to data.normalize_with_mean_pose, but also returns the scene scale
     it divides the camera centres by (needed to bring metric GT depth into the
     canonical frame: unit rays => t scales exactly like translations)."""
-    center = c2ws[:, :3, 3].mean(0)
+    # recenter=False (2026-09-01 diagnostic): keep the DATA origin (object centre for renders) --
+    # rotation-align and scale only, no mean-camera translation.
+    center = c2ws[:, :3, 3].mean(0) if recenter else c2ws.new_zeros(3)
     vec2 = c2ws[:, :3, 2].mean(0)
     up = c2ws[:, :3, 1].mean(0)
     vec2 = normalize(vec2)
@@ -66,6 +68,7 @@ class Re10KDataset(Dataset):
         num_views,
         image_size,
         scene_pose_normalize=True,
+        pose_norm_mode="mean",
         window=192,
         min_frames=None,
         eval_mode=False,
@@ -95,6 +98,8 @@ class Re10KDataset(Dataset):
         self.image_size = tuple(image_size)
 
         self.scene_pose_normalize = scene_pose_normalize
+        assert pose_norm_mode in ("mean", "norecenter"), pose_norm_mode
+        self.pose_norm_mode = pose_norm_mode
         self.window = window
         self.eval_mode = eval_mode
         self.num_input_views = num_input_views
@@ -169,7 +174,7 @@ class Re10KDataset(Dataset):
         c2ws = torch.stack(c2w_list)
         scene_scale = torch.tensor(1.0)
         if self.scene_pose_normalize:
-            c2ws, scene_scale = normalize_with_mean_pose_scale(c2ws)
+            c2ws, scene_scale = normalize_with_mean_pose_scale(c2ws, recenter=(self.pose_norm_mode == "mean"))
 
         out = {
             "fxfycxcy": torch.tensor(fxfycxcy_list),

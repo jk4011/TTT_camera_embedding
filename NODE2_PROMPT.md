@@ -81,17 +81,18 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-6 | `re10k_prah_vorope_s95` | `config/cam_prah_vorope.yaml` | Plücker를 세 슬롯 모두에(입력+hidden+위상 carrier) — RE10K에서 +1.0 돌파 시도 | [DONE 23.361 (+1.536 vs base, +0.565 vs pra_h_hi) — **RE10K 최고**] |
 | V8-7 | `re10k_prah_h2x_s95` | `config/cam_prah_h2x.yaml` | hidden Plücker 사다리 ×2 — RE10K | [DONE 23.009 (+1.183 vs base, +0.212 vs pra_h_hi — **+1.0 돌파**)] |
 | V8-8 | `re10k_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | hidden만, moment@focus — RE10K | [DONE 22.668 (+0.843 vs base, −0.129 vs pra_h_hi)] |
-| V8-11 | `gobjvi_prah_mfocus_vo_s95` | `config/cam_prah_mfocus_vo.yaml` | moment@focus + 회전 carrier(vo_rel) — vi | [RUNNING node1 gpu0 19:20] |
-| V8-12 | `gobjvi_prah_mfocus_w05_s95` | `config/cam_prah_mfocus_w05.yaml` | moment@focus + 입력·hidden 사다리 ×0.5 (wide-baseline wrap 완화) — vi | [RUNNING node1 gpu1 19:20] |
+| V8-11 | `gobjvi_prah_mfocus_vo_s95` | `config/cam_prah_mfocus_vo.yaml` | moment@focus + 회전 carrier(vo_rel) — vi | [KILLED 20:25 — V8-19(위상 carrier)로 대체] |
+| V8-12 | `gobjvi_prah_mfocus_w05_s95` | `config/cam_prah_mfocus_w05.yaml` | moment@focus + 입력·hidden 사다리 ×0.5 (wide-baseline wrap 완화) — vi | [KILLED 20:25 — h2x 방향으로 대체] |
 | V8-13 | `re10k_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` | **후보 레시피**: Plücker both, moment@focus + hidden 사다리 ×2 — RE10K (강건 레시피가 +1.18을 유지하는가) | [RUNNING node2 20:16] |
 | V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [RUNNING node2 20:16] |
 | V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [RUNNING node2 20:16] |
 | V8-16 | `gobjvi_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` (`DATA=gobj_vi`) | 후보 레시피 — vi | [PENDING — node1 다음 빈 GPU] |
-| V8-17 | `re10k_prah_vorope_h2x_s95` | `config/cam_prah_vorope_h2x.yaml` | 세 슬롯 Plücker + hidden 사다리 ×2 — RE10K (두 이득 합성) | [QUEUED node2 — **최우선**] |
-| V8-18 | `re10k_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` | 세 슬롯 Plücker + moment@focus — RE10K 보존 확인 | [QUEUED node2] |
-| V8-19 | `gobjvi_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` (`DATA=gobj_vi`) | 세 슬롯 Plücker + moment@focus — **vi (강건성 판정)** | [PENDING — node1 다음 빈 GPU, 최우선] |
-| V8-20 | `gobjvi_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` (`DATA=gobj_vi`) | 위 + hidden ×2 — vi | [PENDING — node1] |
-| V8-21 | `re10k_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` | 후보 최종 레시피 — RE10K | [QUEUED node2] |
+| V8-17 | `re10k_prah_vorope_h2x_s95` | `config/cam_prah_vorope_h2x.yaml` | 세 슬롯 Plücker + hidden 사다리 ×2 — RE10K (두 이득 합성) | [RUNNING node2 gpu1 20:21] |
+| V8-18 | `re10k_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` | 세 슬롯 Plücker + moment@focus — RE10K 보존 확인 | [QUEUED node2 (체인 무장)] |
+| V8-19 | `gobjvi_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` (`DATA=gobj_vi`) | 세 슬롯 Plücker + moment@focus — **vi (강건성 판정)** | [RUNNING node1 gpu0 20:25] |
+| V8-20 | `gobjvi_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` (`DATA=gobj_vi`) | 위 + hidden ×2 — vi | [RUNNING node1 gpu1 20:25] |
+| V8-21 | `re10k_prah_mfocus_vorope_h2x_s95` | `config/cam_prah_mfocus_vorope_h2x.yaml` | 후보 최종 레시피 — RE10K | [QUEUED node2 (체인 무장)] |
+| V8-22 | `gobjvi_both_norecenter_s95` | `config/cam_pra_h_hi.yaml` + `POSE_NORM=norecenter` (`DATA=gobj_vi`) | **원인 분리 진단**(사용자 제안): 장면 정규화에서 평균 이동만 제거(렌더의 물체 중심 원점 유지, 회전 정렬·스케일은 유지) + 세계 원점 Plücker both → moment@focus(+0.41)와 같으면 '원점' 단독 효과 확정 | [ARMED node1 gpu2 — DL3DV 종료 시 자동] |
 | V8-9 | `gobj_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (`DATA=gobj`) | orbit 91° 검증 | [RUNNING node1 gpu3 19:25] |
 | V8-10 | `dl3dv_prah_mfocus_s95` | `config/cam_prah_mfocus.yaml` (DL3DV, node1) | DL3DV 검증 | [RUNNING node1 gpu2 19:20 — run_dl3dv.sh] |
 
@@ -265,8 +266,13 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
 
-> ⚠ **2026-09-01 20:20 — gpu1 유휴(큐 0). 아래 결과 보고 다음 셀을 정해 주면 바로 올린다.**
->
+- 2026-09-01 20:25 (node2): 최우선 `prah_vorope_h2x`를 유휴 gpu1에 즉시 올렸다(20:21, 유휴 ~2분). **4장 full.**
+  나머지 둘(`prah_mfocus_vorope`, `prah_mfocus_vorope_h2x`)은 큐에 넣고 **V8 전용 체인 `chain9.sh`**(run_re10k.sh 호출)를
+  gpu0·2·3에 걸었다 — chain8은 run_p2.sh를 부르므로 V8에 쓰면 2-view/80k로 돌아가 버린다(그래서 새로 만들었다).
+  세 config는 **(moment 원점 × hidden 사다리) 격자**로 잘 갈린다: vorope_h2x=world/×2, mfocus_vorope=focus/×1,
+  mfocus_vorope_h2x=focus/×2. 기존 `prah_vorope`(world/×1)와 합치면 2×2가 완성돼 두 요인의 상호작용을 읽을 수 있다.
+  현재: gpu0 mfocus_h2x(3.6k) / gpu1 vorope_h2x(0.2k) / gpu2 h4x(3.6k) / gpu3 hpra_h2x(3.8k). 완료 21:45~22:15.
+
 - 2026-09-01 20:20 (node2, ⭐ **V8-6 `prah_vorope` = RE10K 최고, 합격선 크게 돌파**):
   **23.361 = +1.536 vs base**(t=+39.7, 99%), **+0.565 vs 기존 최고 `pra_h_hi`**(t=+41.5, 99%),
   **+0.353 vs 오늘의 `prah_h2x`**(t=+33.2, 99%). LPIPS도 −0.0352로 가장 크게 개선.
