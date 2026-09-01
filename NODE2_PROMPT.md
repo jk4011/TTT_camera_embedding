@@ -137,23 +137,27 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 | W5-3 | `gobjvi_layer_all_s95` | `config/gobj_layer_all.yaml` | **층-색인 plane sweep**: 층 ℓ이 chord 분율 (ℓ+½)/6의 점을 주소로 (6개 메모리 = 6개 깊이 슬라이스) + carrier | [DONE 22.682 (+0.701 vs base, foot_all과 동률)] |
 | W5-4 | `gobjvi_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | foot_all의 두 사이트를 6방향 좌표로 | [DONE 22.832 (+0.851 vs base — vi 신규 최고)] |
 | W5-5 | `gobjvi_h4_base_s95` | `config/gobj_h4_base.yaml` | 4-head 기준선 (W5-6의 짝) | [DONE 21.818 (-0.163 vs 1-head base; W5-6의 기준선)] |
-| W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [RUNNING node2 gpu0 05:50] |
-| W5-7 | 최종 후보 시드: `gobjvi_rot_hshell_s137/s211`, `gobjvi_foot_all_s137/s211` (`SEED` 인자) | 각 config | 큐가 비면 (논문 표용 3-seed; 야간 지시 '최대한 많은 실험'에 따름) | [PENDING] |
-| W5-8 | `gobjvi_near_all_s95` | `config/gobj_near_all.yaml` | **near-shell 점**(불투명 prior: 가시 표면은 chord의 앞 교차점) 양 사이트 + carrier | [RUNNING node2 gpu3 05:43] |
+| W5-6 | `gobjvi_h4_headanchor_vo_s95` | `config/gobj_h4_headanchor_vo.yaml` | **층상 메모리**: head k = chord 분율 k의 깊이층 + carrier | [DONE 22.568 (+0.750 vs h4_base 짝대조; +0.587 vs 1-head base)] |
+| W5-7 | 최종 후보 시드: `gobjvi_rot_hshell_s137/s211`, `gobjvi_foot_all_s137/s211` (`SEED` 인자) | 각 config | 큐가 비면 (논문 표용 3-seed; 야간 지시 '최대한 많은 실험'에 따름) | [RUNNING node2 gpu2 08:20] |
+| W5-8 | `gobjvi_near_all_s95` | `config/gobj_near_all.yaml` | **near-shell 점**(불투명 prior: 가시 표면은 chord의 앞 교차점) 양 사이트 + carrier | [DONE 22.523 (+0.542 vs base, -0.176 vs foot_all)] |
 | W5-9 | `gobjvi_cfr_hshell_s95` | `config/gobj_cfr_hshell.yaml` | **CFR**(foot 방향 축, 각 2atan(γρ/2)의 matched-identity 회전 행렬) 입력 + hidden chord + carrier — rot_hshell의 R을 CFR로 교체 | [DONE 22.509 (+0.528 vs base, -0.188 vs rot_hshell — CFR 기각)] — node1 |
-| W5-10 | `gobjvi_cfr_vo_s95` | `config/gobj_cfr_vo.yaml` | CFR 입력 + carrier (rot_raw +0.53 / foot_vo +0.595와 A/B) | [RUNNING node2 gpu1 06:10] |
-| W5-11 | `gobjvi_foot_all_ffvo_s95` | `config/gobj_foot_all_ffvo.yaml` | foot_all의 carrier를 **foot-지리 프레임**(정준화)으로 | [RUNNING node2 gpu2 06:28] |
-| W5-12 | `gobjvi_foot_all_w05_s95` | `config/gobj_foot_all_w05.yaml` | ω-split: 입력 ladder ×0.5 (L4 "입력은 제곱" 정량 검증) | [QUEUED node2 (야간 큐)] |
-| W5-13 | `gobjvi_foot_all_vstore_s95` | `config/gobj_foot_all_vstore.yaml` | 저장 전용 carrier(o-side 없음) — transport가 닫혀 있어야 하는지 | [QUEUED node2 (야간 큐)] |
+| W5-10 | `gobjvi_cfr_vo_s95` | `config/gobj_cfr_vo.yaml` | CFR 입력 + carrier (rot_raw +0.53 / foot_vo +0.595와 A/B) | [DONE 22.448 (+0.467 vs base, -0.067 vs rot_raw)] |
+| W5-11 | `gobjvi_foot_all_ffvo_s95` | `config/gobj_foot_all_ffvo.yaml` | foot_all의 carrier를 **foot-지리 프레임**(정준화)으로 | [DONE 22.420 (+0.438 vs base, -0.279 vs foot_all)] |
+| W5-12 | `gobjvi_foot_all_w05_s95` | `config/gobj_foot_all_w05.yaml` | ω-split: 입력 ladder ×0.5 (L4 "입력은 제곱" 정량 검증) | [RUNNING node2 gpu3 07:38] |
+| W5-13 | `gobjvi_foot_all_vstore_s95` | `config/gobj_foot_all_vstore.yaml` | 저장 전용 carrier(o-side 없음) — transport가 닫혀 있어야 하는지 | [RUNNING node2 gpu0 07:48] |
 | W5-17 | `gobj_rot_hanchor_s95` | `config/gobj_rot_hanchor.yaml` | **orbit 쌍둥이**: vi 신규 1위 rot_hanchor(+0.765; vs rot_hshell +0.049, t=5.0)의 orbit 검증 — `DATA=gobj` | [DONE 22.769 (+0.576 vs base, -0.066 vs orbit rot_hshell — hidden 서열은 데이터 의존)] |
 | W5-18 | `gobjvi_foot_hanchor_pvo_s95` | `config/gobj_foot_hanchor_pvo.yaml` | 상위 결합: foot 입력 + **anchor hidden**(신규 1위 요소) + **foot-위상 carrier**(+0.041 유의 요소); smoke 통과 | [DONE 22.698 (+0.717 vs base, -0.042 vs foot_all_pvo — 혼합 감점, 일관성 법칙 재확인)] |
-| W5-19 | `gobjvi_foot_all_iso_pvo_s95` | `config/gobj_foot_all_iso_pvo.yaml` | **신규 1위 결합**: iso-6방향 foot 양 사이트 + foot-위상 carrier (+0.851과 +0.041 요소의 합성; smoke 통과) | [RUNNING node1 gpu1 07:32] |
-| W5-20 | `gobj_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | 신규 1위의 **orbit 쌍둥이** — `DATA=gobj` | [PENDING] |
-| W5-7a | `gobjvi_foot_all_iso_s137` | `config/gobj_foot_all_iso.yaml` (SEED 137) | headline 시드 재현 (node1 담당) | [RUNNING node1 gpu2 08:02] |
-| W5-21 | `gobjvi_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` | 독립 이득 병합: iso 6방향(+0.134) × hidden ladder 2배(+0.073); smoke 통과 | [RUNNING node1 gpu3 08:22] |
+| W5-19 | `gobjvi_foot_all_iso_pvo_s95` | `config/gobj_foot_all_iso_pvo.yaml` | **신규 1위 결합**: iso-6방향 foot 양 사이트 + foot-위상 carrier (+0.851과 +0.041 요소의 합성; smoke 통과) | [DONE 22.839 (+0.858 vs base, +0.007 vs foot_all_iso — 동률, pvo 이득 비가산)] |
+| W5-20 | `gobj_foot_all_iso_s95` | `config/gobj_foot_all_iso.yaml` | 신규 1위의 **orbit 쌍둥이** — `DATA=gobj` | [RUNNING node1 gpu0 08:03] |
+| W5-7a | `gobjvi_foot_all_iso_s137` | `config/gobj_foot_all_iso.yaml` (SEED 137) | headline 시드 재현 (node1 담당) | [DONE 22.776 (+0.890 vs base_s137 — headline 시드 재현)] |
+| W5-21 | `gobjvi_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` | 독립 이득 병합: iso 6방향(+0.134) × hidden ladder 2배(+0.073); smoke 통과 | [DONE 22.997 (+1.016 vs base — **vi 신규 1위, 첫 +1 dB**; foot_all_iso +0.165)] |
+| W5-7b | `gobjvi_base_s211` | `config/lact_l6_d256_p16.yaml` (SEED 211) | s211 짝 기준 (node1 담당으로 변경) | [RUNNING node1 gpu1 08:42] |
+| W5-7c | `gobjvi_foot_all_iso_s211` | `config/gobj_foot_all_iso.yaml` (SEED 211) | headline 3번째 시드 (node1 담당) | [RUNNING node1 gpu2 09:01] |
+| W5-22 | `gobjvi_foot_all_iso_h2x_s137` | `config/gobj_foot_all_iso_h2x.yaml` (SEED 137) | 신규 headline 시드 재현 (node1) | [RUNNING node1 gpu3 09:27] |
+| W5-23 | `gobj_foot_all_iso_h2x_s95` | `config/gobj_foot_all_iso_h2x.yaml` | 신규 headline **orbit 쌍둥이** — `DATA=gobj` | [PENDING — 다음 빈 GPU 최우선] |
 | W5-14 | `gobjvi_rot_hqh_s95` | `config/gobj_rot_hqh.yaml` | **QH**: hidden에 쿼터니언 반각 코드 — 계수 배율 cos(Δ/2) ≥ 0 (비음·단조·wrap 불가; 대수 유도 P1) | [DONE 22.262 (+0.281 vs base, rot_raw보다 낮음 — QH 기각: 비음 kernel이 hidden에서 해로움)] |
 | W5-15 | `gobjvi_foot_all_h2x_s95` | `config/gobj_foot_all_h2x.yaml` | SPEC-2x: hidden ladder ×2 (입력 kernel이 제곱이므로 유도 스펙트럼이 2ω — L4의 정량 귀결) | [DONE 22.772 (+0.791 vs base, +0.073 vs foot_all — SPEC-2x 예측 적중)] |
-| W5-16 | `gobjvi_rot_hshell_env2_s95` | `config/gobj_rot_hshell_env2.yaml` | ENV²: sinc 봉투를 학습 지수로 깊게 (Muon이 얕은 억제를 되살리므로 깊은 null만 유효) | [QUEUED node2 (야간 큐)] |
+| W5-16 | `gobjvi_rot_hshell_env2_s95` | `config/gobj_rot_hshell_env2.yaml` | ENV²: sinc 봉투를 학습 지수로 깊게 (Muon이 얕은 억제를 되살리므로 깊은 null만 유효) | [RUNNING node2 gpu1 07:59] |
 브레인스토밍(5 에이전트) 결과 반영 완료(03:03). node1도 이 표에서 가져간다.
 
 ### wave 4 — noisy-oracle 보정 (orbit, GT depth 필요: `DEPTH_DIR=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/gobj_depth_patch DATA=gobj`) — 2026-09-01 00:55, **V2-1…5보다 먼저**
@@ -557,6 +561,40 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   base config는 추측하지 않고 확인했다 — `run_bandsweep.sh:45`의 기존 관행
   (`gobj_base_s137  config/lact_l6_d256_p16.yaml gobj 137`)과 동일하게 `config/lact_l6_d256_p16.yaml` + `DATA=gobj_vi` + seed 211로 넣었다.
   이러면 base_s95와 아키텍처가 같아 시드만 다른 정당한 기준이 된다.
+- 2026-09-01 07:40 (node2): **W5-8 `near_all`(near-shell 앞 교차점) 22.523 = +0.542** (t=+33.2, 95%),
+  `foot_all`(22.698) 대비 **−0.176**(t=−13.7, 27%).
+  → '가시 표면은 chord의 앞쪽 교차점'이라는 불투명 prior가 **foot 점보다 못하다**. 물리적으로 더 그럴듯한
+  좌표가 더 나쁘다는 뜻이라, 이득의 원천이 '표면을 맞히는 것'이 아니라 **주소의 기하적 일관성**이라는 쪽을 지지한다
+  (foot은 표면점이 아니라 ray-focus 최근접점인데도 계속 이긴다).
+  gpu3은 `foot_all_w05`(ω-split 검증)로 전환(07:38).
+- 2026-09-01 07:50 (node2): **W5-6 `h4_headanchor_vo`(층상 메모리) 22.568.**
+  **올바른 짝인 `h4_base`(21.818, 같은 4-head 백본) 대비 +0.750**(t=+43.1, 98%) — 1-head base 대비로는 +0.587이다.
+  두 수치를 다 넣은 이유: 4-head 백본 자체가 −0.163을 깔고 시작하므로 **+0.587로 표에 넣으면 메커니즘을 과소평가**한다.
+  head별로 다른 깊이층을 주는 구조는 자기 백본 위에서 +0.75로 이 프로그램에서 가장 큰 단일 PE 이득 중 하나다.
+  다만 절대 성능은 `foot_all`(22.698) 대비 −0.131이라, **1-head + foot PE가 여전히 낫다**(4-head 페널티를 못 이긴다).
+  → 층상 메모리 아이디어 자체는 유효하지만 head를 쪼개는 비용이 이득을 상쇄한다. head_dim을 줄이지 않고
+  같은 효과를 내는 방법이 있다면 그쪽이 유망하다(내 판단, 결정은 네 몫).
+  워치독 v5가 처음으로 정상 작동했다(gpu0 유휴 2회 연속 확인 후 `foot_all_vstore` 투입, 중복 없음).
+- 2026-09-01 08:02 (node2): **W5-10 `cfr_vo`(CFR 입력 + carrier) 22.448 = +0.467** (t=+33.6, 95%),
+  `rot_raw`(22.514) 대비 **−0.067**(t=−5.0, 39% — 사실상 동률), `foot_vo`(22.577) 대비 −0.129.
+  → CFR(foot 방향 축 + matched-identity 각)로 회전 행렬을 만들어도 **plain rot_raw와 같다**.
+  회전을 '어떻게 구성하느냐'는 중요하지 않고 회전이 있느냐가 중요하다는 뜻이라, `foot_all_pvo`(carrier 형태 무관)와
+  같은 방향의 증거다. 두 결과를 묶으면 **carrier·transport의 대수적 형태는 자유도가 아니다**.
+  gpu1은 `rot_hshell_env2`로 전환(07:59). 남은 큐 10개(node1이 가져간 것 제외 시 9개).
+- 2026-09-01 08:22 (node2, **앞선 진술 수정**): **W5-11 `foot_all_ffvo` 22.420 = +0.438**,
+  `foot_all`(22.698) 대비 **−0.279**(t=−21.5, 13% win).
+  08:02에 내가 'carrier의 대수적 형태는 자유도가 아니다'라고 적었는데 **너무 넓었다. 정정한다.**
+  정확히는: **상대 구조를 보존하는 carrier끼리는 형태가 무관**하다(회전 행렬 `foot_all` ≈ foot 위상 `foot_all_pvo` +0.041
+  ≈ CFR `cfr_vo` −0.067 vs rot_raw). 그러나 **carrier를 정준화된 foot-지리 프레임으로 바꾸면 −0.279로 분명히 나빠진다**.
+  즉 자유로운 것은 '어떤 상대 변환이냐'이고, '상대성을 유지하느냐'는 자유롭지 않다. ffvo는 뷰마다 절대 프레임으로
+  정렬해 상대 구조를 깨는 쪽이라 지는 것으로 보인다(해석은 네 몫).
+  **gpu2에서 첫 시드 런 `rot_hshell_s137` 시작(08:20)** — s137 트리오가 순서대로 들어간다.
+- 2026-09-01 08:37 (node2): 06:50 질문은 **네 행동으로 답이 됐다** — 네가 `gobjvi_base_s211`을 잡았다(선택지 (a)).
+  내 큐의 같은 줄은 가드가 자동으로 건너뛴다(지우지 않고 둔다: 네 런이 실패하면 내가 이어받는다).
+  이로써 **s137·s211 두 기준이 모두 확보**돼 시드 6셀이 전부 유효해진다.
+  `gobjvi_base_s137` = **21.887** 확인(s95 base 21.981보다 −0.094 — 시드 간 base 변동이 0.09 dB라는 뜻이라,
+  상위권 5셀이 0.06 dB 안에 몰린 현 상황에서 3-seed가 필요하다는 근거가 하나 더 생겼다).
+  s137 셀은 완료되는 대로 **base_s137과 짝지어** 보고하겠다(s95 base와 섞지 않는다).
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
 - 2026-08-31 14:05: 파일 신설. wave 1 네 셀을 GPU 0–3에 즉시 올릴 것. 끝나는 대로 wave 2 백로그를 순서대로.
