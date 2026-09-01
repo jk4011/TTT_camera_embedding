@@ -3228,3 +3228,5 @@ base 21.984 +- 0.099; rot_hshell 22.597 +- 0.087 (delta +0.613); foot_all_iso 22
 22.705 +- 0.059 (+0.771). Ordering foot_all_iso > rot_hanchor > rot_hshell ~ foot_all stands; the absolute
 cell PSNRs are far tighter than the deltas, which is itself evidence that the PE removes part of the
 baseline's seed sensitivity.
+F81 addendum 3 update (12:37): `gobjvi_foot_all_iso_h2x_s211` 23.048 (+0.962 vs base_s211) -> foot_all_iso_h2x
+3-seed 23.002 +- 0.044, delta vs base mean +1.018 -- the vi headline holds on all three seeds (+0.96 .. +1.07).
