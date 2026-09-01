@@ -3478,3 +3478,19 @@ V12 16.56 / +0.29 / +0.32 / +0.27; V20 16.70 / +0.46 / +0.45 / **+0.50**; V32 16
 V48 16.75 / +0.58 / +0.54 / **+0.69** (t=26). The base saturates at ~16.75 from 20 views while TTT-RoPE keeps rising
 to 17.44 -- the same shape as RE10K (F84) at roughly 40% of its size; single-site codes lead below 20 views, the
 combined code leads above (where the stored views overlap enough for both slots to help).
+
+## F86: point-RoPE (coordinate = the ray's closest point to the scene focus, x_c - p*; input + hidden sites,
+## no carrier, no knobs) -- the first single simple recipe that is POSITIVE on all three datasets
+## (seed 137, 8-view/30k; 2026-09-02 05:45-08:40)
+| dataset | base | point-RoPE | TTT-RoPE (Plucker, same seed) |
+|---|---|---|---|
+| RE10K (n=256) | 21.610 | 22.177 = **+0.567** (t=22.5, 89%) | +1.167 |
+| gObjaverse orbit (n=499) | 22.298 | 22.384 = **+0.093** (t=4.9, 63%; LPIPS -0.0037) | -0.9 (s95) |
+| DL3DV uncropped 256x448 (n=140) | 16.404 | 16.537 = **+0.133** (t=4.8, 69%) | +0.185 |
+Derivation note (the simplification that motivated this cell): the focus-origin Plucker moment is
+m* = (o - p*) x d = (x_c - p*) x d, i.e. the foot vector rotated by the ray direction -- so the wide-baseline
+"foot" family reduces to "drop the direction half of the Plucker code and un-cross the moment". Point-RoPE is
+that residue: 3 coordinates, one ladder, both sites. Trade-off vs Plucker TTT-RoPE: it gives up half of the
+RE10K gain (+0.57 vs +1.17) and a little of DL3DV (+0.13 vs +0.19) to turn objaverse from -0.9 into +0.09.
+The two recipes differ only in the coordinate fed to the same code: (d, m) at narrow baseline vs the on-ray
+point at wide baseline.
