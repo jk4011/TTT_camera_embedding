@@ -83,12 +83,12 @@ vi Plücker both = `gobjvi_both_s95`(+0.10) / hidden `gobjvi_hidden_s95`(−0.10
 | V8-8 | `re10k_hpra_mfocus_s95` | `config/cam_hpra_mfocus.yaml` | hidden만, moment@focus — RE10K | [DONE 22.668 (+0.843 vs base, −0.129 vs pra_h_hi)] |
 | V8-11 | `gobjvi_prah_mfocus_vo_s95` | `config/cam_prah_mfocus_vo.yaml` | moment@focus + 회전 carrier(vo_rel) — vi | [KILLED 20:25 — V8-19(위상 carrier)로 대체] |
 | V8-12 | `gobjvi_prah_mfocus_w05_s95` | `config/cam_prah_mfocus_w05.yaml` | moment@focus + 입력·hidden 사다리 ×0.5 (wide-baseline wrap 완화) — vi | [KILLED 20:25 — h2x 방향으로 대체] |
-| V8-25 | `gobj_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj`) | **moment-only Plücker**(d_scale 0: 방향 성분 제거, focus-moment 3좌표만) — orbit 91° (d wrap 가설 검증) | [QUEUED node2 (체인 무장)] |
-| V8-26 | `gobjvi_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj_vi`) | 같은 것 — vi | [QUEUED node2 (체인 무장)] |
+| V8-25 | `gobj_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj`) | **moment-only Plücker**(d_scale 0: 방향 성분 제거, focus-moment 3좌표만) — orbit 91° (d wrap 가설 검증) | [RUNNING node2 gpu3 21:55] |
+| V8-26 | `gobjvi_prah_mfocus_monly_s95` | `config/cam_prah_mfocus_monly.yaml` (`DATA=gobj_vi`) | 같은 것 — vi | [RUNNING node2 gpu0 21:55] |
 | V8-27 | `gobj_prah_mfocus_d025_s95` | `config/cam_prah_mfocus_d025.yaml` (`DATA=gobj`) | 방향 성분 ×0.25 — orbit | [QUEUED node2 (체인 무장)] |
-| V8-13 | `re10k_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` | **후보 레시피**: Plücker both, moment@focus + hidden 사다리 ×2 — RE10K (강건 레시피가 +1.18을 유지하는가) | [DONE 22.988 (+1.163 vs base; vs prah_h2x −0.021 — RE10K 보존)] |
-| V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [RUNNING node2 20:16] |
-| V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [DONE **22.857 (+1.032 vs base; +0.133 vs h_pra_hi)** — hidden만으로 +1.0 돌파] |
+| V8-13 | `re10k_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` | **후보 레시피**: Plücker both, moment@focus + hidden 사다리 ×2 — RE10K (강건 레시피가 +1.18을 유지하는가) | [DONE 22.988 (+1.163 vs base, −0.373 vs prah_vorope)] |
+| V8-14 | `re10k_prah_h4x_s95` | `config/cam_prah_h4x.yaml` | hidden 사다리 ×4 — RE10K (포화점) | [DONE 22.921 (+1.096; vs h2x −0.088 — RE10K에선 ×2가 정점)] |
+| V8-15 | `re10k_hpra_h2x_s95` | `config/cam_hpra_h2x.yaml` | hidden만 ×2 (순수 TTT-특화가 +1.0 넘는가) — RE10K | [DONE 22.857 (+1.032 vs base, −0.504 vs prah_vorope)] |
 | V8-16 | `gobjvi_prah_mfocus_h2x_s95` | `config/cam_prah_mfocus_h2x.yaml` (`DATA=gobj_vi`) | 후보 레시피 — vi | [PENDING — node1 다음 빈 GPU] |
 | V8-17 | `re10k_prah_vorope_h2x_s95` | `config/cam_prah_vorope_h2x.yaml` | 세 슬롯 Plücker + hidden 사다리 ×2 — RE10K (두 이득 합성) | [RUNNING node2 gpu1 20:21] |
 | V8-18 | `re10k_prah_mfocus_vorope_s95` | `config/cam_prah_mfocus_vorope.yaml` | 세 슬롯 Plücker + moment@focus — RE10K 보존 확인 | [QUEUED node2 (체인 무장)] |
@@ -270,6 +270,19 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
 ```
 
 ## 5. node2 → node1 (질문·블로커·IDLE 기록; node2가 씀, 최신이 아래)
+
+- 2026-09-01 22:00 (node2): RE10K V8 2셀 추가 완료 — **`prah_vorope`(+1.536)의 우위가 확고하다.**
+  | cell | Δ vs base | vs prah_vorope |
+  |---|---|---|
+  | prah_mfocus_h2x | +1.163 | −0.373 (6% win) |
+  | hpra_h2x | +1.032 | −0.504 (5% win) |
+  → RE10K 서열: **세 슬롯(위상 carrier) +1.536 > 사다리 ×2 +1.18 > 기존 두 슬롯 +0.97**.
+  **moment@focus는 RE10K에서 일관되게 기여 0**(mfocus −0.010, mfocus_h2x는 h2x 대비 −0.020).
+  네 20:59 진단(90°에서는 방향 d가 사다리를 wrap하므로 moment 원점 이동으로는 못 고친다)과 맞물려 보면,
+  **mfocus는 애초에 RE10K용이 아니라 wide-baseline용 수정**이고 RE10K에서는 중립인 게 정상이다.
+  → 그래서 지금 도는 `monly`(d_scale 0)·`d025`가 정확한 후속이다. 방향 성분을 죽이는 쪽이 진짜 처방인지 곧 나온다.
+  런처 분기 확인: gobj 셀은 `/tmp/gobj`, gobjvi 셀은 `/tmp/gobj_vi`로 정확히 들어갔다(chain10 정상 작동).
+  현재: gpu0 vi_monly / gpu1 vorope_h2x(28.2k) / gpu2 h4x(30k, eval) / gpu3 orbit_monly.
 
 - 2026-09-01 21:05 (node2): V8-25/26/27(monly·d025) 확인·큐 앞쪽에 넣었다(네 '최우선' 표시 반영):
   **monly(gobj) → monly(vi) → d025(gobj) → mfocus_vorope → mfocus_vorope_h2x.**
