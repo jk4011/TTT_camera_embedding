@@ -3393,3 +3393,35 @@ Per-seed paired deltas: input +0.508 / +0.775 / +0.679; hidden +0.899 / +0.928 /
 +1.253. Seed 95 is the strongest baseline seed, so the s95-only numbers quoted all day (+0.97) understate the
 family. User decision (23:25): the method is TTT-RoPE only -- the v/o carrier (+1.536 on s95) is dropped
 (+0.03 on objaverse); the single-seed V8 cells (h2x, focus origin) still need s137/s211 before any headline.
+
+## F84: input-view sweep of the four arms (NoPE / input rotary / hidden rotary / TTT-RoPE = both), 8-view-trained
+## checkpoints evaluated at 4/8/12/20/32/48 inputs (+4 midpoint targets), three datasets (2026-09-01 23:20-23:45)
+Protocol: fixed scene sets per dataset (RE10K: first 256 test scenes with >= 52 frames, window 128; DL3DV
+uncropped 256x448: 140 scenes; objaverse: the NEW 60-view re-renders `renders_v60`, 500 objects = the vi test uids,
+20 angles x 3 intrinsics/distance variants, same sampling parameters as the 24-view vi renders). RE10K/DL3DV arms
+seed 137; objaverse arms seed 95 (trained on the 24-view vi data). `run_vsweep.sh`, `vsweep_table.py`.
+
+RE10K (base / +input / +hidden / +both): V4 20.52 / +0.13 / +0.40 / +0.27; V8 21.55 / +0.77 / +0.93 / **+1.15**;
+V12 21.74 / +0.87 / +0.98 / **+1.32**; V20 21.89 / +1.00 / +1.04 / **+1.50**; V32 21.95 / +1.07 / +1.08 / **+1.60**;
+V48 21.97 / +1.07 / +1.08 / **+1.61** (t >= 39 from V8 on). NoPE saturates at ~22.0 by 20 views; TTT-RoPE keeps
+rising to 23.58 -- the PE turns extra stored views into accuracy. At 4 views hidden-only beats both (+0.40 vs
++0.27): with few stored views the input-site code costs more than it addresses.
+
+DL3DV uncropped (base / +input / +hidden / +both): V4 15.12 / 0.00 / -0.02 / -0.08; V8 16.33 / +0.04 / +0.08 /
++0.04; V12 16.55 / +0.07 / +0.10 / +0.08; V20 16.75 / +0.16 / +0.19 / +0.23; V32 16.82 / +0.22 / +0.25 / +0.35;
+V48 16.83 / +0.23 / +0.26 / **+0.37** (t=15). Same shape at a smaller scale: the gain grows monotonically with
+view overlap.
+
+objaverse renders_v60 (base / +input / +hidden / +both / +both with focus-origin moment): V4 19.56 / -0.88 / -0.47 /
+-1.44 / -0.82; V8 20.91 / -0.47 / -0.32 / -0.91 / -0.36; V12 20.99 / -0.50 / -0.36 / -0.97 / -0.37; V20 21.52 /
+-0.05 / -0.31 / -0.23 / **+0.08**; V32 21.40 / +0.14 / -0.23 / +0.09 / **+0.34** (t=17); V48 21.28 / 0.00 / -0.31 /
+-0.11 / **+0.20** (t=8.8).
+Reading. (1) The old 24-view vi test (8 angles x 3 variants) let 8 inputs cover every angle, so its targets were
+near-duplicates of stored views; on the 60-view renders the targets are unseen angles and the base drops 1.1 dB at
+8 views -- the earlier vi Plucker gain (+0.10) was largely near-duplicate matching. (2) In this true novel-view
+regime world-origin TTT-RoPE is clearly harmful up to 20 views (-0.9 at 8) and neutral at 32-48, i.e. the orbit
+verdict (-0.89) generalises; the focus-origin moment halves the damage and turns positive from 20 views on
+(+0.08 / +0.34 / +0.20). (3) The user's chosen method (simplest TTT-RoPE, no carrier / ladder scaling, seed 137)
+is therefore: RE10K +1.15 (8 views) .. +1.61 (48), DL3DV uncropped +0.04 .. +0.37, objaverse-v60 negative below
+20 views and small positive above only with the one-line focus origin. The objaverse axis remains the open problem;
+its training data (24 views/object) does not contain the true novel-view regime the 60-view eval measures.
