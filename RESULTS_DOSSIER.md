@@ -3515,7 +3515,7 @@ DL3DV-u n=140). "prev best" = the best same-seed recipe before today on that dat
 |---|---|---|---|---|---|---|
 | RE10K | 21.610 | 22.177 (+0.567) | **22.290 (+0.680**, t=23; +0.112 vs point-RoPE t=9.3) | 21.995 (+0.385; -0.183 vs point-RoPE t=-19) | 22.229 (+0.619; +0.052 vs point-RoPE t=6.9) | Plucker both 22.777 (+1.167) -- NOT reached (-0.49) |
 | gObjaverse orbit | 22.291 | 22.384 (+0.093) | **22.991 (+0.700**, t=26.7, 91%) | **23.006 (+0.715**, t=27.7; +0.015 vs mlp) | 22.918 (+0.627; -0.073 vs mlp) | foot_all_iso (carrier) 22.911 -- BEATEN (+0.080 t=4.3 / +0.095 t=4.8), carrier-free |
-| DL3DV-u 256x448 | 16.404 | 16.537 (+0.133) | **16.888 (+0.484**, t=16.0, 96%) | 16.741 (+0.338; -0.146 vs mlp t=-11) | (running, ~23:50) | hidden TTT-RoPE 16.649 (+0.245) -- BEATEN (+0.239 t=8.9, 88%) |
+| DL3DV-u 256x448 | 16.404 | 16.537 (+0.133) | **16.888 (+0.484**, t=16.0, 96%) | 16.741 (+0.338; -0.146 vs mlp t=-11) | 16.725 (+0.321; -0.163 vs mlp t=-12.7) | hidden TTT-RoPE 16.649 (+0.245) -- BEATEN (+0.239 t=8.9, 88%) |
 Depth diagnostic (`diag_depth.py`, 32-48 test scenes; GT patch depth available on orbit only):
 - orbit dpt_mlp: per layer, |log t - log t_gt| = 0.110 / 0.159 / 0.068 / 0.084 / 0.040 / 0.030 vs the foot
   prior's 0.111; correlation with GT 0.58 -> 0.95. Layer 0 never leaves the prior (no cross-view content in
@@ -3552,3 +3552,14 @@ every point at 0.22 t_c, the others at 1.03-1.18 t_c) -- with the direction half
 a per-layer-scaled (camera position + direction) code rather than a per-token depth, which is exactly what a
 narrow-baseline dataset can support; the learned gains keep both halves fully on (|gain| 0.9 point / 1.0 dir).
 Orbit / DL3DV-u pdir cells (DP-11/12) running; on those datasets the point-only MLP cell already beats the best.
+### F87 addendum 2 (23:55): both-site table complete (9/9); direction half on orbit
+- DL3DV-u dpt_mem 16.725 (+0.321 vs base t=10.6; +0.076 vs prior best hidden; -0.163 vs dpt_mlp t=-12.7): the
+  order dpt_mlp > dpt_chan ~ dpt_mem holds on all three datasets; every learned-depth cell beats point-RoPE on
+  the two wide-baseline datasets, and on RE10K only dpt_mlp does (+0.11).
+- orbit pdir (`gobj_dpmlp_pdir_s137`) 22.809: +0.518 vs base but **-0.182 vs point-only dpt_mlp (t=-12.9)** and
+  -0.102 vs the prior best -- the direction half costs on a 90-degree orbit (its phases wrap; F84), and the
+  learned gains do NOT remove it (|gain| stays 0.89-0.95 on every rung, low and high alike: a gain multiplies a
+  frequency, so its gradient is as oscillatory as the phase itself). So after DP-12: point-only = best on orbit
+  and DL3DV-u, point+direction = best on RE10K -- the same code, one half more at narrow baseline.
+- DP-31 `gobj_dpmlp_pdir0_s137` (direction gains initialised at 0, launched 23:52): can the model start point-only
+  and add the direction half only where it pays? If orbit stays at ~22.99 with pdir0, pdir0 is the single recipe.
