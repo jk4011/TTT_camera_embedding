@@ -65,6 +65,26 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 
 ## 3. 작업표 (위에서부터; 상태 태그는 node2가 갱신)
 
+### 3.DP — **depth 예측 → 3D point → point-RoPE** (2026-09-02 16:30, 사용자 지시; 이전 "PE only / depth head 금지" 규칙 해제)
+사용자 목표: **세 데이터 모두에서 기존 최고 PSNR을 넘기** (RE10K: Plücker TTT-RoPE both +1.17; orbit: foot_all_iso 22.911; DL3DV-u: TTT-RoPE +0.19).
+방법: point-RoPE(`foot_in+h_foot`, F86)의 foot depth t_c 를 예측 depth t = t_c·exp(s) 로 바꾼다. s 의 출처 3가지 = cam_mode 수식어
+`dpt_mlp`(MLP head, RayRoPE식) / `dpt_chan`(value 투영 head0 ch0 = 파라미터 없음) / `dpt_mem`(2-pass: foot 코드로 fast weight를 업데이트·적용한
+출력의 ch0 = 장면 메모리에서 읽은 depth; 파라미터 없음, TTT 고유). 코드는 node1이 넣었고 스모크 통과 여부는 §6에 적는다. seed 137 단일.
+**순서: both(입력+hidden) 9셀 먼저 → 1차 보고 → input-only / hidden-only.** base_s137 은 세 데이터 모두 이미 있음(재실행 금지).
+런처: RE10K `./run_re10k.sh <gpu> <exp> <cfg> 137`, orbit `DATA=gobj ./run_gobj.sh <gpu> <exp> <cfg> 137`, DL3DV `IMG="256 448" ./run_dl3dv.sh <gpu> <exp> <cfg> 137`
+(각각 `NODE=node2 setsid nohup … > outputs/<exp>.launch.log 2>&1 < /dev/null &`). 데이터: §2 + RE10K(`reshard_re10k.py`, /tmp/re10k) + DL3DV(§6 00:12 참고, /tmp/dl3dv).
+| ID | exp | config | 데이터 | 상태 |
+|---|---|---|---|---|
+| DP-1 | `re10k_dpmlp_s137` | `config/dp_mlp_both.yaml` | RE10K | [RUNNING node1 gpu1 16:41] |
+| DP-2 | `re10k_dpchan_s137` | `config/dp_chan_both.yaml` | RE10K | [RUNNING node1 gpu3 16:42] |
+| DP-3 | `re10k_dpmem_s137` | `config/dp_mem_both.yaml` | RE10K | [RUNNING node1 gpu0 16:44] |
+| DP-4 | `gobj_dpmlp_s137` | `config/dp_mlp_both.yaml` | orbit (`DATA=gobj`) | [RUNNING node1 gpu2 16:41] |
+| DP-5 | `gobj_dpchan_s137` | `config/dp_chan_both.yaml` | orbit (`DATA=gobj`) | [PENDING — node2 살아 있으면 가져갈 것; 아니면 node1 다음 빈 GPU] |
+| DP-6 | `gobj_dpmem_s137` | `config/dp_mem_both.yaml` | orbit (`DATA=gobj`) | [PENDING] |
+| DP-7 | `dl3dvu_dpmlp_s137` | `config/dp_mlp_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
+| DP-8 | `dl3dvu_dpchan_s137` | `config/dp_chan_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
+| DP-9 | `dl3dvu_dpmem_s137` | `config/dp_mem_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
+
 ### 3.V8 — **8-view / 30k 표준으로 복귀** (2026-09-01 17:40, 사용자 결정; P2 취소). 기준 유지: 간단하거나 TTT-특화 + 다중 데이터 강건(RE10K ≥ +1.0)
 아이디어: RE10K에서 이미 +0.97인 **Plücker 입력+hidden**을 그대로 두고, wide baseline에서 죽는 원인(moment wrap)을 **한 줄로** 고친다 —
 `plucker_origin: focus` (moment를 세계 원점 대신 장면 focus p* 기준으로: m* = (o−p*)×d; 좁은 베이스라인에선 원점 이동일 뿐, 넓은 베이스라인에선
@@ -1203,6 +1223,7 @@ node1이 vi에서 `gobjvi_shell_in`, `gobjvi_raygta`, `gobjvi_anchor_in`, `gobjv
   (subagent 아이디어 정리 중이라고 했으니, 늦어지면 그 사이 채울 후보만 한 줄 알려줘도 된다.)
 
 ## 6. node1 → node2 메시지 로그 (최신이 아래)
+- 2026-09-02 16:40 (node1): ⚠ **새 프로그램 3.DP(§3 맨 위)** — 사용자 결정(09-02 16:30): depth 예측 → 3D point → point-RoPE(RayRoPE식; 'depth head 금지' 규칙 해제). 세 데이터 모두에서 기존 최고를 넘는 것이 목표. 코드(`lact_ttt_cam.py` dpt_mlp/dpt_chan/dpt_mem, config `dp_*_both.yaml`)는 node1이 넣었고 스모크는 진행 중(결과는 아래에 추가). **node1 노드가 리셋되어 /tmp 데이터를 다시 만드는 중**(re10k 완료, gobj·dl3dv 진행). node1이 DP-1…4를 맡는다(태그 완료). **node2가 살아 있으면 §5에 'ALIVE <시각>'을 적고 DP-5…9를 위에서부터 가져가라**(네 /tmp도 비었으면 §2 + re10k/dl3dv 리샤드 먼저; 세 런처 모두 `NODE=node2`). 응답이 없으면 node1이 자기 GPU가 비는 대로 DP-5…9를 순서대로 가져간다 — 가져가기 전에 반드시 표의 태그를 확인한다.
 - 2026-09-02 01:36 (node1): ⚠ **사용자 결정(09-02 01:50): vi(및 v60) objaverse 렌더는 사용 금지** — 같은 카메라 위치에서 3장씩 찍는 구조라 평가가 near-duplicate였음. objaverse 데이터 = **gObjaverse orbit(/tmp/gobj)** 로 통일. 앞으로 gobjvi_* 셀 금지. node1이 orbit 뷰 스윕(4/8/12/20/32, 4 arm + focus) 실행 중.
 - 2026-09-02 00:12 (node1): ⚠ 정정: `dl3dvw48_*`는 **window 48**(256² 크롭, 프레임 창 48) 프로토콜이었고 무크롭이 아니었다. 진짜 **무크롭 DL3DV(256×448, 기본 창, seed 137)** 셀을 node1이 base/both로 시작(`IMG="256 448" ./run_dl3dv.sh`, exp `dl3dvu_*`). node2 부탁: **DL3DV를 리샤드**(§2 참고, /tmp/dl3dv) 후 `IMG="256 448" NODE=node2 ./run_dl3dv.sh <gpu> dl3dvu_input_s137 config/cam_pra_hi.yaml 137` 와 `... dl3dvu_hidden_s137 config/cam_h_pra_hi.yaml 137`. 네 셀이 모두 끝나면 node1이 뷰 스윕을 다시 돌린다.
 - 2026-09-01 23:28 (node1): RE10K 뷰 스윕은 node1이 gpu3에서 직접 시작했다(node2 반응 전) — node2는 **실행하지 말 것**(중복). node2는 계속 IDLE 대기.

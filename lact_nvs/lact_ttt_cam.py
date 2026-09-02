@@ -1137,10 +1137,35 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "h_shell", "h_bump", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_img", "h_rot",
                  "raygta", "rot_content", "od_coords", "vo_rope", "iso",
                  "hh_in", "hh_vo", "layer_pt", "h_layer_pt", "near_in", "h_near", "ff_vo",
-                 "cfr_in", "vo_store", "h_qh", "epi_in", "h_epi", "bf_in", "h_bf", "h_lam"}
+                 "cfr_in", "vo_store", "h_qh", "epi_in", "h_epi", "bf_in", "h_bf", "h_lam",
+                 # Depth-predicted point-RoPE (DP program, 2026-09-02): the foot depth t_c of
+                 # point-RoPE is replaced by a per-token depth t = t_c * exp(s), s from
+                 #   dpt_mlp  : a small MLP head on the layer input (RayRoPE-style depth head)
+                 #   dpt_chan : one channel of the token's own value projection (parameter-free)
+                 #   dpt_mem  : one channel of the fast-weight OUTPUT of a first foot-coded pass
+                 #              (parameter-free, TTT-native: depth read out of the scene memory)
+                 "dpt_mlp", "dpt_chan", "dpt_mem"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
+        dpt_modes = self.cam_modes & {"dpt_mlp", "dpt_chan", "dpt_mem"}
+        assert len(dpt_modes) <= 1, "one depth source at a time"
+        if dpt_modes:
+            assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* modifies the foot (point-RoPE) codes"
+            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf"} - dpt_modes), \
+                "dpt_* only with foot_in / h_foot (+iso, sharedf)"
+        # per-layer override key for the point-RoPE depth (set during forward, popped after)
+        self._dpt_key = "_dpt_tc_%d" % id(self)
+        if "dpt_mlp" in self.cam_modes:
+            self.dpt_head = nn.Sequential(nn.Linear(dim, 64), nn.GELU(), nn.Linear(64, 1))
+            nn.init.zeros_(self.dpt_head[2].weight); nn.init.zeros_(self.dpt_head[2].bias)   # s = 0 -> point-RoPE at init
+        if "dpt_chan" in self.cam_modes:
+            # value projection, head 0, channel 0 (pre-silu) is read as log-depth ratio and
+            # zeroed in v (the channel is dedicated to depth; no new parameters)
+            nh_, hd_ = dim // head_dim, head_dim
+            self._dpt_col = 2 * nh_ * hd_
+            mask = torch.ones(3 * nh_ * hd_); mask[self._dpt_col] = 0.0
+            self.register_buffer("_dpt_mask", mask, persistent=False)
 
         def _gain(name, *shape):
             """Learnable ladder gain. With the 'sharedf' flag ONE parameter
@@ -1940,8 +1965,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 tc = (t1l + fr * (t2l - t1l)).clamp_min(0.02)
             else:
                 # Simplest 3D-point coordinate: the ray's closest-approach point to the focus
-                # point, x_c = o + t_c d (no integral, no radius; env = 1).
-                tc = info["tok_tc"].clamp_min(0.02)
+                # point, x_c = o + t_c d (no integral, no radius; env = 1). With a dpt_* mode the
+                # forward stores a per-token predicted depth under self._dpt_key instead.
+                tc = info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02)
             c, sn = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
         elif modes & {"anchor_in", "h_anchor"}:
             # H3b: K FIXED anchor points along the chord (plane-sweep phases, env = 1 each).
@@ -1955,6 +1981,41 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         else:
             c, sn = self._seg_dirs_coeffs(info, t1, t2, dirs, om, gn)
         return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
+
+    # ---------- depth-predicted point-RoPE (DP program) ----------
+
+    def _dpt_depth(self, info, s):
+        """Per-token depth t = t_c * exp(s), s soft-clamped to +-2.5 (t in [t_c/12, 12 t_c]);
+        s = 0 reproduces point-RoPE's foot depth. s: [b, L, 1] fp32 -> t [b, L, 1] fp32."""
+        s = 2.5 * torch.tanh(s.float() / 2.5)
+        return info["tok_tc"].float().clamp_min(0.02) * torch.exp(s)
+
+    def _foot_pass(self, info, q0, k0, v, lr0, lr1, lr2, w0, w1, w2, ttt_op_order, tc, dtype):
+        """One point-RoPE pass (input and/or hidden foot codes at depth tc; tc=None -> t_c)
+        through the stock fast-weight kernel. q0/k0: post-L2-norm, un-rotated."""
+        modes = self.cam_modes
+        if tc is not None:
+            info[self._dpt_key] = tc
+        else:
+            info.pop(self._dpt_key, None)
+        q, k = q0, k0
+        if "foot_in" in modes:
+            ec, es = self._point_site_coeffs(info, "in")
+            q = apply_rotary_pairs(q0, ec, es)
+            k = apply_rotary_pairs(k0, ec, es)
+            q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(dtype)
+            k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(dtype)
+        if "h_foot" in modes:
+            hcos, hsin = self._point_site_coeffs(info, "h")
+            out, w0, w1, w2 = fast_weight_swish_glu_hidden_rotary_apply(
+                w0, w1, w2, q, k, v, lr0, lr1, lr2, hcos, hsin, ttt_op_order,
+                muon_update_steps=self.muon_update_steps, hnorm=False)
+        else:
+            out, w0, w1, w2 = fast_weight_swish_glu_weight_norm_mini_batch_apply(
+                w0, w1, w2, q, k, v, lr0, lr1, lr2, ttt_op_order,
+                muon_update_steps=self.muon_update_steps)
+        info.pop(self._dpt_key, None)
+        return out, w0, w1, w2
 
     def _prope_mats(self, info):
         K, w2c = info["view_K_norm"].float(), info["view_w2c"].float()
@@ -1973,7 +2034,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             c = self.cam_mlp(info["cam_feat"].to(x.dtype))
             x = x * (1 + self.film_g(c)) + self.film_b(c)
 
-        qkv = F.silu(self.to_qkv(x), inplace=True)
+        qkv = self.to_qkv(x)
+        if modes & {"dpt_mlp", "dpt_chan"}:
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                if "dpt_mlp" in modes:
+                    s_dpt = self.dpt_head(x.float())                                  # [b, L, 1]
+                else:
+                    s_dpt = qkv[..., self._dpt_col:self._dpt_col + 1].clone().float()  # pre-silu value channel
+                info[self._dpt_key] = self._dpt_depth(info, s_dpt)
+            if "dpt_chan" in modes:
+                qkv = qkv * self._dpt_mask.to(qkv.dtype)
+        qkv = F.silu(qkv, inplace=True)
         q, k, v = rearrange(
             qkv, "b l (qkv h d) -> qkv (b h) l d", qkv=3, h=nh
         )
@@ -2240,6 +2311,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             k = apply_tiled_mat4(k, P_inv_h, tpv, self.head_dim)
             v = apply_tiled_mat4(v, P_inv_h, tpv, self.head_dim)
             prope_raw_P_h = P_h
+        q_pre, k_pre = q, k          # post-L2-norm, pre-rotary copies (dpt_mem re-codes them per pass)
         if "qk_rope_camimg" in modes:
             ccos, csin = self._rope_coeffs_camimg(info)
             q = apply_rotary_pairs(q, ccos, csin)
@@ -2317,9 +2389,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             k = apply_rotary_pairs(k, ec, es)
             q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
             k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
-        elif modes & self.seg_in_modes:
+        elif modes & self.seg_in_modes and "dpt_mem" not in modes:
             ec, es = self._point_site_coeffs(info, "in")
-            q_pre = q
             q = apply_rotary_pairs(q, ec, es)
             k = apply_rotary_pairs(k, ec, es)
             q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
@@ -2491,6 +2562,25 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             )
             fw_state_extra["wb"] = wb
             fw_state_extra["wc"] = wc
+        elif "dpt_mem" in modes:
+            # MEMORY-READOUT DEPTH (two passes, no new parameters). Pass 1 codes q/k/h with the
+            # foot depth t_c, updates the fast weights on the input tokens and applies them to
+            # every token; channel 0 of head 0 of that fast-weight output (after o_norm) is read
+            # as the log-depth ratio s -- for a target ray it is whatever the scene memory
+            # returns at the foot address, i.e. depth transported from the input views. Pass 2
+            # re-codes everything at t = t_c exp(s) from the same slow init and produces the
+            # layer output. Rendering needs both fast-weight states (w*_p1 = pass 1).
+            if "w0_p1" in info:
+                w0p, w1p, w2p = info["w0_p1"], info["w1_p1"], info["w2_p1"]
+            else:
+                w0p, w1p, w2p = w0, w1, w2
+            o1, w0p, w1p, w2p = self._foot_pass(info, q_pre, k_pre, v, lr0, lr1, lr2,
+                                                w0p, w1p, w2p, ttt_op_order, None, x.dtype)
+            s_dpt = self.o_norm(o1).reshape(x.shape[0], nh, o1.shape[1], -1)[:, 0, :, 0:1].float()
+            t_dpt = self._dpt_depth(info, s_dpt)
+            output, w0, w1, w2 = self._foot_pass(info, q_pre, k_pre, v, lr0, lr1, lr2,
+                                                 w0, w1, w2, ttt_op_order, t_dpt, x.dtype)
+            fw_state_extra.update(w0_p1=w0p, w1_p1=w1p, w2_p1=w2p)
         elif ({"h_pra", "h_dpra", "h_strat", "h_img", "h_bump", "h_epi", "h_bf"} | self.seg_h_modes) & modes:
             if "h_bump" in modes:
                 with torch.autocast(device_type=x.device.type, enabled=False):
@@ -2680,6 +2770,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             P_h, _prope_apply = prope_orig_state
             output = _prope_apply(output, P_h, inv=True)
 
+        info.pop(self._dpt_key, None)
         output = self.o_norm(output)
         output = rearrange(
             output, "(b h) l d -> b l (h d)", h=nh, b=x.shape[0]
