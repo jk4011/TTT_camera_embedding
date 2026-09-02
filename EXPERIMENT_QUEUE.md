@@ -545,3 +545,21 @@ paired vs `gobj_base_s95/eval_v2.json` = baseline re-evaluated on the current te
   rot_content = gate-invariant/content-relative SwiGLU (H8 stage 1), hgate (H11), oracle_in (H1b).
 - reference re-evals on the current test index: outputs/gobj_{base,imgvo,rot_raw,prope_raw,input,
   hidden,prope_imgrope,both}_s95/eval_v2.json (script outputs/_smoke/reeval_refs.sh).
+
+## 2026-09-02 DP PROGRAM: depth-predicted point-RoPE — user redirect ("depth를 예측하는 방식으로, RayRoPE처럼")
+User (16:30 KST): parameter-free codes never beat the best method on all three datasets at once (F86
+point-RoPE: RE10K +0.57 / orbit +0.09 / DL3DV-u +0.13), so the "PE only, no depth head" rule is lifted.
+**Goal (16:40): on EVERY dataset beat the best existing PSNR** — RE10K Plücker TTT-RoPE both 22.777
+(+1.17, s137); orbit foot_all_iso 22.911 (+0.62, s137, carrier) / carrier-free point-RoPE 22.384; DL3DV-u
+hidden TTT-RoPE 16.649 (+0.25, s137). Seed 137 only. Order: both(+base) 9 cells → first report → input-only
+/ hidden-only arms.
+Method = point-RoPE (`foot_in+h_foot`) with the foot depth t_c replaced by t = t_c·exp(2.5·tanh(s/2.5)):
+- `dpt_mlp`  : s from a 2-layer MLP head (dim→64→1, zero-init output) on the layer input — RayRoPE-style.
+- `dpt_chan` : s = value projection head 0 ch 0 (pre-silu), channel zeroed in v — parameter-free.
+- `dpt_mem`  : two passes; pass 1 codes at t_c, updates + applies the fast weights, o_norm(output)[head0,ch0]
+               = s; pass 2 re-codes at t — parameter-free, TTT-native (targets get depth from the memory).
+Configs `config/dp_{mlp,chan,mem}_{both,in,h}.yaml`; launchers run_re10k.sh / run_gobj.sh (DATA=gobj) /
+run_dl3dv.sh (IMG="256 448"). Diagnostic: `diag_depth.py` (per-layer s stats; vs GT patch depth on orbit).
+- round 1 node1 (16:41): re10k_dpmlp (gpu1), re10k_dpchan (gpu3), re10k_dpmem (gpu0), gobj_dpmlp (gpu2).
+- pending (node2 if alive, else node1 next free GPU): gobj_dpchan, gobj_dpmem, dl3dvu_dpmlp/dpchan/dpmem.
+- then: 18 single-site cells (dp_*_in / dp_*_h × 3 datasets) — after the first report.
