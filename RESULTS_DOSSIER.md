@@ -3617,3 +3617,14 @@ it scales the direction phases by 0.011 (residual top-rung phase ~0.8 rad). pdir
 tiny on the low rungs too, or single-seed noise (orbit base seed sd 0.20, F84). Decisive cell: a HARD gate
 (direction half exactly 0 unless the input axes spread < 30 deg; `config/dp_mlp_pdirgh_both.yaml`) -- on the
 orbit this is computationally the point-only code with pdir0's budget split, so anything below ~22.99 is noise.
+### F87 addendum 8 (08:40): HARD geometry gate restores point-only quality on the orbit
+`gobj_dpmlp_pdirgh_s137` (direction half multiplied by 1[theta < 30 deg], else exactly 0): **23.022** = +0.732 vs base,
++0.031 vs point-only (t=2.3, tie), **+0.231 vs the soft gate (t=16.7, 78%)**, +0.112 vs the prior best. So the
+soft gate's residual direction phases (x0.011, up to ~0.8 rad on the top rung) really did cost 0.2 dB: on a
+90-degree orbit even a weak view-specific direction code degrades the memory addressing, and only an exact zero is
+harmless (pdir0's learned gains of 0.005-0.012 sat at the same residual level but on RUNGS that matter less --
+its low rungs were smallest -- which is why it, too, looked like point-only). DL3DV-u soft gate: 16.858 (+0.455,
+-0.029 vs point-only, -0.084 vs pdir; the gate averages ~0.3 there). Cells running: RE10K hard gate (08:35;
+expected ~pdir since 93% of RE10K scenes have theta < 30 deg) and DL3DV-u hard gate next. If RE10K lands at ~22.9,
+the single recipe is: learned-depth point code at both sites + the ray-direction half switched on only when the
+input views' optical axes are within 30 degrees of each other (a scene statistic, nothing learned).
