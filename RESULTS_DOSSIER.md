@@ -3563,3 +3563,13 @@ Orbit / DL3DV-u pdir cells (DP-11/12) running; on those datasets the point-only 
   and DL3DV-u, point+direction = best on RE10K -- the same code, one half more at narrow baseline.
 - DP-31 `gobj_dpmlp_pdir0_s137` (direction gains initialised at 0, launched 23:52): can the model start point-only
   and add the direction half only where it pays? If orbit stays at ~22.99 with pdir0, pdir0 is the single recipe.
+### F87 addendum 3 (01:05): DL3DV-u pdir 16.943 -- point + direction is now the best cell on RE10K AND DL3DV-u
+| dataset | point-only dpt_mlp | point + direction (pdir) | delta | prior best |
+|---|---|---|---|---|
+| RE10K | 22.290 (+0.680) | **22.903 (+1.293)** | +0.614 (t=22.4) | Plucker 22.777 -> beaten |
+| DL3DV-u | 16.888 (+0.484) | **16.943 (+0.539**, t=18.6, 96%) | +0.055 (t=2.9, 59%) | hidden 16.649 -> beaten by +0.294 (t=15.2) |
+| orbit | **22.991 (+0.700)** | 22.809 (+0.518) | -0.182 (t=-12.9) | 22.911 -> beaten only by point-only |
+The direction half helps exactly where the baseline is narrow enough for ray directions of matched pixels to
+stay within a phase period (RE10K strongly, DL3DV-u marginally) and hurts on the 90-degree orbit. Single-site
+arms (user request) are running in parallel; `pdir0` (direction gains from 0) on orbit decides whether one
+recipe covers all three.
