@@ -75,15 +75,18 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 (각각 `NODE=node2 setsid nohup … > outputs/<exp>.launch.log 2>&1 < /dev/null &`). 데이터: §2 + RE10K(`reshard_re10k.py`, /tmp/re10k) + DL3DV(§6 00:12 참고, /tmp/dl3dv).
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
-| DP-1 | `re10k_dpmlp_s137` | `config/dp_mlp_both.yaml` | RE10K | [RUNNING node1 gpu1 16:41] |
+| DP-1 | `re10k_dpmlp_s137` | `config/dp_mlp_both.yaml` | RE10K | [DONE 22.290 (+0.680 vs base t=23; +0.112 vs point-RoPE t=9.3; −0.487 vs Plücker both)] |
 | DP-2 | `re10k_dpchan_s137` | `config/dp_chan_both.yaml` | RE10K | [RUNNING node1 gpu3 17:13 — 16:42 기동분은 gain 없이 15 dB에 정체(9k)해서 kill, `dpt_gain`(0 초기화 스칼라) 추가 후 재기동; 로그 `re10k_dpchan_ungated_s137`] |
 | DP-3 | `re10k_dpmem_s137` | `config/dp_mem_both.yaml` | RE10K | [RUNNING node1 gpu0 17:13 — 같은 이유(13 dB 정체)로 재기동; 로그 `re10k_dpmem_ungated_s137`] |
-| DP-4 | `gobj_dpmlp_s137` | `config/dp_mlp_both.yaml` | orbit (`DATA=gobj`) | [RUNNING node1 gpu2 16:41] |
-| DP-5 | `gobj_dpchan_s137` | `config/dp_chan_both.yaml` | orbit (`DATA=gobj`) | [PENDING — node2 살아 있으면 가져갈 것; 아니면 node1 다음 빈 GPU] |
-| DP-6 | `gobj_dpmem_s137` | `config/dp_mem_both.yaml` | orbit (`DATA=gobj`) | [PENDING] |
+| DP-4 | `gobj_dpmlp_s137` | `config/dp_mlp_both.yaml` | orbit (`DATA=gobj`) | [DONE 22.991 (+0.607 vs point-RoPE t=26; +0.080 vs foot_all_iso(carrier) t=4.3 — **orbit 최고, carrier 없이**; depth head가 GT depth와 corr 0.95, foot 대비 log 오차 1/3)] |
+| DP-5 | `gobj_dpchan_s137` | `config/dp_chan_both.yaml` | orbit (`DATA=gobj`) | [RUNNING node1 gpu1 18:34] |
+| DP-6 | `gobj_dpmem_s137` | `config/dp_mem_both.yaml` | orbit (`DATA=gobj`) | [RUNNING node1 gpu2 18:36] |
 | DP-7 | `dl3dvu_dpmlp_s137` | `config/dp_mlp_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
 | DP-8 | `dl3dvu_dpchan_s137` | `config/dp_chan_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
 | DP-9 | `dl3dvu_dpmem_s137` | `config/dp_mem_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
+| DP-10 | `re10k_dpmlp_pdir_s137` | `config/dp_mlp_pdir_both.yaml` | RE10K | [PENDING — **point + 방향(pdir)**: RayRoPE 식 짝(예측 depth 점 + ray 방향 d, 같은 사다리·별도 gain; seg 21 / hseg 42). 목적: RE10K에서 Plücker(+1.17)를 넘기 — point만으로는 +0.68(DP-1). DP-9 다음, 단일 사이트보다 먼저] |
+| DP-11 | `gobj_dpmlp_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [PENDING — 방향 절반이 orbit에서 얼마나 깎이는지(gain이 스스로 줄이는가)] |
+| DP-12 | `dl3dvu_dpmlp_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING] |
 
 ### 3.V8 — **8-view / 30k 표준으로 복귀** (2026-09-01 17:40, 사용자 결정; P2 취소). 기준 유지: 간단하거나 TTT-특화 + 다중 데이터 강건(RE10K ≥ +1.0)
 아이디어: RE10K에서 이미 +0.97인 **Plücker 입력+hidden**을 그대로 두고, wide baseline에서 죽는 원인(moment wrap)을 **한 줄로** 고친다 —

@@ -1144,16 +1144,20 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  #   dpt_chan : one channel of the token's own value projection (parameter-free)
                  #   dpt_mem  : one channel of the fast-weight OUTPUT of a first foot-coded pass
                  #              (parameter-free, TTT-native: depth read out of the scene memory)
-                 "dpt_mlp", "dpt_chan", "dpt_mem"}
+                 "dpt_mlp", "dpt_chan", "dpt_mem",
+                 # pdir: point + DIRECTION code (RayRoPE's pairing): the foot/point half keeps its
+                 # ladder, a second 3-coordinate half carries the ray direction d on the same
+                 # ladder with its own gains -- the direction half of Plucker without the moment.
+                 "pdir"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
         dpt_modes = self.cam_modes & {"dpt_mlp", "dpt_chan", "dpt_mem"}
         assert len(dpt_modes) <= 1, "one depth source at a time"
-        if dpt_modes:
-            assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* modifies the foot (point-RoPE) codes"
-            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf"} - dpt_modes), \
-                "dpt_* only with foot_in / h_foot (+iso, sharedf)"
+        if dpt_modes or "pdir" in self.cam_modes:
+            assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
+            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir"} - dpt_modes), \
+                "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf)"
         # per-layer override key for the point-RoPE depth (set during forward, popped after)
         self._dpt_key = "_dpt_tc_%d" % id(self)
         if "dpt_mlp" in self.cam_modes:
@@ -1477,6 +1481,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if self.cam_modes & self.seg_in_modes:
             nd = n_dirs if (self.cam_modes & {"shell_iso", "iso"}) else 3   # 'iso' = icosahedral dirs for any seg mode
             mult = self.n_anchor if "anchor_in" in self.cam_modes else (asym_k if "asym_in" in self.cam_modes else 1)
+            if "pdir" in self.cam_modes:
+                mult *= 2                                           # direction half on the same ladder
+                self.gain_dir_in = _gain("gain_dir_in", nd, num_freqs_seg)
             assert 2 * nd * num_freqs_seg * mult <= head_dim, (nd, num_freqs_seg, mult, head_dim)
             self.register_buffer("dirs_in", _dirs(nd), persistent=False)
             self.register_buffer("omega_seg3", math.pi * torch.logspace(
@@ -1500,6 +1507,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             else:
                 omega_h_l = math.pi * torch.logspace(
                     math.log2(0.5), math.log2(16.0), num_freqs_hseg, base=2.0) * omega_scale_h
+            if "pdir" in self.cam_modes:
+                mult *= 2
+                self.gain_dir_h = _gain("gain_dir_h", nd, num_freqs_hseg)
             assert 2 * nd * num_freqs_hseg * mult <= d_h, (nd, num_freqs_hseg, mult, d_h)
             self.register_buffer("dirs_h", _dirs(nd), persistent=False)
             self.register_buffer("omega_hseg", omega_h_l, persistent=False)
@@ -1976,6 +1986,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 # forward stores a per-token predicted depth under self._dpt_key instead.
                 tc = info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02)
             c, sn = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
+            if "pdir" in modes:
+                # + direction half: phases of d projected on the same dirs / ladder, own gains
+                gd = self.gain_dir_in if site == "in" else self.gain_dir_h
+                pd = info["tok_d"] @ dirs.t()                                      # [b, L, n]
+                th = (pd[..., None] * (om[None, None, None] * gd[None, None])).flatten(2)
+                c = torch.cat([c, th.cos()], -1); sn = torch.cat([sn, th.sin()], -1)
         elif modes & {"anchor_in", "h_anchor"}:
             # H3b: K FIXED anchor points along the chord (plane-sweep phases, env = 1 each).
             cs, ss = [], []
