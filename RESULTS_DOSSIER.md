@@ -3592,3 +3592,16 @@ median 95 deg (all 91-98). The direction half helps at 5 deg (+0.61), is neutral
 scaled per scene by g = exp(-(theta / 45 deg)^2) (RE10K ~1, DL3DV mostly < 0.2, orbit ~0.01); nothing is learned,
 the code is the same everywhere and the gate is computed from the input cameras alone (`config/dp_mlp_pdirg_both.yaml`).
 Cells: re10k / gobj / dl3dvu `_dpmlp_pdirg_s137` -- expected ~ pdir on RE10K and ~ point-only on the other two.
+### F87 addendum 6 (05:25): single-site arms of the MLP-depth point code (user request) + DL3DV-u pdir0
+| dataset | input-only | hidden-only | both | Plucker TTT-RoPE single sites (same seed) |
+|---|---|---|---|---|
+| RE10K | 21.919 (+0.309) | 21.985 (+0.375) | 22.290 (+0.680) | in 22.385 / h 22.537 |
+| orbit | 22.742 (+0.452) | 22.913 (+0.622) | 22.991 (+0.700) | (negative at every site) |
+| DL3DV-u | 16.663 (+0.260) | 16.756 (+0.352) | 16.888 (+0.484) | in 16.640 / h 16.649 |
+Reading: with a learned point the two sites are roughly ADDITIVE on RE10K and DL3DV-u (in + h ~ both) and the
+hidden site alone already carries 90% of the gain on the orbit; unlike Plucker on DL3DV-u at 8 views (F85:
+single sites beat both), both sites are always best here. Hidden > input at every dataset, as with Plucker.
+The channel-depth input-only cell on RE10K (22.050, +0.440) beats its both-site cell (21.995) -- the noisy
+channel hurts most at the hidden site there. DL3DV-u pdir0 16.895 = point-only (+0.007), -0.048 vs pdir: on all
+three datasets the zero-initialised direction gains stay off. The geometry-gated pdirg cells are running
+(RE10K 05:45, orbit 06:30, DL3DV-u 08:20).
