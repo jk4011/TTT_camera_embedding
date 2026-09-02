@@ -76,8 +76,8 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
 | DP-1 | `re10k_dpmlp_s137` | `config/dp_mlp_both.yaml` | RE10K | [RUNNING node1 gpu1 16:41] |
-| DP-2 | `re10k_dpchan_s137` | `config/dp_chan_both.yaml` | RE10K | [RUNNING node1 gpu3 16:42] |
-| DP-3 | `re10k_dpmem_s137` | `config/dp_mem_both.yaml` | RE10K | [RUNNING node1 gpu0 16:44] |
+| DP-2 | `re10k_dpchan_s137` | `config/dp_chan_both.yaml` | RE10K | [RUNNING node1 gpu3 17:13 — 16:42 기동분은 gain 없이 15 dB에 정체(9k)해서 kill, `dpt_gain`(0 초기화 스칼라) 추가 후 재기동; 로그 `re10k_dpchan_ungated_s137`] |
+| DP-3 | `re10k_dpmem_s137` | `config/dp_mem_both.yaml` | RE10K | [RUNNING node1 gpu0 17:13 — 같은 이유(13 dB 정체)로 재기동; 로그 `re10k_dpmem_ungated_s137`] |
 | DP-4 | `gobj_dpmlp_s137` | `config/dp_mlp_both.yaml` | orbit (`DATA=gobj`) | [RUNNING node1 gpu2 16:41] |
 | DP-5 | `gobj_dpchan_s137` | `config/dp_chan_both.yaml` | orbit (`DATA=gobj`) | [PENDING — node2 살아 있으면 가져갈 것; 아니면 node1 다음 빈 GPU] |
 | DP-6 | `gobj_dpmem_s137` | `config/dp_mem_both.yaml` | orbit (`DATA=gobj`) | [PENDING] |

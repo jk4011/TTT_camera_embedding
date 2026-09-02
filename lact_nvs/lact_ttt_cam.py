@@ -1161,11 +1161,18 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             nn.init.zeros_(self.dpt_head[2].weight); nn.init.zeros_(self.dpt_head[2].bias)   # s = 0 -> point-RoPE at init
         if "dpt_chan" in self.cam_modes:
             # value projection, head 0, channel 0 (pre-silu) is read as log-depth ratio and
-            # zeroed in v (the channel is dedicated to depth; no new parameters)
+            # zeroed in v (the channel is dedicated to depth; no depth network)
             nh_, hd_ = dim // head_dim, head_dim
             self._dpt_col = 2 * nh_ * hd_
             mask = torch.ones(3 * nh_ * hd_); mask[self._dpt_col] = 0.0
             self.register_buffer("_dpt_mask", mask, persistent=False)
+        if self.cam_modes & {"dpt_chan", "dpt_mem"}:
+            # ONE zero-initialised scalar gain on the raw channel (per layer). Without it the
+            # channel's O(1) random values at init scatter every token's point over t_c*[1/12, 12],
+            # the high-frequency ladder scrambles all addresses and nothing bootstraps (DP-2a/3a,
+            # 2026-09-02: stuck at 15 / 13 dB). With g = 0 the cell starts exactly at point-RoPE,
+            # like the zero-initialised output layer of dpt_mlp / RayRoPE's depth projection.
+            self.dpt_gain = nn.Parameter(torch.zeros(1))
 
         def _gain(name, *shape):
             """Learnable ladder gain. With the 'sharedf' flag ONE parameter
@@ -2040,7 +2047,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 if "dpt_mlp" in modes:
                     s_dpt = self.dpt_head(x.float())                                  # [b, L, 1]
                 else:
-                    s_dpt = qkv[..., self._dpt_col:self._dpt_col + 1].clone().float()  # pre-silu value channel
+                    s_dpt = self.dpt_gain * qkv[..., self._dpt_col:self._dpt_col + 1].clone().float()  # pre-silu value channel
                 info[self._dpt_key] = self._dpt_depth(info, s_dpt)
             if "dpt_chan" in modes:
                 qkv = qkv * self._dpt_mask.to(qkv.dtype)
@@ -2576,7 +2583,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 w0p, w1p, w2p = w0, w1, w2
             o1, w0p, w1p, w2p = self._foot_pass(info, q_pre, k_pre, v, lr0, lr1, lr2,
                                                 w0p, w1p, w2p, ttt_op_order, None, x.dtype)
-            s_dpt = self.o_norm(o1).reshape(x.shape[0], nh, o1.shape[1], -1)[:, 0, :, 0:1].float()
+            s_dpt = self.dpt_gain * self.o_norm(o1).reshape(x.shape[0], nh, o1.shape[1], -1)[:, 0, :, 0:1].float()
             t_dpt = self._dpt_depth(info, s_dpt)
             output, w0, w1, w2 = self._foot_pass(info, q_pre, k_pre, v, lr0, lr1, lr2,
                                                  w0, w1, w2, ttt_op_order, t_dpt, x.dtype)

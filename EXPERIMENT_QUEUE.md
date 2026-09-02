@@ -563,3 +563,9 @@ run_dl3dv.sh (IMG="256 448"). Diagnostic: `diag_depth.py` (per-layer s stats; vs
 - round 1 node1 (16:41): re10k_dpmlp (gpu1), re10k_dpchan (gpu3), re10k_dpmem (gpu0), gobj_dpmlp (gpu2).
 - pending (node2 if alive, else node1 next free GPU): gobj_dpchan, gobj_dpmem, dl3dvu_dpmlp/dpchan/dpmem.
 - then: 18 single-site cells (dp_*_in / dp_*_h × 3 datasets) — after the first report.
+- 17:10 finding (DP-2a/3a, ungated): raw-channel depth (value channel / memory readout without a gain) does
+  NOT bootstrap — RE10K stuck at 15.4 dB (chan) / 13.1 dB (mem) at 7-9k while dpmlp tracks point-RoPE
+  (19.5 dB). O(1) random s at init scatters points over t_c*[1/12,12]; the high-frequency ladder scrambles
+  every address; gradients through the phases cannot recover. Fix = one zero-initialised scalar gain per
+  layer (`dpt_gain`), i.e. the same zero-start as dpt_mlp / RayRoPE's zero-init projection. Both cells
+  killed and relaunched 17:13 (logs kept as re10k_dp{chan,mem}_ungated_s137).
