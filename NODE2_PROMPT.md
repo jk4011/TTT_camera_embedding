@@ -76,17 +76,17 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
 | DP-1 | `re10k_dpmlp_s137` | `config/dp_mlp_both.yaml` | RE10K | [DONE 22.290 (+0.680 vs base t=23; +0.112 vs point-RoPE t=9.3; −0.487 vs Plücker both)] |
-| DP-2 | `re10k_dpchan_s137` | `config/dp_chan_both.yaml` | RE10K | [RUNNING node1 gpu3 17:13 — 16:42 기동분은 gain 없이 15 dB에 정체(9k)해서 kill, `dpt_gain`(0 초기화 스칼라) 추가 후 재기동; 로그 `re10k_dpchan_ungated_s137`] |
-| DP-3 | `re10k_dpmem_s137` | `config/dp_mem_both.yaml` | RE10K | [RUNNING node1 gpu0 17:13 — 같은 이유(13 dB 정체)로 재기동; 로그 `re10k_dpmem_ungated_s137`] |
+| DP-2 | `re10k_dpchan_s137` | `config/dp_chan_both.yaml` | RE10K | [DONE 21.995 (+0.385 vs base; **−0.183 vs point-RoPE t=−19**; −0.295 vs dpmlp) — gain은 0.03~0.1에 머물고 depth는 거의 foot(층별 s std ≤ 0.13)인데도 고주파 rung의 phase jitter로 손해. 16:42 기동분(gain 없음)은 15 dB 정체로 kill, 로그 `re10k_dpchan_ungated_s137`] |
+| DP-3 | `re10k_dpmem_s137` | `config/dp_mem_both.yaml` | RE10K | [DONE 22.229 (+0.619 vs base; +0.052 vs point-RoPE t=6.9; −0.061 vs dpmlp) — 층 2~5의 gain이 0으로 수렴(메모리 readout depth를 모델이 스스로 끔), 층 1만 상수 이동 −0.5 → 사실상 point-RoPE. 17:13 재기동분(gain 추가); 로그 `re10k_dpmem_ungated_s137`] |
 | DP-4 | `gobj_dpmlp_s137` | `config/dp_mlp_both.yaml` | orbit (`DATA=gobj`) | [DONE 22.991 (+0.607 vs point-RoPE t=26; +0.080 vs foot_all_iso(carrier) t=4.3 — **orbit 최고, carrier 없이**; depth head가 GT depth와 corr 0.95, foot 대비 log 오차 1/3)] |
-| DP-5 | `gobj_dpchan_s137` | `config/dp_chan_both.yaml` | orbit (`DATA=gobj`) | [RUNNING node1 gpu1 18:34] |
-| DP-6 | `gobj_dpmem_s137` | `config/dp_mem_both.yaml` | orbit (`DATA=gobj`) | [RUNNING node1 gpu2 18:36] |
-| DP-7 | `dl3dvu_dpmlp_s137` | `config/dp_mlp_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
-| DP-8 | `dl3dvu_dpchan_s137` | `config/dp_chan_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
-| DP-9 | `dl3dvu_dpmem_s137` | `config/dp_mem_both.yaml` | DL3DV-u (`IMG="256 448"`) | [PENDING] |
-| DP-10 | `re10k_dpmlp_pdir_s137` | `config/dp_mlp_pdir_both.yaml` | RE10K | [PENDING — **point + 방향(pdir)**: RayRoPE 식 짝(예측 depth 점 + ray 방향 d, 같은 사다리·별도 gain; seg 21 / hseg 42). 목적: RE10K에서 Plücker(+1.17)를 넘기 — point만으로는 +0.68(DP-1). DP-9 다음, 단일 사이트보다 먼저] |
-| DP-11 | `gobj_dpmlp_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [PENDING — 방향 절반이 orbit에서 얼마나 깎이는지(gain이 스스로 줄이는가)] |
-| DP-12 | `dl3dvu_dpmlp_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING] |
+| DP-5 | `gobj_dpchan_s137` | `config/dp_chan_both.yaml` | orbit (`DATA=gobj`) | [DONE 23.006 (+0.715 vs base t=28; +0.015 vs dpmlp = 동률; +0.095 vs foot_all_iso t=4.8) — **파라미터 없는 채널도 orbit에서는 진짜 depth를 배움**(층 5: GT corr 0.96, 오차 0.028 = MLP와 같음, gain 0.04~0.07)] |
+| DP-6 | `gobj_dpmem_s137` | `config/dp_mem_both.yaml` | orbit (`DATA=gobj`) | [DONE 22.918 (+0.627 vs base t=25; −0.073 vs dpmlp; +0.007 vs foot_all_iso = 동률) — 메모리 readout도 orbit에선 depth를 배움(층 5 corr 0.95, 오차 0.032), 세 소스 중 최하이나 근소] |
+| DP-7 | `dl3dvu_dpmlp_s137` | `config/dp_mlp_both.yaml` | DL3DV-u (`IMG="256 448"`) | [DONE 16.888 (+0.484 vs base t=16, 96%; +0.351 vs point-RoPE; **+0.239 vs 기존 최고 hidden TTT-RoPE t=8.9**) — DL3DV 목표 달성] |
+| DP-8 | `dl3dvu_dpchan_s137` | `config/dp_chan_both.yaml` | DL3DV-u (`IMG="256 448"`) | [DONE 16.741 (+0.338 vs base t=12; +0.093 vs 기존 최고 hidden; −0.146 vs dpmlp t=−11)] |
+| DP-9 | `dl3dvu_dpmem_s137` | `config/dp_mem_both.yaml` | DL3DV-u (`IMG="256 448"`) | [RUNNING node1 gpu1 20:22] |
+| DP-10 | `re10k_dpmlp_pdir_s137` | `config/dp_mlp_pdir_both.yaml` | RE10K | [DONE **22.903 (+1.293 vs base t=34, 98%; +0.126 vs Plücker both t=7.4, 73%; +0.614 vs dpmlp)** — RE10K 목표 달성, carrier 없이. **point + 방향(pdir)**: RayRoPE 식 짝(예측 depth 점 + ray 방향 d, 같은 사다리·별도 gain; seg 21 / hseg 42). 목적: RE10K에서 Plücker(+1.17)를 넘기 — point만으로는 +0.68(DP-1). DP-9 다음, 단일 사이트보다 먼저] |
+| DP-11 | `gobj_dpmlp_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu3 21:52 — 방향 절반이 orbit에서 얼마나 깎이는지(gain이 스스로 줄이는가)] |
+| DP-12 | `dl3dvu_dpmlp_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu0 22:14] |
 
 ### 3.V8 — **8-view / 30k 표준으로 복귀** (2026-09-01 17:40, 사용자 결정; P2 취소). 기준 유지: 간단하거나 TTT-특화 + 다중 데이터 강건(RE10K ≥ +1.0)
 아이디어: RE10K에서 이미 +0.97인 **Plücker 입력+hidden**을 그대로 두고, wide baseline에서 죽는 원인(moment wrap)을 **한 줄로** 고친다 —

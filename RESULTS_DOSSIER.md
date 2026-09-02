@@ -3494,3 +3494,61 @@ that residue: 3 coordinates, one ladder, both sites. Trade-off vs Plucker TTT-Ro
 RE10K gain (+0.57 vs +1.17) and a little of DL3DV (+0.13 vs +0.19) to turn objaverse from -0.9 into +0.09.
 The two recipes differ only in the coordinate fed to the same code: (d, m) at narrow baseline vs the on-ray
 point at wide baseline.
+
+## F87: depth-PREDICTED point-RoPE (DP program) -- learned depth on the point code beats the best prior
+## recipe on gObjaverse orbit and DL3DV-uncropped; on RE10K it lifts point-RoPE but not past Plucker
+## (seed 137, 8-view/30k, both sites; 2026-09-02 16:40-23:50)
+User redirect (16:30): parameter-free codes had hit their limit -> predict depth like RayRoPE, form the 3D
+point o + t d, feed it to the SAME point-RoPE code (F86: `foot_in+h_foot`). Depth t = t_c * exp(2.5 tanh(s/2.5)),
+t_c = the foot depth (closest approach to the scene focus p*), so s = 0 IS point-RoPE. Three sources of s:
+- **dpt_mlp**: Linear(256,64)-GELU-Linear(64,1) on the layer input token (post-LN residual stream, the same
+  tensor to_qkv reads), zero-init output; one scalar per token, shared by heads (RayRoPE's depth projection).
+- **dpt_chan**: value projection head 0 channel 0 (pre-silu), that channel zeroed in v -- no depth network.
+- **dpt_mem**: two passes; pass 1 codes at t_c, updates + applies the fast weights, o_norm(output)[head 0, ch 0]
+  is read as s; pass 2 re-codes at t. No network; the depth is retrieved from the scene memory (1.6x cost).
+- chan/mem carry ONE zero-initialised scalar gain per layer (`dpt_gain`): without it the O(1) random channel
+  scatters every point over t_c*[1/12, 12] at init and nothing bootstraps (RE10K stuck at 15.4 / 13.1 dB at 9k,
+  logs `re10k_dp{chan,mem}_ungated_s137`).
+Paired per-scene stats vs the same-seed baseline (RE10K n=256; orbit n=499, base = gobj_base_s137/eval_v2;
+DL3DV-u n=140). "prev best" = the best same-seed recipe before today on that dataset.
+| dataset | base | point-RoPE (t_c) | dpt_mlp | dpt_chan | dpt_mem | prev best |
+|---|---|---|---|---|---|---|
+| RE10K | 21.610 | 22.177 (+0.567) | **22.290 (+0.680**, t=23; +0.112 vs point-RoPE t=9.3) | 21.995 (+0.385; -0.183 vs point-RoPE t=-19) | 22.229 (+0.619; +0.052 vs point-RoPE t=6.9) | Plucker both 22.777 (+1.167) -- NOT reached (-0.49) |
+| gObjaverse orbit | 22.291 | 22.384 (+0.093) | **22.991 (+0.700**, t=26.7, 91%) | **23.006 (+0.715**, t=27.7; +0.015 vs mlp) | 22.918 (+0.627; -0.073 vs mlp) | foot_all_iso (carrier) 22.911 -- BEATEN (+0.080 t=4.3 / +0.095 t=4.8), carrier-free |
+| DL3DV-u 256x448 | 16.404 | 16.537 (+0.133) | **16.888 (+0.484**, t=16.0, 96%) | 16.741 (+0.338; -0.146 vs mlp t=-11) | (running, ~23:50) | hidden TTT-RoPE 16.649 (+0.245) -- BEATEN (+0.239 t=8.9, 88%) |
+Depth diagnostic (`diag_depth.py`, 32-48 test scenes; GT patch depth available on orbit only):
+- orbit dpt_mlp: per layer, |log t - log t_gt| = 0.110 / 0.159 / 0.068 / 0.084 / 0.040 / 0.030 vs the foot
+  prior's 0.111; correlation with GT 0.58 -> 0.95. Layer 0 never leaves the prior (no cross-view content in
+  its input yet); every deeper layer is sharper. TARGET rays (pose-only tokens) get the same accuracy (0.028,
+  corr 0.96): the depth reaches them through the residual stream from the previous blocks' fast-weight apply.
+  dpt_chan learns the same depth (layer 5: 0.028, corr 0.96) and dpt_mem nearly so (0.032, 0.95) -- on orbit the
+  phase gradient is informative enough that even a single value channel with a 0.05 gain becomes a depth head.
+- RE10K dpt_mlp: s spreads (std 0.42-0.47 in layers 1-3) but layers disagree (across-layer std of log t 0.38);
+  dpt_chan barely leaves the prior (gains 0.03-0.1, s std <= 0.13) yet loses 0.18 dB to point-RoPE -- at
+  t_c ~ 1 a jitter of 0.13 is 6 rad on the top ladder rung; dpt_mem's gains converge to 0 in layers 2-5 (the
+  model switches the memory readout off) and it lands on point-RoPE. Narrow-baseline phase gradients carry
+  little depth information, so the parameter-free sources pick up noise there and the MLP gains only +0.11.
+- DL3DV-u dpt_mlp: spreads 0.24-0.47 per layer, layer-inconsistent (0.40) like RE10K, yet +0.35 over point-RoPE.
+Reading: the code that lost to Plucker at narrow baseline and barely helped at wide baseline (F86) becomes the
+best recipe on both wide-baseline datasets once its point is put at a learned depth; the depth is learned
+purely from the reconstruction loss through the rotary phases (no supervision), and on objects it is metrically
+accurate. RE10K remains the exception: the point-only code lacks Plucker's direction half (F86 note), which is
+worth ~0.5 dB there; DP-10..12 (`pdir`: point + ray direction on the same ladder, RayRoPE's pairing) test that.
+Cost: dpt_mlp adds ~16.5k params/layer (0.1M total); dpt_chan/mem add one scalar per layer; dpt_mem doubles the
+TTT-layer compute (4.4 vs 6 it/s at 4 cells/node).
+### F87 addendum 1 (22:40): point + DIRECTION with the MLP depth (`pdir`) -- RE10K goal met
+`config/dp_mlp_pdir_both.yaml` = `foot_in+h_foot+dpt_mlp+pdir`: the input-site and hidden-site codes get a
+second 3-coordinate half carrying the ray direction d (projected on the same three directions, same ladder,
+its own gains), so the pair budget is split point 21 + direction 21 per direction at the input site (42 + 42
+hidden) -- RayRoPE's (point at depth, direction) pairing; equivalently the focus-origin Plucker code with the
+moment un-crossed and put at a learned depth.
+| RE10K | PSNR | vs base | vs Plucker both (22.777) | vs dpt_mlp point-only | LPIPS |
+|---|---|---|---|---|---|
+| re10k_dpmlp_pdir_s137 | **22.903** | +1.293 (t=33.9, 98%) | **+0.126 (t=7.4, 73%)** | +0.614 (t=22.4, 92%) | 0.2658 (-0.0011 vs Plucker, -0.0295 vs base) |
+So the direction half is worth +0.61 dB on RE10K on top of the learned point, and the combination passes the
+Plucker recipe (carrier-free record; the carrier cell 23.36 at s95 stays excluded per the user's rule).
+Diagnostic: on RE10K the pdir depth head is nearly token-INDEPENDENT (per-layer s std 0.01-0.07; layer 0 puts
+every point at 0.22 t_c, the others at 1.03-1.18 t_c) -- with the direction half present, the point half acts as
+a per-layer-scaled (camera position + direction) code rather than a per-token depth, which is exactly what a
+narrow-baseline dataset can support; the learned gains keep both halves fully on (|gain| 0.9 point / 1.0 dir).
+Orbit / DL3DV-u pdir cells (DP-11/12) running; on those datasets the point-only MLP cell already beats the best.
