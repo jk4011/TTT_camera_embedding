@@ -85,8 +85,16 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | DP-8 | `dl3dvu_dpchan_s137` | `config/dp_chan_both.yaml` | DL3DV-u (`IMG="256 448"`) | [DONE 16.741 (+0.338 vs base t=12; +0.093 vs 기존 최고 hidden; −0.146 vs dpmlp t=−11)] |
 | DP-9 | `dl3dvu_dpmem_s137` | `config/dp_mem_both.yaml` | DL3DV-u (`IMG="256 448"`) | [RUNNING node1 gpu1 20:22] |
 | DP-10 | `re10k_dpmlp_pdir_s137` | `config/dp_mlp_pdir_both.yaml` | RE10K | [DONE **22.903 (+1.293 vs base t=34, 98%; +0.126 vs Plücker both t=7.4, 73%; +0.614 vs dpmlp)** — RE10K 목표 달성, carrier 없이. **point + 방향(pdir)**: RayRoPE 식 짝(예측 depth 점 + ray 방향 d, 같은 사다리·별도 gain; seg 21 / hseg 42). 목적: RE10K에서 Plücker(+1.17)를 넘기 — point만으로는 +0.68(DP-1). DP-9 다음, 단일 사이트보다 먼저] |
-| DP-11 | `gobj_dpmlp_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu3 21:52 — 방향 절반이 orbit에서 얼마나 깎이는지(gain이 스스로 줄이는가)] |
+| DP-11 | `gobj_dpmlp_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.809 (+0.518 vs base; **−0.182 vs 점-only dpmlp t=−13**; −0.102 vs foot_all_iso) — 방향 절반은 orbit에서 손해이고 gain은 0.9에 머묾(스스로 줄이지 못함) → pdir0(방향 gain 0 초기화) 셀로 재시도] |
 | DP-12 | `dl3dvu_dpmlp_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu0 22:14] |
+| DP-13 | `re10k_dpmlp_in_s137` | `config/dp_mlp_in.yaml` | RE10K | [RUNNING node1 gpu2 22:35 — **단일 사이트 아암 시작**(사용자 요청: both 다음 input/hidden). 순서: dpmlp in/h × 3 데이터 → dpchan → dpmem] |
+| DP-14 | `re10k_dpmlp_h_s137` | `config/dp_mlp_h.yaml` | RE10K | [RUNNING node1 gpu3 23:42] |
+| DP-15 | `gobj_dpmlp_in_s137` | `config/dp_mlp_in.yaml` (`DATA=gobj`) | orbit | [PENDING] |
+| DP-16 | `gobj_dpmlp_h_s137` | `config/dp_mlp_h.yaml` (`DATA=gobj`) | orbit | [PENDING] |
+| DP-17 | `dl3dvu_dpmlp_in_s137` | `config/dp_mlp_in.yaml` (`IMG="256 448"`) | DL3DV-u | [PENDING] |
+| DP-18 | `dl3dvu_dpmlp_h_s137` | `config/dp_mlp_h.yaml` (`IMG="256 448"`) | DL3DV-u | [PENDING] |
+| DP-19…24 | `{re10k,gobj,dl3dvu}_dpchan_{in,h}_s137` | `config/dp_chan_{in,h}.yaml` | 3 데이터 | [PENDING — DP-18 다음] |
+| DP-25…30 | `{re10k,gobj,dl3dvu}_dpmem_{in,h}_s137` | `config/dp_mem_{in,h}.yaml` | 3 데이터 | [PENDING — DP-24 다음] |
 
 ### 3.V8 — **8-view / 30k 표준으로 복귀** (2026-09-01 17:40, 사용자 결정; P2 취소). 기준 유지: 간단하거나 TTT-특화 + 다중 데이터 강건(RE10K ≥ +1.0)
 아이디어: RE10K에서 이미 +0.97인 **Plücker 입력+hidden**을 그대로 두고, wide baseline에서 죽는 원인(moment wrap)을 **한 줄로** 고친다 —

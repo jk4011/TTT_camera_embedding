@@ -1148,12 +1148,20 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # pdir: point + DIRECTION code (RayRoPE's pairing): the foot/point half keeps its
                  # ladder, a second 3-coordinate half carries the ray direction d on the same
                  # ladder with its own gains -- the direction half of Plucker without the moment.
-                 "pdir"}
+                 "pdir", "pdir0"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
         dpt_modes = self.cam_modes & {"dpt_mlp", "dpt_chan", "dpt_mem"}
         assert len(dpt_modes) <= 1, "one depth source at a time"
+        # pdir0 = pdir with the direction gains initialised at ZERO (the code starts as point-only and
+        # switches the direction half on only where the gradient asks for it; DP-11: with gains at 1 the
+        # direction half cost 0.18 dB on orbit and the gains never moved off 0.9).
+        assert not ({"pdir", "pdir0"} <= self.cam_modes), "pdir and pdir0 are exclusive"
+        if "pdir0" in self.cam_modes:
+            self.cam_modes.discard("pdir0"); self.cam_modes.add("pdir"); self._pdir_zero = True
+        else:
+            self._pdir_zero = False
         if dpt_modes or "pdir" in self.cam_modes:
             assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
             assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir"} - dpt_modes), \
@@ -1484,6 +1492,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if "pdir" in self.cam_modes:
                 mult *= 2                                           # direction half on the same ladder
                 self.gain_dir_in = _gain("gain_dir_in", nd, num_freqs_seg)
+                if self._pdir_zero:
+                    nn.init.zeros_(self.gain_dir_in)
             assert 2 * nd * num_freqs_seg * mult <= head_dim, (nd, num_freqs_seg, mult, head_dim)
             self.register_buffer("dirs_in", _dirs(nd), persistent=False)
             self.register_buffer("omega_seg3", math.pi * torch.logspace(
@@ -1510,6 +1520,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if "pdir" in self.cam_modes:
                 mult *= 2
                 self.gain_dir_h = _gain("gain_dir_h", nd, num_freqs_hseg)
+                if self._pdir_zero:
+                    nn.init.zeros_(self.gain_dir_h)
             assert 2 * nd * num_freqs_hseg * mult <= d_h, (nd, num_freqs_hseg, mult, d_h)
             self.register_buffer("dirs_h", _dirs(nd), persistent=False)
             self.register_buffer("omega_hseg", omega_h_l, persistent=False)
