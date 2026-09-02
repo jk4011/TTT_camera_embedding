@@ -3605,3 +3605,15 @@ The channel-depth input-only cell on RE10K (22.050, +0.440) beats its both-site 
 channel hurts most at the hidden site there. DL3DV-u pdir0 16.895 = point-only (+0.007), -0.048 vs pdir: on all
 three datasets the zero-initialised direction gains stay off. The geometry-gated pdirg cells are running
 (RE10K 05:45, orbit 06:30, DL3DV-u 08:20).
+### F87 addendum 7 (06:50): geometry-gated direction (pdirg, soft gate exp(-(theta/45deg)^2))
+| dataset | point-only | pdir | pdir0 | **pdirg** | note |
+|---|---|---|---|---|---|
+| RE10K | 22.290 | 22.903 | 22.391 | **22.817** (+1.207 vs base; +0.040 vs Plucker t=2.1; -0.086 vs pdir t=-10.5) | gate ~1 on 85% of scenes, 0.6-0.8 on the rest |
+| orbit | 22.991 | 22.809 | 22.995 | **22.791** (-0.200 vs point-only t=-13; -0.017 vs pdir) | gate 0.011 -> yet pdir-level |
+The soft gate keeps RE10K at Plucker level (barely) but does NOT restore point-only quality on the orbit even though
+it scales the direction phases by 0.011 (residual top-rung phase ~0.8 rad). pdir0 -- whose learned gains ended at
+0.005-0.012, i.e. the same residual strength -- did reach point-only (22.995), so the 0.2 dB split between
+{point-only, pdir0} and {pdir, pdirg} is either a residual-phase effect that pdir0 escapes by having its gains
+tiny on the low rungs too, or single-seed noise (orbit base seed sd 0.20, F84). Decisive cell: a HARD gate
+(direction half exactly 0 unless the input axes spread < 30 deg; `config/dp_mlp_pdirgh_both.yaml`) -- on the
+orbit this is computationally the point-only code with pdir0's budget split, so anything below ~22.99 is noise.

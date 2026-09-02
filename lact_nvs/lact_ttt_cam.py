@@ -1121,6 +1121,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         bump_p: int = 96,
         bump_kappa: float = 2.0,
         pdir_theta0: float = 45.0,
+        pdir_gate: str = "soft",
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1170,7 +1171,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self._pdir_zero = False
         if "pdirg" in self.cam_modes:
             assert "pdir" in self.cam_modes, "pdirg is a modifier of pdir"
+            assert pdir_gate in ("soft", "hard"), pdir_gate
             self.pdir_theta0 = float(pdir_theta0) * math.pi / 180.0
+            self.pdir_gate = pdir_gate      # soft: exp(-(theta/theta0)^2); hard: 1[theta < theta0]
         if dpt_modes or "pdir" in self.cam_modes:
             assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
             assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg"} - dpt_modes), \
@@ -2021,7 +2024,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                         V = fwd.shape[1]
                         offd = ~torch.eye(V, dtype=torch.bool, device=fwd.device)
                         theta = torch.acos(cs)[:, offd].mean(1)                              # [b]
-                        gate = torch.exp(-(theta / self.pdir_theta0) ** 2)[:, None, None]    # [b, 1, 1]
+                        if self.pdir_gate == "hard":
+                            gate = (theta < self.pdir_theta0).float()[:, None, None]         # exactly 0 at wide baseline
+                        else:
+                            gate = torch.exp(-(theta / self.pdir_theta0) ** 2)[:, None, None]    # [b, 1, 1]
                     th = th * gate.to(th.dtype)
                 c = torch.cat([c, th.cos()], -1); sn = torch.cat([sn, th.sin()], -1)
         elif modes & {"anchor_in", "h_anchor"}:
