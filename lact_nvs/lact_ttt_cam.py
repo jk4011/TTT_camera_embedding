@@ -1120,6 +1120,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         fejer_omega0: float = 0.5,
         bump_p: int = 96,
         bump_kappa: float = 2.0,
+        pdir_theta0: float = 45.0,
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1148,7 +1149,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # pdir: point + DIRECTION code (RayRoPE's pairing): the foot/point half keeps its
                  # ladder, a second 3-coordinate half carries the ray direction d on the same
                  # ladder with its own gains -- the direction half of Plucker without the moment.
-                 "pdir", "pdir0"}
+                 "pdir", "pdir0",
+                 # pdirg: pdir whose direction half is scaled per SCENE by a geometry gate
+                 # g = exp(-(theta / theta0)^2), theta = mean pairwise angle between the input views'
+                 # optical axes -- the direction phases of matched pixels wrap once views differ by large
+                 # angles, so the half is faded out with the scene's angular spread (no learning involved).
+                 "pdirg"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1162,9 +1168,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.cam_modes.discard("pdir0"); self.cam_modes.add("pdir"); self._pdir_zero = True
         else:
             self._pdir_zero = False
+        if "pdirg" in self.cam_modes:
+            assert "pdir" in self.cam_modes, "pdirg is a modifier of pdir"
+            self.pdir_theta0 = float(pdir_theta0) * math.pi / 180.0
         if dpt_modes or "pdir" in self.cam_modes:
             assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
-            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir"} - dpt_modes), \
+            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg"} - dpt_modes), \
                 "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf)"
         # per-layer override key for the point-RoPE depth (set during forward, popped after)
         self._dpt_key = "_dpt_tc_%d" % id(self)
@@ -2003,6 +2012,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 gd = self.gain_dir_in if site == "in" else self.gain_dir_h
                 pd = info["tok_d"] @ dirs.t()                                      # [b, L, n]
                 th = (pd[..., None] * (om[None, None, None] * gd[None, None])).flatten(2)
+                if "pdirg" in modes:
+                    # per-scene geometry gate on the direction half (see 'pdirg' in known)
+                    with torch.no_grad():
+                        fwd = info["view_rot"][:, : info["num_input_views"], :, 2].float()   # [b, V_in, 3] optical axes
+                        fwd = fwd / (fwd.norm(dim=-1, keepdim=True) + 1e-8)
+                        cs = (fwd @ fwd.transpose(1, 2)).clamp(-1.0, 1.0)
+                        V = fwd.shape[1]
+                        offd = ~torch.eye(V, dtype=torch.bool, device=fwd.device)
+                        theta = torch.acos(cs)[:, offd].mean(1)                              # [b]
+                        gate = torch.exp(-(theta / self.pdir_theta0) ** 2)[:, None, None]    # [b, 1, 1]
+                    th = th * gate.to(th.dtype)
                 c = torch.cat([c, th.cos()], -1); sn = torch.cat([sn, th.sin()], -1)
         elif modes & {"anchor_in", "h_anchor"}:
             # H3b: K FIXED anchor points along the chord (plane-sweep phases, env = 1 each).

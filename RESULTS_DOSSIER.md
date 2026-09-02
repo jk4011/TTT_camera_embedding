@@ -3580,3 +3580,15 @@ on every layer and site (the point gains 0.92-0.97) -- the model never switches 
 would hurt. What remains is whether it switches it ON where it helps: `re10k_dpmlp_pdir0_s137` (01:40) and
 `dl3dvu_dpmlp_pdir0_s137` (next GPU). If RE10K reaches ~22.9, pdir0 is one recipe for all three datasets:
 point-RoPE at a learned depth, plus a ray-direction half that starts off and is learned per dataset.
+### F87 addendum 5 (03:35): RE10K pdir0 22.391 -- learned direction gains do not climb from zero; geometry gate instead
+`re10k_dpmlp_pdir0_s137`: +0.781 vs base, +0.102 vs point-only, **-0.512 vs pdir (t=-20.5)**. The zero-initialised
+direction gains reach only 0.02-0.08 (vs 1.0 in pdir): a gain multiplies a frequency, so at g = 0 every direction
+phase is 0 and its gradient is a first-order sum over an oscillatory landscape -- too weak to climb. So "start off,
+learn where it helps" fails in the direction that matters; pdir0 is NOT the single recipe (orbit yes, RE10K no).
+Measured input-view angular spread on the eval protocols (`diag_baseline_angle.py`, mean pairwise angle between the
+8 input optical axes, 64 scenes): RE10K median 5.2 deg (p90 23), DL3DV-u median 58 deg (p10 16, p90 97), orbit
+median 95 deg (all 91-98). The direction half helps at 5 deg (+0.61), is neutral at ~60 deg (+0.055) and hurts at
+95 deg (-0.18) -- a monotone function of this one scene statistic. Hence `pdirg`: the direction half's phases are
+scaled per scene by g = exp(-(theta / 45 deg)^2) (RE10K ~1, DL3DV mostly < 0.2, orbit ~0.01); nothing is learned,
+the code is the same everywhere and the gate is computed from the input cameras alone (`config/dp_mlp_pdirg_both.yaml`).
+Cells: re10k / gobj / dl3dvu `_dpmlp_pdirg_s137` -- expected ~ pdir on RE10K and ~ point-only on the other two.

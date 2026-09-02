@@ -87,15 +87,16 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | DP-10 | `re10k_dpmlp_pdir_s137` | `config/dp_mlp_pdir_both.yaml` | RE10K | [DONE **22.903 (+1.293 vs base t=34, 98%; +0.126 vs Plücker both t=7.4, 73%; +0.614 vs dpmlp)** — RE10K 목표 달성, carrier 없이. **point + 방향(pdir)**: RayRoPE 식 짝(예측 depth 점 + ray 방향 d, 같은 사다리·별도 gain; seg 21 / hseg 42). 목적: RE10K에서 Plücker(+1.17)를 넘기 — point만으로는 +0.68(DP-1). DP-9 다음, 단일 사이트보다 먼저] |
 | DP-11 | `gobj_dpmlp_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.809 (+0.518 vs base; **−0.182 vs 점-only dpmlp t=−13**; −0.102 vs foot_all_iso) — 방향 절반은 orbit에서 손해이고 gain은 0.9에 머묾(스스로 줄이지 못함) → pdir0(방향 gain 0 초기화) 셀로 재시도] |
 | DP-12 | `dl3dvu_dpmlp_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE **16.943** (+0.539 vs base t=19, 96%; +0.055 vs 점-only dpmlp t=2.9; +0.294 vs 기존 최고 hidden) — DL3DV에서는 pdir ≥ 점-only] |
-| DP-32 | `re10k_dpmlp_pdir0_s137` | `config/dp_mlp_pdir0_both.yaml` | RE10K | [RUNNING node1 gpu1 01:40 — pdir0가 RE10K에서 방향 gain을 스스로 키워 pdir(22.903)에 도달하는가 = 단일 레시피 판정] |
-| DP-33 | `dl3dvu_dpmlp_pdir0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING — 다음 빈 GPU] |
+| DP-32 | `re10k_dpmlp_pdir0_s137` | `config/dp_mlp_pdir0_both.yaml` | RE10K | [DONE 22.391 (+0.781 vs base; +0.102 vs 점-only; **−0.512 vs pdir**) — 방향 gain이 0.02~0.08까지밖에 안 커짐(0에서 출발한 gain은 gradient가 약해 못 올라감) → 학습 gain은 단일 레시피가 못 됨; 장면 기하(입력 뷰 광축 각도)로 방향 절반을 게이트하는 `pdirg`로 전환] |
+| DP-19 | `re10k_dpchan_in_s137` | `config/dp_chan_in.yaml` | RE10K | [RUNNING node1 gpu1 03:28] |
+| DP-33 | `dl3dvu_dpmlp_pdir0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu2 02:03] |
 | DP-31 | `gobj_dpmlp_pdir0_s137` | `config/dp_mlp_pdir0_both.yaml` (`DATA=gobj`) | orbit | [DONE **22.995** (+0.704 vs base; +0.004 vs 점-only = 동일; +0.186 vs pdir) — 방향 gain이 0.007에 머묾(스스로 끈 상태 유지) — **pdir0**: 방향 gain 0 초기화(점-only로 시작, 필요할 때만 방향을 켬). orbit에서 점-only(22.99)를 유지하는지. 다음 빈 GPU 최우선] |
 | DP-13 | `re10k_dpmlp_in_s137` | `config/dp_mlp_in.yaml` | RE10K | [DONE 21.919 (+0.309 vs base t=17; −0.371 vs both t=−19; −0.466 vs Plücker input-only pra_hi) — 단일 사이트 아암(사용자 요청). 순서: dpmlp in/h × 3 데이터 → dpchan → dpmem] |
 | DP-14 | `re10k_dpmlp_h_s137` | `config/dp_mlp_h.yaml` | RE10K | [DONE 21.985 (+0.375 vs base t=22; −0.304 vs both; +0.066 vs input-only; −0.552 vs Plücker hidden-only h_pra_hi) — RE10K에서 두 사이트는 거의 가산적(0.31 + 0.38 ≈ 0.68)] |
-| DP-15 | `gobj_dpmlp_in_s137` | `config/dp_mlp_in.yaml` (`DATA=gobj`) | orbit | [RUNNING node1 gpu2 00:19] |
-| DP-16 | `gobj_dpmlp_h_s137` | `config/dp_mlp_h.yaml` (`DATA=gobj`) | orbit | [RUNNING node1 gpu0 01:01] |
+| DP-15 | `gobj_dpmlp_in_s137` | `config/dp_mlp_in.yaml` (`DATA=gobj`) | orbit | [DONE 22.742 (+0.452 vs base t=18.5; −0.249 vs both t=−15; +0.358 vs point-RoPE both)] |
+| DP-16 | `gobj_dpmlp_h_s137` | `config/dp_mlp_h.yaml` (`DATA=gobj`) | orbit | [DONE 22.913 (+0.622 vs base t=29; −0.078 vs both t=−4.3; +0.171 vs input-only) — orbit에서는 hidden 사이트 단독으로 both의 대부분을 얻음(기존 최고 22.911과 동률)] |
 | DP-17 | `dl3dvu_dpmlp_in_s137` | `config/dp_mlp_in.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 01:25] |
-| DP-18 | `dl3dvu_dpmlp_h_s137` | `config/dp_mlp_h.yaml` (`IMG="256 448"`) | DL3DV-u | [PENDING] |
+| DP-18 | `dl3dvu_dpmlp_h_s137` | `config/dp_mlp_h.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu0 02:43] |
 | DP-19…24 | `{re10k,gobj,dl3dvu}_dpchan_{in,h}_s137` | `config/dp_chan_{in,h}.yaml` | 3 데이터 | [PENDING — DP-18 다음] |
 | DP-25…30 | `{re10k,gobj,dl3dvu}_dpmem_{in,h}_s137` | `config/dp_mem_{in,h}.yaml` | 3 데이터 | [PENDING — DP-24 다음] |
 
