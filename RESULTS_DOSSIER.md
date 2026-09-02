@@ -3573,3 +3573,10 @@ The direction half helps exactly where the baseline is narrow enough for ray dir
 stay within a phase period (RE10K strongly, DL3DV-u marginally) and hurts on the 90-degree orbit. Single-site
 arms (user request) are running in parallel; `pdir0` (direction gains from 0) on orbit decides whether one
 recipe covers all three.
+### F87 addendum 4 (01:45): orbit pdir0 = 22.995 -- zero-initialised direction gains stay at zero on orbit
+`gobj_dpmlp_pdir0_s137` (pdir with gain_dir initialised at 0): 22.995 = +0.704 vs base, **+0.004 vs point-only
+dpt_mlp (t=0.3)**, +0.186 vs pdir (t=12.6), +0.084 vs the prior best. Learned direction gains: |gain| 0.005-0.012
+on every layer and site (the point gains 0.92-0.97) -- the model never switches the direction half on where it
+would hurt. What remains is whether it switches it ON where it helps: `re10k_dpmlp_pdir0_s137` (01:40) and
+`dl3dvu_dpmlp_pdir0_s137` (next GPU). If RE10K reaches ~22.9, pdir0 is one recipe for all three datasets:
+point-RoPE at a learned depth, plus a ray-direction half that starts off and is learned per dataset.
