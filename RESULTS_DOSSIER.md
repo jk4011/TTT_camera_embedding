@@ -3661,7 +3661,7 @@ scene-geometry switch). `config/dp_mlp_pdirgh_both.yaml` (30 deg) / `..._pdirgh4
 |---|---|---|---|---|---|
 | RE10K | 21.610 | Plucker both 22.777 | **22.819 (+1.209; +0.042 vs prior)** | 22.845 (+0.068 vs prior, t=4.2) | pdir 22.903 |
 | orbit | 22.291 | foot_all_iso 22.911 | **23.022 (+0.732; +0.112 vs prior, t=6.0)** | (identical: theta >= 90 deg) | chan 23.006 / mlp 22.991 |
-| DL3DV-u | 16.404 | hidden TTT-RoPE 16.649 | **16.870 (+0.466; +0.221 vs prior, t=11.2)** | running (15:20) | pdir 16.943 |
+| DL3DV-u | 16.404 | hidden TTT-RoPE 16.649 | **16.870 (+0.466; +0.221 vs prior, t=11.2)** | 16.873 (+0.469; +0.224 vs prior, t=11.1) | pdir 16.943 |
 Every entry beats the prior best on its dataset with the same code and the same hyper-parameters; the gap to the
 per-dataset specialised cell is <= 0.08 dB (RE10K/DL3DV-u: the gate switches the direction half off on the wide
 scenes where ungated pdir still profits a little; orbit: none). Single seed 137 throughout -- differences below
