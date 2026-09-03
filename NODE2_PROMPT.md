@@ -99,8 +99,9 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | DP-37 | `gobj_dpmlp_pdirgh_s137` | `config/dp_mlp_pdirgh_both.yaml` (`DATA=gobj`) | orbit | [DONE **23.022** (+0.732 vs base; +0.031 vs 점-only = 동일; **+0.231 vs soft 게이트 t=16.7**; +0.112 vs foot_all_iso) — 하드 게이트는 orbit에서 점-only 품질을 완전히 회복: soft 게이트의 잔여 위상(×0.011)이 실제로 0.2 dB를 깎았음 — **하드 게이트**(θ<30°일 때만 방향 절반, 아니면 정확히 0; orbit에서는 계산상 점-only와 동일) — 스모크 후 gpu2] |
 | DP-38 | `re10k_dpmlp_pdirgh_s137` | 같은 config | RE10K | [DONE 22.819 (+1.209 vs base; +0.042 vs Plücker; −0.084 vs pdir) — θ≥30°인 ~7% 장면에서 방향이 꺼져 pdir보다 소폭 손해; RE10K max θ=40°라 θ0=45°면 전부 켜짐(orbit은 min 90.6°라 여전히 0)] |
 | DP-40 | `re10k_dpmlp_pdirgh45_s137` | `config/dp_mlp_pdirgh45_both.yaml` (하드 게이트 θ0=45°) | RE10K | [DONE 22.845 (+1.235 vs base; +0.068 vs Plücker; −0.058 vs pdir; +0.026 vs 30° 게이트) — 평가 장면은 전부 게이트 on인데도 pdir보다 0.06 낮음 = 학습 궤적/시드 잡음 수준] |
-| DP-28 | `gobj_dpmem_h_s137` | `config/dp_mem_h.yaml` (`DATA=gobj`) | orbit | [RUNNING node1 gpu2 12:16] |
+| DP-28 | `gobj_dpmem_h_s137` | `config/dp_mem_h.yaml` (`DATA=gobj`) | orbit | [DONE 22.774 (+0.483 vs base; −0.144 vs 메모리 both; −0.139 vs MLP hidden-only)] |
 | DP-41 | `dl3dvu_dpmlp_pdirgh45_s137` | `config/dp_mlp_pdirgh45_both.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu1 12:27 — 단일 θ0=45° 레시피 표 완성용] |
+| DP-42 | 뷰 스윕(평가만) `run_vsweep.sh {re10k,dl3dvu,gobj137}` arms `dpmlp`(점-only) / `dpgate`(단일 레시피) | 4/8/12/20/32/48 뷰 (orbit ≤32) | 3 데이터 | [RUNNING node1 gpu2 14:15 — 기존 4-arm 스윕(F84/F85)과 같은 scene set; 게이트가 뷰 수에 따라 어떻게 바뀌는지 포함] |
 | DP-39 | `dl3dvu_dpmlp_pdirgh_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.870 (+0.466 vs base; −0.018 vs 점-only; −0.073 vs pdir; +0.221 vs 기존 최고) — 하드 30° 게이트 DL3DV: 점-only와 동률] |
 | DP-30 | `dl3dvu_dpmem_h_s137` | `config/dp_mem_h.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 13:01 — 단일 사이트 마지막 셀] |
 | DP-33 | `dl3dvu_dpmlp_pdir0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.895 (+0.491 vs base; +0.007 vs 점-only = 동일; −0.048 vs pdir) — DL3DV에서도 0-초기화 gain은 방향을 켜지 않음] |
