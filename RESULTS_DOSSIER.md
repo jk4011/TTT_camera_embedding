@@ -3645,3 +3645,10 @@ channel hurts most at the hidden site), on orbit and DL3DV-u the hidden site alo
 is the only source where both sites keep adding on every dataset. RE10K memory-readout input-only: 22.101
 (+0.491; +0.182 vs MLP input-only, -0.128 vs its both cell) -- the two-pass readout helps the input site on
 RE10K more than the MLP does, but never beats the MLP both-site cell.
+### F87 addendum 11 (12:20): RE10K hard gate at 45 deg = 22.845
+`re10k_dpmlp_pdirgh45_s137`: +1.235 vs base (98%), **+0.068 vs Plucker both (t=4.2, 62%)**, -0.059 vs ungated pdir
+(t=-10.9), +0.026 vs the 30-degree gate. Every RE10K eval scene is below 45 deg, so at test time this cell computes
+exactly pdir's code; the remaining -0.06 is a training-time effect (a fraction of training windows are wider than
+45 deg and lose the direction half, so the direction gains see fewer updates) at the size of a seed shift. Single
+recipe standing with the hard 45-degree gate: RE10K 22.845 > 22.777, orbit 23.022 > 22.911 (gate identical at 30
+or 45 deg there), DL3DV-u: 30-degree cell running (13:00), 45-degree cell next.
