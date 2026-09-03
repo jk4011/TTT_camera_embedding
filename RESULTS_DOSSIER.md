@@ -3666,3 +3666,14 @@ Every entry beats the prior best on its dataset with the same code and the same 
 per-dataset specialised cell is <= 0.08 dB (RE10K/DL3DV-u: the gate switches the direction half off on the wide
 scenes where ungated pdir still profits a little; orbit: none). Single seed 137 throughout -- differences below
 ~0.1 dB between cells are within seed noise and are not claimed.
+### F87 addendum 13 (14:45): RE10K input-view sweep of the new arms (8-view-trained; same 256 scenes as F84)
+| arm | v4 | v8 | v12 | v20 | v32 | v48 |
+|---|---|---|---|---|---|---|
+| base | 20.522 | 21.553 | 21.741 | 21.891 | 21.953 | 21.971 |
+| TTT-RoPE Plucker both | +0.27 | +1.15 | +1.32 | +1.50 | +1.60 | +1.61 |
+| point-only dpt_mlp | -0.10 | +0.67 | +0.84 | +0.99 | +1.07 | +1.06 |
+| **single recipe (hard-gated point+direction)** | +0.09 | **+1.19** | **+1.43** | **+1.67** | **+1.80** | **+1.80** |
+(paired deltas vs base at the same view count). The single recipe is above Plucker at every count from 8 views
+on, and the margin grows with views (+0.04 at 8 -> +0.19 at 32/48); only at 4 views does Plucker lead (+0.27
+vs +0.09) -- with two views per target the learned depth has little parallax to anchor on. The point-only
+code tracks the Plucker hidden-only arm. DL3DV-u and orbit sweeps running on GPU 2.
