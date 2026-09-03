@@ -3693,3 +3693,17 @@ the budget split is the cost, not the gate. At 32/48 views it also sits 0.03-0.0
 So: RE10K wants the direction half (single recipe +1.80 vs Plucker +1.61 at 48), DL3DV-u wants the full point
 ladder (point-only +0.79), orbit wants the direction half off exactly. One config covers all three at 8 views;
 the many-view regime on DL3DV-u is where the split shows. Orbit sweep running.
+### F87 addendum 15 (15:35): gObjaverse ORBIT input-view sweep of the new arms (499 scenes, 40-frame orbits, views <= 32)
+| arm (seed) | v4 | v8 | v12 | v20 | v32 |
+|---|---|---|---|---|---|
+| base s137 | 19.634 | 22.291 | 22.511 | 22.580 | 22.252 |
+| **point-only dpt_mlp** (s137) | **+0.68** | **+0.70** | **+0.72** | **+0.76** | **+0.76** |
+| single recipe, hard-gated (s137) | +0.73 | +0.73 | +0.72 | +0.74 | +0.72 |
+| TTT-RoPE Plucker both (s95, F84) | -1.02 | -0.89 | -0.75 | -0.56 | -0.64 |
+| Plucker hidden-only (s95) | -0.50 | -0.57 | -0.59 | -0.52 | -0.56 |
+| Plucker focus-moment (s95) | -0.75 | -0.69 | -0.50 | -0.38 | -0.45 |
+(paired deltas vs the same-seed base at the same view count). The learned-depth point code is +0.7 at EVERY view
+count on the orbit, including 4 views (2 inputs per target: +0.68) where the ray codes are at their worst (-1.0);
+the gate is off on every orbit scene so the single recipe equals point-only within 0.05. Together with addenda
+13-14: the depth-predicted point code is the first camera code positive on all three datasets at all view counts,
+and the direction half is the only dataset-dependent piece (on at narrow baseline, off at wide).
