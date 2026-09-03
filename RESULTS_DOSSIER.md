@@ -3677,3 +3677,19 @@ scenes where ungated pdir still profits a little; orbit: none). Single seed 137 
 on, and the margin grows with views (+0.04 at 8 -> +0.19 at 32/48); only at 4 views does Plucker lead (+0.27
 vs +0.09) -- with two views per target the learned depth has little parallax to anchor on. The point-only
 code tracks the Plucker hidden-only arm. DL3DV-u and orbit sweeps running on GPU 2.
+### F87 addendum 14 (15:10): DL3DV-u input-view sweep of the new arms (same 140 scenes as F85)
+| arm | v4 | v8 | v12 | v20 | v32 | v48 |
+|---|---|---|---|---|---|---|
+| base | 15.422 | 16.404 | 16.564 | 16.700 | 16.742 | 16.753 |
+| TTT-RoPE Plucker both | -0.12 | +0.18 | +0.27 | +0.50 | +0.65 | +0.69 |
+| Plucker hidden-only | +0.01 | +0.25 | +0.32 | +0.45 | +0.52 | +0.54 |
+| **point-only dpt_mlp** | -0.00 | **+0.48** | **+0.56** | **+0.71** | **+0.78** | **+0.79** |
+| single recipe (hard-gated point+direction, 30 deg) | +0.00 | +0.47 | +0.49 | +0.56 | +0.62 | +0.63 |
+On DL3DV-u the point-only code is the best arm at every count from 8 views on (+0.79 at 48 vs Plucker's +0.69),
+and its gain keeps growing with views. The gated single recipe matches it at 8 views but trails from 12 views on
+(-0.16 at 48): with more input views the axis spread widens, the gate switches the direction half off on more
+scenes, and what remains is a point code with HALF the ladder (21 rungs instead of 42) plus 126 idle pairs --
+the budget split is the cost, not the gate. At 32/48 views it also sits 0.03-0.06 under Plucker both.
+So: RE10K wants the direction half (single recipe +1.80 vs Plucker +1.61 at 48), DL3DV-u wants the full point
+ladder (point-only +0.79), orbit wants the direction half off exactly. One config covers all three at 8 views;
+the many-view regime on DL3DV-u is where the split shows. Orbit sweep running.
