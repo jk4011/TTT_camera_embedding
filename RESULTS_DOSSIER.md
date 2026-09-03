@@ -3628,3 +3628,9 @@ its low rungs were smallest -- which is why it, too, looked like point-only). DL
 expected ~pdir since 93% of RE10K scenes have theta < 30 deg) and DL3DV-u hard gate next. If RE10K lands at ~22.9,
 the single recipe is: learned-depth point code at both sites + the ray-direction half switched on only when the
 input views' optical axes are within 30 degrees of each other (a scene statistic, nothing learned).
+### F87 addendum 9 (10:30): RE10K hard gate (30 deg) 22.819 -- above Plucker, 0.08 below ungated pdir
+`re10k_dpmlp_pdirgh_s137`: +1.209 vs base (97% of scenes), +0.042 vs Plucker both (t=1.1), -0.084 vs pdir (t=-2.6),
+= soft gate (+0.001). With the 30-degree threshold ~7% of RE10K test scenes (max theta 40 deg) lose the direction
+half; the loss vs pdir is that fraction. Since the orbit's minimum theta is 90.6 deg, the threshold can be raised
+to 45 deg at no cost there: `re10k_dpmlp_pdirgh45_s137` (10:25) should reproduce the ungated 22.90. Current
+single-recipe standing (hard gate 30 deg): RE10K 22.819 (> Plucker 22.777), orbit 23.022 (> 22.911), DL3DV-u running.

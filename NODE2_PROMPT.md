@@ -96,8 +96,9 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | DP-35 | `gobj_dpmlp_pdirg_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.791 (+0.501 vs base; **−0.200 vs 점-only t=−13**; −0.017 vs pdir = pdir와 동일) — 게이트 0.011로 방향 위상을 거의 0으로 눌렀는데도 pdir 수준: 잔여 위상(최고 rung 0.8 rad) 탓인지 시드 잡음(orbit base sd 0.2)인지 불명 → 하드 게이트(θ<30° 아니면 정확히 0) 셀로 판정] |
 | DP-36 | `dl3dvu_dpmlp_pdirg_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.858 (+0.455 vs base; −0.029 vs 점-only; −0.084 vs pdir; +0.210 vs 기존 최고) — DL3DV에선 soft 게이트가 점-only와 pdir 사이] |
 | DP-37 | `gobj_dpmlp_pdirgh_s137` | `config/dp_mlp_pdirgh_both.yaml` (`DATA=gobj`) | orbit | [DONE **23.022** (+0.732 vs base; +0.031 vs 점-only = 동일; **+0.231 vs soft 게이트 t=16.7**; +0.112 vs foot_all_iso) — 하드 게이트는 orbit에서 점-only 품질을 완전히 회복: soft 게이트의 잔여 위상(×0.011)이 실제로 0.2 dB를 깎았음 — **하드 게이트**(θ<30°일 때만 방향 절반, 아니면 정확히 0; orbit에서는 계산상 점-only와 동일) — 스모크 후 gpu2] |
-| DP-38 | `re10k_dpmlp_pdirgh_s137` | 같은 config | RE10K | [RUNNING node1 gpu2 08:35] |
-| DP-39 | `dl3dvu_dpmlp_pdirgh_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING] |
+| DP-38 | `re10k_dpmlp_pdirgh_s137` | 같은 config | RE10K | [DONE 22.819 (+1.209 vs base; +0.042 vs Plücker; −0.084 vs pdir) — θ≥30°인 ~7% 장면에서 방향이 꺼져 pdir보다 소폭 손해; RE10K max θ=40°라 θ0=45°면 전부 켜짐(orbit은 min 90.6°라 여전히 0)] |
+| DP-40 | `re10k_dpmlp_pdirgh45_s137` | `config/dp_mlp_pdirgh45_both.yaml` (하드 게이트 θ0=45°) | RE10K | [RUNNING node1 gpu2 10:26] |
+| DP-39 | `dl3dvu_dpmlp_pdirgh_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 10:13] |
 | DP-33 | `dl3dvu_dpmlp_pdir0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.895 (+0.491 vs base; +0.007 vs 점-only = 동일; −0.048 vs pdir) — DL3DV에서도 0-초기화 gain은 방향을 켜지 않음] |
 | DP-31 | `gobj_dpmlp_pdir0_s137` | `config/dp_mlp_pdir0_both.yaml` (`DATA=gobj`) | orbit | [DONE **22.995** (+0.704 vs base; +0.004 vs 점-only = 동일; +0.186 vs pdir) — 방향 gain이 0.007에 머묾(스스로 끈 상태 유지) — **pdir0**: 방향 gain 0 초기화(점-only로 시작, 필요할 때만 방향을 켬). orbit에서 점-only(22.99)를 유지하는지. 다음 빈 GPU 최우선] |
 | DP-13 | `re10k_dpmlp_in_s137` | `config/dp_mlp_in.yaml` | RE10K | [DONE 21.919 (+0.309 vs base t=17; −0.371 vs both t=−19; −0.466 vs Plücker input-only pra_hi) — 단일 사이트 아암(사용자 요청). 순서: dpmlp in/h × 3 데이터 → dpchan → dpmem] |
@@ -107,7 +108,7 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | DP-17 | `dl3dvu_dpmlp_in_s137` | `config/dp_mlp_in.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.663 (+0.260 vs base t=11; −0.224 vs both t=−16; +0.024 vs Plücker input-only)] |
 | DP-18 | `dl3dvu_dpmlp_h_s137` | `config/dp_mlp_h.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.756 (+0.352 vs base t=15; −0.132 vs both t=−9; +0.092 vs input-only; +0.107 vs Plücker hidden-only)] |
 | DP-21 | `gobj_dpchan_in_s137` | `config/dp_chan_in.yaml` (`DATA=gobj`) | orbit | [DONE 22.762 (+0.471 vs base; −0.244 vs 채널 both; +0.020 vs MLP input-only)] |
-| DP-23 | `dl3dvu_dpchan_in_s137` | `config/dp_chan_in.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 07:35] |
+| DP-23 | `dl3dvu_dpchan_in_s137` | `config/dp_chan_in.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.695 (+0.291 vs base; −0.046 vs 채널 both; +0.032 vs MLP input-only)] |
 | DP-24 | `dl3dvu_dpchan_h_s137` | `config/dp_chan_h.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu0 08:10] |
 | DP-25…30 | `{re10k,gobj,dl3dvu}_dpmem_{in,h}_s137` | `config/dp_mem_{in,h}.yaml` | 3 데이터 | [PENDING — DP-24 다음] |
 
