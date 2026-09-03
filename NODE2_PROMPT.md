@@ -103,7 +103,7 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | DP-41 | `dl3dvu_dpmlp_pdirgh45_s137` | `config/dp_mlp_pdirgh45_both.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.873 (+0.469 vs base; ≈ 30° 게이트 16.870; −0.015 vs 점-only; +0.224 vs 기존 최고) — θ0 30/45 무차이] |
 | DP-42 | 뷰 스윕(평가만) `run_vsweep.sh {re10k,dl3dvu,gobj137}` arms `dpmlp`(점-only) / `dpgate`(단일 레시피) | 4/8/12/20/32/48 뷰 (orbit ≤32) | 3 데이터 | [RUNNING node1 gpu2 14:15 — 기존 4-arm 스윕(F84/F85)과 같은 scene set; 게이트가 뷰 수에 따라 어떻게 바뀌는지 포함] |
 | DP-39 | `dl3dvu_dpmlp_pdirgh_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.870 (+0.466 vs base; −0.018 vs 점-only; −0.073 vs pdir; +0.221 vs 기존 최고) — 하드 30° 게이트 DL3DV: 점-only와 동률] |
-| DP-30 | `dl3dvu_dpmem_h_s137` | `config/dp_mem_h.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 13:01 — 단일 사이트 마지막 셀] |
+| DP-30 | `dl3dvu_dpmem_h_s137` | `config/dp_mem_h.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.654 (+0.250 vs base; −0.071 vs 메모리 both; −0.102 vs MLP hidden-only) — **DP 프로그램 전 셀 완료(16:00), GPU 4장 유휴**] |
 | DP-33 | `dl3dvu_dpmlp_pdir0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.895 (+0.491 vs base; +0.007 vs 점-only = 동일; −0.048 vs pdir) — DL3DV에서도 0-초기화 gain은 방향을 켜지 않음] |
 | DP-31 | `gobj_dpmlp_pdir0_s137` | `config/dp_mlp_pdir0_both.yaml` (`DATA=gobj`) | orbit | [DONE **22.995** (+0.704 vs base; +0.004 vs 점-only = 동일; +0.186 vs pdir) — 방향 gain이 0.007에 머묾(스스로 끈 상태 유지) — **pdir0**: 방향 gain 0 초기화(점-only로 시작, 필요할 때만 방향을 켬). orbit에서 점-only(22.99)를 유지하는지. 다음 빈 GPU 최우선] |
 | DP-13 | `re10k_dpmlp_in_s137` | `config/dp_mlp_in.yaml` | RE10K | [DONE 21.919 (+0.309 vs base t=17; −0.371 vs both t=−19; −0.466 vs Plücker input-only pra_hi) — 단일 사이트 아암(사용자 요청). 순서: dpmlp in/h × 3 데이터 → dpchan → dpmem] |
@@ -116,7 +116,7 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | DP-23 | `dl3dvu_dpchan_in_s137` | `config/dp_chan_in.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.695 (+0.291 vs base; −0.046 vs 채널 both; +0.032 vs MLP input-only)] |
 | DP-24 | `dl3dvu_dpchan_h_s137` | `config/dp_chan_h.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.738 (+0.334 vs base; −0.003 vs 채널 both = 동일; −0.018 vs MLP hidden-only)] |
 | DP-27 | `gobj_dpmem_in_s137` | `config/dp_mem_in.yaml` (`DATA=gobj`) | orbit | [DONE 22.762 (+0.471 vs base; −0.156 vs 메모리 both; +0.020 vs MLP input-only)] |
-| DP-29 | `dl3dvu_dpmem_in_s137` | `config/dp_mem_in.yaml` (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu0 12:45] |
+| DP-29 | `dl3dvu_dpmem_in_s137` | `config/dp_mem_in.yaml` (`IMG="256 448"`) | DL3DV-u | [DONE 16.671 (+0.267 vs base; −0.054 vs 메모리 both; +0.008 vs MLP input-only)] |
 | DP-25…30 | `{re10k,gobj,dl3dvu}_dpmem_{in,h}_s137` | `config/dp_mem_{in,h}.yaml` | 3 데이터 | [PENDING — DP-24 다음] |
 
 ### 3.V8 — **8-view / 30k 표준으로 복귀** (2026-09-01 17:40, 사용자 결정; P2 취소). 기준 유지: 간단하거나 TTT-특화 + 다중 데이터 강건(RE10K ≥ +1.0)

@@ -3707,3 +3707,24 @@ count on the orbit, including 4 views (2 inputs per target: +0.68) where the ray
 the gate is off on every orbit scene so the single recipe equals point-only within 0.05. Together with addenda
 13-14: the depth-predicted point code is the first camera code positive on all three datasets at all view counts,
 and the direction half is the only dataset-dependent piece (on at narrow baseline, off at wide).
+### F87 addendum 16 (16:05): memory-readout single-site arms complete -- DP program closed (42 cells, 2026-09-02 16:40 -> 09-03 16:00)
+| dataset | mem input-only | mem hidden-only | mem both | (MLP both) |
+|---|---|---|---|---|
+| RE10K | 22.101 (+0.491) | 22.062 (+0.452) | 22.229 (+0.619) | 22.290 |
+| orbit | 22.762 (+0.471) | 22.774 (+0.483) | 22.918 (+0.627) | 22.991 |
+| DL3DV-u | 16.671 (+0.267) | 16.654 (+0.250) | 16.725 (+0.321) | 16.888 |
+Memory-readout single sites sit between the MLP's single sites and below its both cell everywhere; nothing here
+changes the ranking MLP > channel ~ memory. Full single-site picture (18 cells): both sites are best for every
+source on every dataset except channel-RE10K (input-only 22.050 > both 21.995); hidden > input for MLP on all
+three datasets; on the orbit the hidden site alone gives >= 90% of both for every source.
+Program summary (all seed 137, 8-view/30k, paired stats; carrier-free):
+- best per dataset: RE10K 22.903 (learned-depth point + direction), orbit 23.022 (hard-gated = point-only),
+  DL3DV-u 16.943 (point + direction) -- all above the prior best (+0.13 / +0.11 / +0.29).
+- one config for all three (hard gate on the direction half at 30 or 45 deg): 22.819-22.845 / 23.022 / 16.870-16.873.
+- view sweeps: the learned-depth point code is positive at every input count on all three datasets; the single
+  recipe is above Plucker on RE10K from 8 views on (+1.80 at 48) and equal to point-only on the orbit; on DL3DV-u
+  the full-ladder point-only code leads at >= 12 views (+0.79 at 48 vs recipe +0.63 / Plucker +0.69).
+- depth: learned only from the reconstruction loss through the rotary phases; metrically accurate on objects
+  (corr 0.95 with GT, 1/3 the foot prior's error, also for pose-only target rays), scale-like on RE10K.
+Open (not run, per the single-seed rule): seed replication of the <= 0.1 dB comparisons; a budget split other
+than 21/21 for point/direction at many views on DL3DV-u.

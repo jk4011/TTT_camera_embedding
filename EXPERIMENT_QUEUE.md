@@ -569,3 +569,6 @@ run_dl3dv.sh (IMG="256 448"). Diagnostic: `diag_depth.py` (per-layer s stats; vs
   every address; gradients through the phases cannot recover. Fix = one zero-initialised scalar gain per
   layer (`dpt_gain`), i.e. the same zero-start as dpt_mlp / RayRoPE's zero-init projection. Both cells
   killed and relaunched 17:13 (logs kept as re10k_dp{chan,mem}_ungated_s137).
+- 2026-09-03 16:05 DP PROGRAM CLOSED (42 cells on node1, node2 silent): goal met on all three datasets, one config
+  `config/dp_mlp_pdirgh_both.yaml` (learned-depth point code at both sites + hard geometry-gated direction half)
+  beats the prior best everywhere; full record in RESULTS_DOSSIER.md F87 + addenda 1-16. All GPUs idle, queue empty.
