@@ -3634,3 +3634,14 @@ input views' optical axes are within 30 degrees of each other (a scene statistic
 half; the loss vs pdir is that fraction. Since the orbit's minimum theta is 90.6 deg, the threshold can be raised
 to 45 deg at no cost there: `re10k_dpmlp_pdirgh45_s137` (10:25) should reproduce the ungated 22.90. Current
 single-recipe standing (hard gate 30 deg): RE10K 22.819 (> Plucker 22.777), orbit 23.022 (> 22.911), DL3DV-u running.
+### F87 addendum 10 (10:50): single-site arms of the CHANNEL-depth code complete (+ first memory single site)
+| dataset | chan input-only | chan hidden-only | chan both | (MLP: in / h / both) |
+|---|---|---|---|---|
+| RE10K | **22.050 (+0.440)** | 21.929 (+0.319) | 21.995 (+0.385) | 21.919 / 21.985 / 22.290 |
+| orbit | 22.762 (+0.471) | 22.968 (+0.677) | 23.006 (+0.715) | 22.742 / 22.913 / 22.991 |
+| DL3DV-u | 16.695 (+0.291) | 16.738 (+0.334) | 16.741 (+0.338) | 16.663 / 16.756 / 16.888 |
+With the channel depth the sites are NOT additive: on RE10K input-only is the best channel cell (the noisy
+channel hurts most at the hidden site), on orbit and DL3DV-u the hidden site alone equals both. The MLP head
+is the only source where both sites keep adding on every dataset. RE10K memory-readout input-only: 22.101
+(+0.491; +0.182 vs MLP input-only, -0.128 vs its both cell) -- the two-pass readout helps the input site on
+RE10K more than the MLP does, but never beats the MLP both-site cell.
