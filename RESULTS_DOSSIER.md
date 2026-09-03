@@ -3652,3 +3652,17 @@ exactly pdir's code; the remaining -0.06 is a training-time effect (a fraction o
 45 deg and lose the direction half, so the direction gains see fewer updates) at the size of a seed shift. Single
 recipe standing with the hard 45-degree gate: RE10K 22.845 > 22.777, orbit 23.022 > 22.911 (gate identical at 30
 or 45 deg there), DL3DV-u: 30-degree cell running (13:00), 45-degree cell next.
+### F87 addendum 12 (13:05): ONE RECIPE on all three datasets -- hard-gated point+direction (30 deg) table complete
+Recipe: point-RoPE at both TTT sites on the point o + t d with t = t_c exp(s) from a 2-layer MLP head (dpt_mlp),
+plus a second 3-coordinate half on the same ladder carrying the ray direction d, multiplied by 1[theta < theta0]
+with theta = mean pairwise angle between the input views' optical axes (nothing learned; RayRoPE's pairing with a
+scene-geometry switch). `config/dp_mlp_pdirgh_both.yaml` (30 deg) / `..._pdirgh45_both.yaml` (45 deg).
+| dataset | base | prior best | **hard gate 30 deg** | hard gate 45 deg | best specialised cell |
+|---|---|---|---|---|---|
+| RE10K | 21.610 | Plucker both 22.777 | **22.819 (+1.209; +0.042 vs prior)** | 22.845 (+0.068 vs prior, t=4.2) | pdir 22.903 |
+| orbit | 22.291 | foot_all_iso 22.911 | **23.022 (+0.732; +0.112 vs prior, t=6.0)** | (identical: theta >= 90 deg) | chan 23.006 / mlp 22.991 |
+| DL3DV-u | 16.404 | hidden TTT-RoPE 16.649 | **16.870 (+0.466; +0.221 vs prior, t=11.2)** | running (15:20) | pdir 16.943 |
+Every entry beats the prior best on its dataset with the same code and the same hyper-parameters; the gap to the
+per-dataset specialised cell is <= 0.08 dB (RE10K/DL3DV-u: the gate switches the direction half off on the wide
+scenes where ungated pdir still profits a little; orbit: none). Single seed 137 throughout -- differences below
+~0.1 dB between cells are within seed noise and are not claimed.
