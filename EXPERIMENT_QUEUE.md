@@ -572,3 +572,8 @@ run_dl3dv.sh (IMG="256 448"). Diagnostic: `diag_depth.py` (per-layer s stats; vs
 - 2026-09-03 16:05 DP PROGRAM CLOSED (42 cells on node1, node2 silent): goal met on all three datasets, one config
   `config/dp_mlp_pdirgh_both.yaml` (learned-depth point code at both sites + hard geometry-gated direction half)
   beats the prior best everywhere; full record in RESULTS_DOSSIER.md F87 + addenda 1-16. All GPUs idle, queue empty.
+- 2026-09-07 20:45 CHECKPOINT PURGE (user decision, storage at 97%): every experiment checkpoint in the repo was
+  deleted -- lact_nvs (1,038 .pth, 121 GB), lact_ar_video (421 DCP dirs + recam ckpts, 2.6 TB, incl. _keep_step13999),
+  tttlrm_ref (80 .pt, 212 GB; 45 GB runaway log truncated), lact_llm (298 .pt, 229 GB), prope_run/RayRoPE (90, 27 GB),
+  nwm_ttt. Repo 3.3 TB -> ~35 GB. eval*.json, train logs and configs are intact; reproducing any number means
+  re-training from its config (RE10K/orbit/DL3DV cell ~1.7 h; video runs days).

@@ -180,6 +180,9 @@ credential helper. Nothing else about Claude needs recovering.
   `credential.helper`).
 - Checkpoints/evals land in `lact_nvs/outputs/` (lustre, durable). All pre-reset checkpoints were lost;
   results live only in `RESULTS_DOSSIER.md`.
+- **2026-09-07: all checkpoints in the repo were purged for space** (lact_nvs, lact_ar_video, lact_llm,
+  tttlrm_ref, prope_run, RayRoPE). Only `eval*.json`, logs and configs remain; a checkpoint you need must be
+  re-trained from its config (see `EXPERIMENT_QUEUE.md` 2026-09-07 entry).
 
 ## Gotchas
 
