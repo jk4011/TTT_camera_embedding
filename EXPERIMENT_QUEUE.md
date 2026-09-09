@@ -581,5 +581,8 @@ run_dl3dv.sh (IMG="256 448"). Diagnostic: `diag_depth.py` (per-layer s stats; vs
 ## 2026-09-10 DP2: depth only (user: drop the hard gate). Two questions, three datasets, seed 137
 1. camera POSITION instead of ray direction as the second half (`pcam`: [X - p*, o - p*], RayRoPE's camera+point pairing)
 2. v/o carrier on top (`vo_rope`, `vo_coords: foot` -> carrier phase at the PREDICTED depth point)
-Cells: {re10k,gobj,dl3dvu}_dpmlp_{pcam,vo,pcam_vo}_s137 (configs config/dp_mlp_{pcam,vo,pcam_vo}_both.yaml).
+3. RayRoPE itself in the TTT layer (`rayrope_ttt`: d_pj+0_3d, 3 rays, (log d, sigma) head, band-averaged
+   coefficients, q/k + v/o, no hidden rope; one memory update per query camera)
+User's table (04:10): (1) point+ray = pdir [done] (2) point+camera = pcam (3) point+ray+v/o = pdir_vo (4) RayRoPE.
+Cells: {re10k,gobj,dl3dvu}_{dpmlp_pcam,dpmlp_pdir_vo,rayrope}_s137 (configs dp_mlp_pcam_both / dp_mlp_pdir_vo_both / rayrope_ttt).
 GPUs shared with another project (surflo train.py, ~25 GB/GPU); our cells overlap (57 GB RE10K/orbit, 94 GB DL3DV-u).

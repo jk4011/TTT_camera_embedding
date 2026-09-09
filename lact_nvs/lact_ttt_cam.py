@@ -1122,6 +1122,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         bump_kappa: float = 2.0,
         pdir_theta0: float = 45.0,
         pdir_gate: str = "soft",
+        rr_pos_enc: str = "d_pj+0_3d",
+        rr_rays: int = 3,
+        rr_freqs: int = 4,
+        rr_freq_base: float = 3.0,
+        rr_vo: bool = True,
+        rr_init_sigma: float = 3.0,
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1158,12 +1164,44 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  "pdirg",
                  # pcam: like pdir but the second half carries the CAMERA POSITION o - p* instead of the
                  # ray direction (RayRoPE-style "camera + 3D point" pairing; constant within a view).
-                 "pcam"}
+                 "pcam",
+                 # rayrope_ttt (2026-09-10, user request): RayRoPE (Wu et al.) ported to the TTT layer as
+                 # faithfully as the kernel allows -- see _rayrope_ttt.
+                 "rayrope_ttt"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
         dpt_modes = self.cam_modes & {"dpt_mlp", "dpt_chan", "dpt_mem"}
         assert len(dpt_modes) <= 1, "one depth source at a time"
+        if "rayrope_ttt" in self.cam_modes:
+            # RayRoPE port. Faithful parts: 'd_pj+0_3d' positions (point at the predicted depth, projected
+            # into the QUERY camera (2 direction + 1 depth coords) x rr_rays rays per patch, plus the
+            # key's camera centre in the query camera's frame), a linear depth head predicting
+            # (log d, sigma) with zero-init weights and bias (0, rr_init_sigma), the two-depth band
+            # exp(log d -/+ sigma) whose rotary coefficients are AVERAGED over the angle interval
+            # (RayRoPE's uncertainty), RoPE on q/k and (rr_vo) on v with the inverse on the output,
+            # frequency ladders with periods 4 (3d) / 8 (dir) / 80 (depth) and ratio rr_freq_base.
+            # TTT-specific part: the query-frame relativity needs one fast-weight memory PER QUERY
+            # CAMERA (attention re-rotates the keys per query camera; here the keys are re-coded and
+            # the update is redone from the slow init for each query view) -- V updates per layer.
+            assert self.cam_modes == {"rayrope_ttt"}, "rayrope_ttt is standalone"
+            assert rr_pos_enc == "d_pj+0_3d", "only the paper default 'd_pj+0_3d' is ported"
+            self.rr_rays, self.rr_freqs, self.rr_vo = int(rr_rays), int(rr_freqs), bool(rr_vo)
+            self.rr_dhead = nn.Linear(dim, 2)
+            nn.init.zeros_(self.rr_dhead.weight)
+            with torch.no_grad():
+                self.rr_dhead.bias.copy_(torch.tensor([0.0, float(rr_init_sigma)]))
+            offs = {3: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]], 2: [[0.0, 0.0], [1.0, 1.0]], 1: [[0.5, 0.5]]}[self.rr_rays]
+            self.register_buffer("rr_offsets", torch.tensor(offs), persistent=False)
+            coord_dim = 3 + self.rr_rays * 3
+            assert 2 * self.rr_freqs * coord_dim <= head_dim, (self.rr_freqs, coord_dim, head_dim)
+            def _lad(max_period):
+                min_period = max_period / (float(rr_freq_base) ** (self.rr_freqs - 1))
+                lo, hi = math.log(2 * math.pi / max_period), math.log(2 * math.pi / min_period)
+                return torch.exp(torch.linspace(lo, hi, self.rr_freqs))
+            self.register_buffer("rr_f_p0", _lad(1.0 * 4), persistent=False)      # 3d coords
+            self.register_buffer("rr_f_dir", _lad(2.0 * 4), persistent=False)     # projected directions
+            self.register_buffer("rr_f_dep", _lad(10.0 * 2 * 4), persistent=False)  # depth (clamped +-10)
         # pdir0 = pdir with the direction gains initialised at ZERO (the code starts as point-only and
         # switches the direction half on only where the gradient asks for it; DP-11: with gains at 1 the
         # direction half cost 0.18 dB on orbit and the gains never moved off 0.9).
@@ -2088,6 +2126,93 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         info.pop(self._dpt_key, None)
         return out, w0, w1, w2
 
+    # ---------- RayRoPE port ----------
+
+    def _rr_coeffs(self, pd_w, p0_w, P_j, w2c_j):
+        """RayRoPE rotary coefficients of N tokens seen from query camera j.
+        pd_w: (pd1, pd2) each [b, N, R, 4] world points at the two band depths; p0_w: [b, N, 4] the
+        token's camera centre; P_j / w2c_j: [b, 4, 4]. Returns cos, sin [b, N, F * coord_dim]."""
+        cos_parts, sin_parts = [], []
+        # camera centre in the query frame ('0_3d'): plain rotary
+        x = torch.einsum("bij,bnj->bni", w2c_j, p0_w)
+        x = (x / x[..., 3:4].clamp_min(1e-4))[..., :3]                                    # [b, N, 3]
+        th = self.rr_f_p0[None, None, :, None] * x[:, :, None, :]                           # [b, N, F, 3]
+        cos_parts.append(th.cos()); sin_parts.append(th.sin())
+        # point at depth, projected into the query camera ('d_pj'): band-averaged rotary
+        ths = []
+        for pd in pd_w:
+            pc = torch.einsum("bij,bnrj->bnri", P_j, pd)                                    # [b, N, R, 4]
+            z = torch.sqrt(pc[..., 2:3] ** 2 + 1e-9).clamp_min(1e-4)
+            w = pc[..., 3:4].clamp_min(1e-4)
+            dr = pc[..., :3] / (pc[..., :3].norm(dim=-1, keepdim=True) + 1e-6)
+            dr = dr[..., :2].flatten(-2, -1)                                                # [b, N, 2R]
+            dep = (z / w).clamp(-10.0, 10.0).flatten(-2, -1)                                # [b, N, R]
+            th_dir = self.rr_f_dir[None, None, :, None] * dr[:, :, None, :]                 # [b, N, F, 2R]
+            th_dep = self.rr_f_dep[None, None, :, None] * dep[:, :, None, :]                # [b, N, F, R]
+            ths.append(torch.cat([th_dir, th_dep], -1))
+        t1, t2 = ths
+        delta = t2 - t1
+        same = delta.abs() < 1e-2
+        dsafe = torch.where(same, torch.ones_like(delta), delta)
+        e_cos = torch.where(same, t1.cos(), (t2.sin() - t1.sin()) / dsafe)
+        e_sin = torch.where(same, t1.sin(), (t1.cos() - t2.cos()) / dsafe)
+        cos_parts.append(e_cos); sin_parts.append(e_sin)
+        c = torch.cat(cos_parts, -1); sn = torch.cat(sin_parts, -1)                          # [b, N, F, C]
+        return c.flatten(2), sn.flatten(2)
+
+    def _rayrope_ttt(self, info, x, q, k, v, lr0, lr1, lr2, w0, w1, w2, ops):
+        """RayRoPE in the TTT layer: for every query view j, code the input keys/values in camera j's
+        frame, update a fresh memory on them, apply it to view j's queries (coded in their own frame),
+        and rotate the output back (v/o). See the 'rayrope_ttt' note in __init__."""
+        assert "w0" not in info, "rayrope_ttt: the memory depends on the query camera -- use forward(), not reconstruct/rendering"
+        assert len(ops) == 2 and ops[0].update and not ops[0].apply and ops[1].apply and ops[0].start == 0 and ops[1].start == 0, ops
+        n_in, n_all = ops[0].end, ops[1].end
+        tpv = info["tokens_per_view"]; V = n_all // tpv; nh = self.num_heads; b = x.shape[0]
+        with torch.autocast(device_type=x.device.type, enabled=False):
+            K, w2c, c2w = info["view_K_norm"].float(), info["view_w2c"].float(), info["view_c2w"].float()
+            P = lift_K4(K) @ w2c                                                            # [b, V, 4, 4]
+            P_inv = c2w @ lift_K4_inv(K)
+            uv0 = info["tok_uv"][0, :tpv, 0]
+            hh = int(torch.unique(uv0).numel()); ww = tpv // hh
+            idx = torch.arange(n_all, device=x.device)
+            vidx, pix = idx // tpv, idx % tpv
+            rows, cols = (pix // ww).float(), (pix % ww).float()
+            offs = self.rr_offsets                                                          # [R, 2]
+            u = (cols[:, None] + offs[None, :, 0]) / ww - 0.5                               # [L, R]
+            vv = (rows[:, None] + offs[None, :, 1]) / hh - 0.5
+            dh = self.rr_dhead(x.float())                                                   # [b, L, 2]
+            logd, sig = dh[..., 0:1], dh[..., 1:2]
+            pd_w = []
+            for sgn in (-1.0, 1.0):
+                d = torch.exp(torch.clamp(logd + sgn * sig, max=3.0)).clamp(1e-2, 100.0)   # [b, L, 1]
+                hom = torch.stack([u.expand(b, -1, -1), vv.expand(b, -1, -1), torch.ones(b, n_all, self.rr_rays, device=x.device),
+                                   (1.0 / d).expand(-1, -1, self.rr_rays)], -1)             # [b, L, R, 4]
+                pd_w.append(torch.einsum("blij,blrj->blri", P_inv[:, vidx], hom))
+            p0_w = c2w[:, vidx, :, 3]                                                        # [b, L, 4]
+            coeffs = []
+            for j in range(V):
+                sl = slice(j * tpv, (j + 1) * tpv)
+                cK, sK = self._rr_coeffs((pd_w[0][:, :n_in], pd_w[1][:, :n_in]), p0_w[:, :n_in], P[:, j], w2c[:, j])
+                cQ, sQ = self._rr_coeffs((pd_w[0][:, sl], pd_w[1][:, sl]), p0_w[:, sl], P[:, j], w2c[:, j])
+                coeffs.append((to_heads(cK, nh), to_heads(sK, nh), to_heads(cQ, nh), to_heads(sQ, nh)))
+        outs = []
+        for j in range(V):
+            sl = slice(j * tpv, (j + 1) * tpv)
+            cK, sK, cQ, sQ = coeffs[j]
+            kj = apply_rotary_pairs(k[:, :n_in], cK, sK, inverse=True)
+            vj = apply_rotary_pairs(v[:, :n_in], cK, sK, inverse=True) if self.rr_vo else v[:, :n_in]
+            qj = apply_rotary_pairs(q[:, sl], cQ, sQ, inverse=True)
+            seq_qk = torch.cat([kj, qj], dim=1)
+            seq_v = torch.cat([vj, v[:, sl]], dim=1)
+            l0 = torch.cat([lr0[:, :n_in], lr0[:, sl]], 1); l1 = torch.cat([lr1[:, :n_in], lr1[:, sl]], 1); l2 = torch.cat([lr2[:, :n_in], lr2[:, sl]], 1)
+            ops_j = [TTTOperator(0, n_in, True, False), TTTOperator(n_in, n_in + tpv, False, True)]
+            out_j, _, _, _ = fast_weight_swish_glu_weight_norm_mini_batch_apply(
+                w0, w1, w2, seq_qk, seq_qk, seq_v, l0, l1, l2, ops_j, muon_update_steps=self.muon_update_steps)
+            if self.rr_vo:
+                out_j = apply_rotary_pairs(out_j, cQ, sQ, inverse=False)
+            outs.append(out_j)
+        return torch.cat(outs, dim=1), w0, w1, w2
+
     def _prope_mats(self, info):
         K, w2c = info["view_K_norm"].float(), info["view_w2c"].float()
         P = lift_K4(K) @ w2c
@@ -2634,6 +2759,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             )
             fw_state_extra["wb"] = wb
             fw_state_extra["wc"] = wc
+        elif "rayrope_ttt" in modes:
+            output, w0, w1, w2 = self._rayrope_ttt(info, x, q, k, v, lr0, lr1, lr2, w0, w1, w2, ttt_op_order)
         elif "dpt_mem" in modes:
             # MEMORY-READOUT DEPTH (two passes, no new parameters). Pass 1 codes q/k/h with the
             # foot depth t_c, updates the fast weights on the input tokens and applies them to
