@@ -1155,7 +1155,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # g = exp(-(theta / theta0)^2), theta = mean pairwise angle between the input views'
                  # optical axes -- the direction phases of matched pixels wrap once views differ by large
                  # angles, so the half is faded out with the scene's angular spread (no learning involved).
-                 "pdirg"}
+                 "pdirg",
+                 # pcam: like pdir but the second half carries the CAMERA POSITION o - p* instead of the
+                 # ray direction (RayRoPE-style "camera + 3D point" pairing; constant within a view).
+                 "pcam"}
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
@@ -1165,6 +1168,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         # switches the direction half on only where the gradient asks for it; DP-11: with gains at 1 the
         # direction half cost 0.18 dB on orbit and the gains never moved off 0.9).
         assert not ({"pdir", "pdir0"} <= self.cam_modes), "pdir and pdir0 are exclusive"
+        assert not ({"pdir", "pcam"} <= self.cam_modes) and not ({"pdir0", "pcam"} <= self.cam_modes), "pcam replaces pdir"
+        self._pdir_coord = "cam" if "pcam" in self.cam_modes else "dir"
+        if "pcam" in self.cam_modes:
+            self.cam_modes.discard("pcam"); self.cam_modes.add("pdir")
         if "pdir0" in self.cam_modes:
             self.cam_modes.discard("pdir0"); self.cam_modes.add("pdir"); self._pdir_zero = True
         else:
@@ -1176,8 +1183,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.pdir_gate = pdir_gate      # soft: exp(-(theta/theta0)^2); hard: 1[theta < theta0]
         if dpt_modes or "pdir" in self.cam_modes:
             assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
-            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg"} - dpt_modes), \
-                "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf)"
+            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg", "vo_rope"} - dpt_modes), \
+                "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf, vo_rope)"
+            if "vo_rope" in self.cam_modes:
+                assert "dpt_mem" not in self.cam_modes, "vo_rope carrier at the predicted depth needs a single-pass depth (mlp/chan)"
         # per-layer override key for the point-RoPE depth (set during forward, popped after)
         self._dpt_key = "_dpt_tc_%d" % id(self)
         if "dpt_mlp" in self.cam_modes:
@@ -2013,7 +2022,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if "pdir" in modes:
                 # + direction half: phases of d projected on the same dirs / ladder, own gains
                 gd = self.gain_dir_in if site == "in" else self.gain_dir_h
-                pd = info["tok_d"] @ dirs.t()                                      # [b, L, n]
+                sec = info["tok_d"] if self._pdir_coord == "dir" else (info["tok_o"] - info["focus"][:, None, :])
+                pd = sec @ dirs.t()                                                # [b, L, n]
                 th = (pd[..., None] * (om[None, None, None] * gd[None, None])).flatten(2)
                 if "pdirg" in modes:
                     # per-scene geometry gate on the direction half (see 'pdirg' in known)
@@ -2497,7 +2507,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if self.vo_coords == "foot":
                 # phase carrier on the FOOT POINT: matched pairs have delta x_c ~ 0, so the
                 # carrier phase is near-identity exactly where it matters (unlike ray coords).
-                xc_tok = info["tok_o"] + info["tok_tc"].clamp_min(0.02) * info["tok_d"]
+                # (with a dpt_* mode the per-token predicted depth replaces the foot depth t_c)
+                xc_tok = info["tok_o"] + info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02).to(info["tok_o"].dtype) * info["tok_d"]
                 th = (xc_tok[..., None] * (self.omega_vo[None, None, None]
                                            * self.gain_vo[None, None])).flatten(2)
                 vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)

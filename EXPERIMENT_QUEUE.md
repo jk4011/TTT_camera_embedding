@@ -577,3 +577,9 @@ run_dl3dv.sh (IMG="256 448"). Diagnostic: `diag_depth.py` (per-layer s stats; vs
   tttlrm_ref (80 .pt, 212 GB; 45 GB runaway log truncated), lact_llm (298 .pt, 229 GB), prope_run/RayRoPE (90, 27 GB),
   nwm_ttt. Repo 3.3 TB -> ~35 GB. eval*.json, train logs and configs are intact; reproducing any number means
   re-training from its config (RE10K/orbit/DL3DV cell ~1.7 h; video runs days).
+
+## 2026-09-10 DP2: depth only (user: drop the hard gate). Two questions, three datasets, seed 137
+1. camera POSITION instead of ray direction as the second half (`pcam`: [X - p*, o - p*], RayRoPE's camera+point pairing)
+2. v/o carrier on top (`vo_rope`, `vo_coords: foot` -> carrier phase at the PREDICTED depth point)
+Cells: {re10k,gobj,dl3dvu}_dpmlp_{pcam,vo,pcam_vo}_s137 (configs config/dp_mlp_{pcam,vo,pcam_vo}_both.yaml).
+GPUs shared with another project (surflo train.py, ~25 GB/GPU); our cells overlap (57 GB RE10K/orbit, 94 GB DL3DV-u).
