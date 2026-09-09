@@ -9,7 +9,7 @@ CamFastWeightGluMLPMultihead._dpt_depth) on held-out scenes and reports
     separately for input tokens (RGB available) and target tokens (pose only).
 Usage mirrors eval.py:
   python diag_depth.py --load outputs/<exp>/model_0030000.pth --config config/dp_mlp_both.yaml
-      [--data_path /tmp/gobj/test_index.json --min_frames 40 --depth_dir .../gobj_depth_patch/test]
+      [--data_path /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard/gobj/test_index.json --min_frames 40 --depth_dir .../gobj_depth_patch/test]
       [--image_size 256 448] [--num_scenes 32] [--out outputs/<exp>/diag_depth.json]
 """
 import argparse
@@ -28,7 +28,7 @@ from model import LaCTLVSM
 parser = argparse.ArgumentParser()
 parser.add_argument("--load", type=str, required=True)
 parser.add_argument("--config", type=str, required=True)
-parser.add_argument("--data_path", type=str, default="/tmp/re10k/test_index.json")
+parser.add_argument("--data_path", type=str, default="/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard/re10k/test_index.json")
 parser.add_argument("--num_scenes", type=int, default=32)
 parser.add_argument("--num_input_views", type=int, default=8)
 parser.add_argument("--num_target_views", type=int, default=4)

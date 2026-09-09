@@ -1,6 +1,7 @@
 #!/bin/bash
 # Usage: launch_exp.sh <gpu> <expname> <config>
 # Single-GPU 30k-iter training run with the standard experiment protocol.
+DATA_ROOT=${DATA_ROOT:-/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard}   # resharded datasets live on LUSTRE (user rule 2026-09-10: never /tmp)
 set -u
 GPU=$1
 EXP=$2
@@ -16,8 +17,13 @@ WARMUP=${WARMUP:-1500}
 # Dataset overrides for the DL3DV cross-data run. Defaults reproduce RE10K exactly.
 # DL3DV is resharded into the RE10K per-scene .torch format (reshard_dl3dv.py), so
 # DATASET stays "re10k" even for DL3DV -- it names the FORMAT, not the corpus.
-DATA_PATH=${DATA_PATH:-/tmp/re10k/train_index.json}
+DATA_PATH=${DATA_PATH:-$DATA_ROOT/re10k/train_index.json}
 DATASET=${DATASET:-re10k}
+# Image size override (H W). Default 256 256 = the standard square protocol, which for
+# 16:9 sources means a cover-resize to 455x256 and then a CENTER CROP that throws away
+# 43.7% of the horizontal field. IMAGE_SIZE="256 448" keeps 98.5% of it (no crop) at the
+# cost of 1.75x tokens/view -- the DL3DV view-overlap test.
+IMAGE_SIZE=${IMAGE_SIZE:-"256 256"}
 
 PY_ENV=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin
 cd "$(dirname "$0")"
@@ -39,7 +45,7 @@ CUDA_VISIBLE_DEVICES=$GPU $PY_ENV/torchrun \
   --expname $EXP \
   --steps $STEPS --warmup $WARMUP --lr 1e-4 --lpips_start 5000 --seed $SEED \
   --bs_per_gpu 16 --num_all_views 15 --num_input_views 8 --num_target_views 8 \
-  --image_size 256 256 --num_workers 7 \
+  --image_size $IMAGE_SIZE --num_workers 7 \
   --save_every 10000 --log_every 200 \
   > outputs/$EXP/train.log 2>&1
 echo "EXIT $? $EXP" >> outputs/exp_status.log

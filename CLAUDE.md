@@ -153,9 +153,12 @@ credential helper. Nothing else about Claude needs recovering.
 
 - **Python env**: venv at `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm` (torch 2.11+cu128 for
   B200/sm_100; the old conda env path in git history is dead). All `lact_nvs/*.sh` already point here.
-- **RE10K data**: source chunks survive at `/NHNHOME/WORKSPACE/26msit001_A/V-LAB/Datasets/re10k`
-  (train+test). Working copy must be reshared into node-local `/tmp/re10k` via
-  `data_preprocess/reshard_re10k.py` (~2 min, 536 G tmpfs) — gone after every reset; reshard first.
+- **Datasets (2026-09-10 rule: NEVER stage data in `/tmp`)**: the resharded working copies live on lustre at
+  `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard/{re10k,gobj,dl3dv}` (durable; launchers, `eval.py`
+  and the diag scripts read `DATA_ROOT`, default = that path). Sources: RE10K chunks
+  `/NHNHOME/WORKSPACE/26msit001_A/V-LAB/Datasets/re10k`, gObjaverse `dataset/gobjaverse_wai`, DL3DV
+  `V-LAB/Datasets/dl3dv/dl3dv_undistorted_960`. Reason: on 2026-09-10 a ~780 GB tmpfs reshard on a 4-GPU
+  container (invisible memory quota) killed the whole Slurm allocation, including the user's other project.
 - **Compile caches**: default `/tmp/torchinductor_*` is noexec → triton crashes mid-train ("failed to
   map segment"). `launch_exp.sh` now exports NFS caches (`.cache_triton_nvs`/`.cache_inductor_nvs`)
   + `TORCHINDUCTOR_COMPILE_THREADS=1`; keep that in any new launcher.

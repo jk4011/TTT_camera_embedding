@@ -21,7 +21,7 @@ from model import LaCTLVSM
 parser = argparse.ArgumentParser()
 parser.add_argument("--load", type=str, required=True)
 parser.add_argument("--config", type=str, required=True)
-parser.add_argument("--data_path", type=str, default="/tmp/re10k/test_index.json")
+parser.add_argument("--data_path", type=str, default="/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard/re10k/test_index.json")
 parser.add_argument("--num_scenes", type=int, default=256)
 parser.add_argument("--num_input_views", type=int, default=8)
 parser.add_argument("--num_target_views", type=int, default=4)

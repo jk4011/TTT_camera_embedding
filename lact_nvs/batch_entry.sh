@@ -9,6 +9,7 @@
 # implied; '#' comments). Completed runs (eval.json present) are SKIPPED, so
 # resubmitting after a kill simply continues where the last job stopped.
 # Everything durable (checkpoints, logs, eval.json) lands in outputs/ on lustre.
+DATA_ROOT=${DATA_ROOT:-/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard}   # resharded datasets live on LUSTRE (user rule 2026-09-10: never /tmp)
 set -u
 cd "$(dirname "$0")"
 PY_ENV=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin
@@ -27,13 +28,13 @@ NGPU=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l)
 echo "[batch] $NGPU GPUs visible"
 
 # ---- 1. data: reshard RE10K into this node's /tmp if missing ----
-if [ ! -f /tmp/re10k/train_index.json ]; then
-  echo "[batch] resharding RE10K -> /tmp/re10k"
-  mkdir -p /tmp/re10k
-  $PY data_preprocess/reshard_re10k.py --src "$RE10K_SRC/test"  --odir /tmp/re10k/test  --index /tmp/re10k/test_index.json  --workers 32
-  $PY data_preprocess/reshard_re10k.py --src "$RE10K_SRC/train" --odir /tmp/re10k/train --index /tmp/re10k/train_index.json --workers 32
+if [ ! -f $DATA_ROOT/re10k/train_index.json ]; then
+  echo "[batch] resharding RE10K -> $DATA_ROOT/re10k"
+  mkdir -p $DATA_ROOT/re10k
+  $PY data_preprocess/reshard_re10k.py --src "$RE10K_SRC/test"  --odir $DATA_ROOT/re10k/test  --index $DATA_ROOT/re10k/test_index.json  --workers 32
+  $PY data_preprocess/reshard_re10k.py --src "$RE10K_SRC/train" --odir $DATA_ROOT/re10k/train --index $DATA_ROOT/re10k/train_index.json --workers 32
 fi
-echo "[batch] data ready: $($PY -c "import json;print(len(json.load(open('/tmp/re10k/train_index.json'))))") train scenes"
+echo "[batch] data ready: $($PY -c "import json;print(len(json.load(open('$DATA_ROOT/re10k/train_index.json'))))") train scenes"
 
 # ---- 2. build worklist: skip runs whose eval.json already exists ----
 JOBS=()

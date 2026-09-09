@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Standard RE10K cell launcher (8-view, 30k, F-series protocol) with GPU lock + eval, resumable.
 #   ./run_re10k.sh <gpu> <exp> <config> [seed=95]     env: NODE, SKIP_EVAL=1
+DATA_ROOT=${DATA_ROOT:-/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard}   # resharded datasets live on LUSTRE (user rule 2026-09-10: never /tmp)
 set -u
 main() {
   GPU=$1; EXP=$2; CFG=$3; SEED=${4:-95}
   cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   PY=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin/python
-  [ -f /tmp/re10k/train_index.json ] || { echo "FATAL: /tmp/re10k missing (reshard_re10k.py)"; exit 1; }
+  [ -f $DATA_ROOT/re10k/train_index.json ] || { echo "FATAL: $DATA_ROOT/re10k missing (reshard_re10k.py)"; exit 1; }
   [ -f "outputs/$EXP/eval.json" ] && { echo "[$EXP] already evaluated"; exit 0; }
   mkdir -p outputs/.gpu_locks; LOCK="outputs/.gpu_locks/${NODE:-$(hostname -s)}_gpu$GPU"; echo "$EXP" > "$LOCK"; trap 'rm -f "$LOCK"' EXIT
   CKPT="outputs/$EXP/model_0030000.pth"

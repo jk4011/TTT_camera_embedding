@@ -68,8 +68,8 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 ### 3.DP2 — **depth 심화** (2026-09-10 02:20, 사용자 지시: 하드 게이트 제거, depth만 파기). 기준: 점-only dpt_mlp both (RE10K 22.290 / orbit 22.991 / DL3DV-u 16.888), 참고 pdir (22.903 / 22.809 / 16.943). seed 137, 8-view/30k. GPU는 다른 프로젝트(surflo, GPU당 25 GB)와 겹쳐 사용.
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
-| D2-1 | `re10k_dpmlp_pcam_s137` | `config/dp_mlp_pcam_both.yaml` (**pcam**: 점 절반 + **카메라 위치 o−p*** 절반, seg 21/hseg 42) | RE10K | [PENDING] |
-| D2-2 | `gobj_dpmlp_pcam_s137` | 같은 config (`DATA=gobj`) | orbit | [PENDING] |
+| D2-1 | `re10k_dpmlp_pcam_s137` | `config/dp_mlp_pcam_both.yaml` (**pcam**: 점 절반 + **카메라 위치 o−p*** 절반, seg 21/hseg 42) | RE10K | [DIED 03:05 — 노드 할당 종료(내 tmpfs 리샤드 ~780 GB + 타 프로젝트 500 GB 메모리 초과 추정); 재실행 필요] |
+| D2-2 | `gobj_dpmlp_pcam_s137` | 같은 config (`DATA=gobj`) | orbit | [DIED 03:05 — 같은 이유; 재실행 필요] |
 | D2-3 | `dl3dvu_dpmlp_pcam_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING] |
 | D2-4 | `re10k_dpmlp_vo_s137` | `config/dp_mlp_vo_both.yaml` (점-only + **v/o 캐리어**, 캐리어 좌표 = 예측 depth의 점) | RE10K | [PENDING] |
 | D2-5 | `gobj_dpmlp_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [PENDING] |

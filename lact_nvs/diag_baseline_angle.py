@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from data_re10k import Re10KDataset
 
 p = argparse.ArgumentParser()
-p.add_argument("--data_path", default="/tmp/re10k/test_index.json")
+p.add_argument("--data_path", default="/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard/re10k/test_index.json")
 p.add_argument("--num_scenes", type=int, default=64)
 p.add_argument("--num_input_views", type=int, default=8)
 p.add_argument("--num_target_views", type=int, default=4)

@@ -4,16 +4,17 @@
 #   ./run_gobj.sh <gpu> <exp> <config> [seed=95]
 #   env: STEPS (30000), DEPTH_DIR (unset; set for oracle cells -> --depth_dir on train+eval),
 #        NODE (hostname -s) for the shared lock dir, SKIP_EVAL=1,
-#        DATA=gobj (default; orbit renders, /tmp/gobj, min_frames 40) | gobj_vi (RayRoPE
-#        vary-intrinsics re-renders, /tmp/gobj_vi, 24 views/object, min_frames 24 -- the
+#        DATA=gobj (default; orbit renders, $DATA_ROOT/gobj, min_frames 40) | gobj_vi (RayRoPE
+#        vary-intrinsics re-renders, $DATA_ROOT/gobj_vi, 24 views/object, min_frames 24 -- the
 #        F69 / run_ttt_vi_grid.sh protocol; exp names conventionally start with gobjvi_)
 #
-# Protocol = run_gobj_grid.sh exactly (F51 recipe): RE10K-format gObjaverse in /tmp/gobj,
+# Protocol = run_gobj_grid.sh exactly (F51 recipe): RE10K-format gObjaverse in $DATA_ROOT/gobj,
 # --scene_pose_normalize, --min_frames 40, 30k iters, bs16, lr 1e-4, LPIPS from 5k, 8 input
 # + 8 target of 15... (num_all_views 15 is the stock launcher value; the loader samples
 # num_all_views frames and the trainer slices 8 inputs / last 8 targets), 256x256.
-# Eval: /tmp/gobj/test_index.json, first 500 scenes, 8 uniform inputs / 4 midpoint targets.
+# Eval: $DATA_ROOT/gobj/test_index.json, first 500 scenes, 8 uniform inputs / 4 midpoint targets.
 # Resumable: skips a finished cell (eval.json), train.py resumes from its outputs dir.
+DATA_ROOT=${DATA_ROOT:-/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/dataset/reshard}   # resharded datasets live on LUSTRE (user rule 2026-09-10: never /tmp)
 set -u
 # The whole body lives in main() so bash parses it completely before running: editing this
 # file while cells are in flight no longer corrupts the running wrappers (2026-08-31 incident:
@@ -23,8 +24,8 @@ main() {
   STEPS=${STEPS:-30000}
   DATA=${DATA:-gobj}
   case "$DATA" in
-    gobj)    DROOT=/tmp/gobj;    MINF=40 ;;
-    gobj_vi) DROOT=/tmp/gobj_vi; MINF=24 ;;
+    gobj)    DROOT=$DATA_ROOT/gobj;    MINF=40 ;;
+    gobj_vi) DROOT=$DATA_ROOT/gobj_vi; MINF=24 ;;
     *) echo "FATAL: DATA must be gobj or gobj_vi"; exit 1 ;;
   esac
   cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
