@@ -88,7 +88,7 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | D2-17 | `dl3dvu_rayropew_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.790 — base +0.39; 점-only 대비 −0.10; 쿼리별 대비 −0.39; σ 역시 ~3 유지] |
 | D2-18 | `re10k_rayropew0_s137` | `config/rayrope_ttt_world_s0.yaml` (world-frame, **σ₀=0**: 점 코드를 켠 채 시작 — 쿼리별 셀이 실제로 돌았던 조건) | RE10K | [DONE **23.053** — base +1.44; 점+ray+v/o(22.999) 대비 +0.05(동률); 쿼리별(23.089) 대비 −0.04(동률); σ₀=3판(22.431) 대비 +0.62] |
 | D2-19 | `gobj_rayropew0_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.730 — base +0.44; 점-only 대비 −0.26; 점+v/o(23.172) 대비 −0.44; 쿼리별(23.270) 대비 −0.54; pcam 대비 +0.17] |
-| D2-20 | `dl3dvu_rayropew0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 02:53] |
+| D2-20 | `dl3dvu_rayropew0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.842 — base +0.44; 점-only 대비 −0.05; 점+ray+v/o 대비 −0.18; 쿼리별 대비 −0.34 — **DP2 전 셀 완료(05:35), GPU 4장 유휴**] |
 
 ### 3.DP — **depth 예측 → 3D point → point-RoPE** (2026-09-02 16:30, 사용자 지시; 이전 "PE only / depth head 금지" 규칙 해제)
 사용자 목표: **세 데이터 모두에서 기존 최고 PSNR을 넘기** (RE10K: Plücker TTT-RoPE both +1.17; orbit: foot_all_iso 22.911; DL3DV-u: TTT-RoPE +0.19).

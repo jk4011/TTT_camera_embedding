@@ -590,3 +590,6 @@ GPUs shared with another project (surflo train.py, ~25 GB/GPU); our cells overla
   new node = run setup_node.sh, then the SAME launch commands (data is on lustre, no reshard; train.py resumes
   from the latest model_*.pth in outputs/<exp>): pdir_vo RE10K/orbit from 10k/20k, DL3DV pcam/pdir_vo from 10k,
   RayRoPE RE10K/orbit from scratch (no 10k ckpt yet), DL3DV RayRoPE not started.
+- 2026-09-11 05:40 DP2 CLOSED (20 cells): summary table in RESULTS_DOSSIER F88. Best single-memory recipe stays
+  point + ray + v/o (dp_mlp_pdir_vo_both); RayRoPE beats it only with per-query-view memories (4-5x cost).
+  All GPUs idle, queue empty.

@@ -3806,3 +3806,31 @@ Readings so far:
   world-frame "camera position + point" code -- and like our pcam it loses to point-only on the orbit: the
   camera-centre coordinate is view identity unless it is expressed relative to the query camera. What made the
   query-frame port win here (23.270) is exactly the per-query re-expression, i.e. the part that costs V memories.
+- World-frame RayRoPE sigma0 = 0, DL3DV-u (05:34): 16.842 = +0.438 vs base, -0.046 vs point-only (tie), -0.180 vs
+  point+ray+v/o (t=-7.5), -0.339 vs the query-frame port.
+
+### F88 summary table (seed 137, 8-view/30k; PSNR; best per column in bold)
+| | method | RE10K | orbit | DL3DV-u |
+|---|---|---|---|---|
+| 0 | point-only (dpt_mlp, both sites) | 22.290 | 22.991 | 16.888 |
+| 1 | point + ray direction | 22.903 | 22.809 | 16.943 |
+| 2 | point + camera position (pcam) | 22.089 | 22.563 | 16.779 |
+| 3 | point + ray + v/o carrier | 22.999 | 23.031 | 17.022 |
+| 3b | point + v/o carrier (ablation) | 22.302 | 23.172 | 16.896 |
+| 4a | RayRoPE port, query-frame (one memory per query view, V updates) | **23.089** | **23.270** | **17.181** |
+| 4b | RayRoPE port, world-frame, single memory, sigma0 = 3 | 22.431 | 22.260 | 16.790 |
+| 4c | RayRoPE port, world-frame, single memory, sigma0 = 0 | 23.053 | 22.730 | 16.842 |
+Conclusions:
+1. The second half of the point code must be the RAY DIRECTION, not the camera position (row 2 < row 0 everywhere).
+2. The v/o carrier phased at the predicted-depth point is worth +0.08..+0.22 on top of point+ray (row 3 beats the
+   prior best on every dataset with one config); alone it is inert at narrow baseline and +0.18 on the orbit --
+   ray half and carrier are complementary (each covers the regime where the other fails).
+3. RayRoPE's ingredients WITHOUT its query-frame relativity (single memory, rows 4b/4c) do not beat our row 3:
+   with the wide initial band (sigma0 = 3) the point code never switches on (sigma stays ~3, a bootstrapping failure
+   we also saw for zero-init gains); with sigma0 = 0 it ties ours on RE10K (23.053 vs 22.999, t=1.4) and loses on
+   the orbit (-0.30) and DL3DV-u (-0.18), because a world-frame camera centre is view identity.
+4. RayRoPE WITH its relativity (row 4a) is the best cell on all three datasets (+0.09 / +0.24 / +0.16 over row 3;
+   the RE10K gap is a tie), but it needs one fast-weight update per query view (4-5x training cost, no
+   reconstruct/render split) -- attention pays this per-query cost natively, TTT does not.
+5. The uncertainty band (sinc-damped, non-orthogonal rotary) was never exercised: every run that trained the point
+   code ended with sigma ~ 0; the only runs where it was active (sigma0 = 3) it acted as a permanent off-switch.
