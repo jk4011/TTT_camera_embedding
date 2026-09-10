@@ -81,8 +81,11 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | D2-10 | `re10k_dpmlp_vo_s137` | `config/dp_mlp_vo_both.yaml` (점-only + v/o: 캐리어 단독 효과 분리용 ablation) | RE10K | [DONE 22.302 — 점-only(22.290) 대비 +0.01: RE10K에서 캐리어 단독은 무효, v/o 이득은 ray 절반과 함께일 때만(점+ray+v/o +0.10 vs 점+ray)] |
 | D2-11 | `gobj_dpmlp_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE **23.172** — 점-only 대비 +0.18, 점+ray+v/o(23.031) 대비 +0.14: orbit에서는 캐리어 단독이 최고(ray 절반은 캐리어가 있어도 −0.14)] |
 | D2-12 | `dl3dvu_dpmlp_vo_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.896 — 점-only(16.888) 대비 +0.01(무효), 점+ray+v/o(17.022) 대비 −0.13: DL3DV에서는 ray 절반이 필요] |
-| D2-13 | `gobj_rayrope_s3_s137` | `config/rayrope_ttt.yaml` (**init 수정 후** RayRoPE: depth head 0-초기화 + σ₀=3.0 → 처음엔 점 코드가 흐려진 상태에서 시작, 논문 그대로) | orbit | [RUNNING node1 gpu1 23:10 — 앞선 D2-7~9는 model.py의 전역 재초기화 때문에 σ₀≈0(좁은 대역)으로 돌았음] |
-| D2-14 | `re10k_rayrope_s3_s137` | 같은 config (init 수정판, σ₀=3) | RE10K | [RUNNING node1 gpu0 23:25] |
+| D2-13 | `gobj_rayrope_s3_s137` | `config/rayrope_ttt.yaml` (**init 수정 후** RayRoPE: depth head 0-초기화 + σ₀=3.0 → 처음엔 점 코드가 흐려진 상태에서 시작, 논문 그대로) | orbit | [KILLED 00:20 — 사용자 결정: 쿼리 카메라별 메모리(V회 update) 방식은 채택하지 않음 → world-frame 단일 메모리 버전으로 재측정] |
+| D2-14 | `re10k_rayrope_s3_s137` | 같은 config (init 수정판, σ₀=3) | RE10K | [KILLED 00:20 — 같은 이유] |
+| D2-15 | `re10k_rayropew_s137` | `config/rayrope_ttt_world.yaml` (**RayRoPE world-frame**: 카메라 중심 + 3-ray depth 대역(σ 구간평균) 좌표를 장면 공용 좌표계로, 단일 메모리·표준 TTT 비용; q/k + v/o, σ₀=3, init 수정판) | RE10K | [PENDING — 스모크 후] |
+| D2-16 | `gobj_rayropew_s137` | 같은 config (`DATA=gobj`) | orbit | [PENDING] |
+| D2-17 | `dl3dvu_rayropew_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING] |
 
 ### 3.DP — **depth 예측 → 3D point → point-RoPE** (2026-09-02 16:30, 사용자 지시; 이전 "PE only / depth head 금지" 규칙 해제)
 사용자 목표: **세 데이터 모두에서 기존 최고 PSNR을 넘기** (RE10K: Plücker TTT-RoPE both +1.17; orbit: foot_all_iso 22.911; DL3DV-u: TTT-RoPE +0.19).

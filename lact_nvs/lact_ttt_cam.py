@@ -1128,6 +1128,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         rr_freq_base: float = 3.0,
         rr_vo: bool = True,
         rr_init_sigma: float = 3.0,
+        rr_frame: str = "query",
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1187,6 +1188,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert self.cam_modes == {"rayrope_ttt"}, "rayrope_ttt is standalone"
             assert rr_pos_enc == "d_pj+0_3d", "only the paper default 'd_pj+0_3d' is ported"
             self.rr_rays, self.rr_freqs, self.rr_vo = int(rr_rays), int(rr_freqs), bool(rr_vo)
+            # rr_frame: "query" = RayRoPE's relativity (every key re-expressed in the query camera's frame ->
+            # one fast-weight memory per query view, V updates); "world" (user, 2026-09-11) = the same
+            # ingredients (camera centre + 3-ray point band with sigma averaging, ladders, q/k + v/o) but all
+            # positions in the shared scene frame -> ONE memory, standard TTT cost. In "world" both groups are
+            # 3d coordinates (RayRoPE's '0_3d' / 'd_3d' types; the 'pj' projection needs a query camera).
+            assert rr_frame in ("query", "world"), rr_frame
+            self.rr_frame = rr_frame
             self.rr_dhead = nn.Linear(dim, 2)
             self.rr_init_sigma = float(rr_init_sigma)      # applied in _post_init (see note at dpt_head)
             offs = {3: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]], 2: [[0.0, 0.0], [1.0, 1.0]], 1: [[0.5, 0.5]]}[self.rr_rays]
@@ -2171,13 +2179,33 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         c = torch.cat(cos_parts, -1); sn = torch.cat(sin_parts, -1)                          # [b, N, F, C]
         return c.flatten(2), sn.flatten(2)
 
+    def _rr_coeffs_world(self, pd_w, p0_w):
+        """World-frame RayRoPE coefficients (rr_frame='world'): camera centre (3) + point band (3 x R) on the
+        3d ladder, band-averaged over the two depths. pd_w: (pd1, pd2) [b, N, R, 4] homogeneous; p0_w [b, N, 4]."""
+        x = p0_w[..., :3] / p0_w[..., 3:4].clamp_min(1e-4)
+        th0 = self.rr_f_p0[None, None, :, None] * x[:, :, None, :]                            # [b, N, F, 3]
+        ths = []
+        for pd in pd_w:
+            xyz = (pd[..., :3] / pd[..., 3:4].clamp_min(1e-4)).flatten(-2, -1)                # [b, N, 3R]
+            ths.append(self.rr_f_p0[None, None, :, None] * xyz[:, :, None, :])                # [b, N, F, 3R]
+        t1, t2 = ths
+        delta = t2 - t1; same = delta.abs() < 1e-2
+        dsafe = torch.where(same, torch.ones_like(delta), delta)
+        e_cos = torch.where(same, t1.cos(), (t2.sin() - t1.sin()) / dsafe)
+        e_sin = torch.where(same, t1.sin(), (t1.cos() - t2.cos()) / dsafe)
+        c = torch.cat([th0.cos(), e_cos], -1); sn = torch.cat([th0.sin(), e_sin], -1)
+        return c.flatten(2), sn.flatten(2)
+
     def _rayrope_ttt(self, info, x, q, k, v, lr0, lr1, lr2, w0, w1, w2, ops):
-        """RayRoPE in the TTT layer: for every query view j, code the input keys/values in camera j's
-        frame, update a fresh memory on them, apply it to view j's queries (coded in their own frame),
-        and rotate the output back (v/o). See the 'rayrope_ttt' note in __init__."""
-        assert "w0" not in info, "rayrope_ttt: the memory depends on the query camera -- use forward(), not reconstruct/rendering"
-        assert len(ops) == 2 and ops[0].update and not ops[0].apply and ops[1].apply and ops[0].start == 0 and ops[1].start == 0, ops
-        n_in, n_all = ops[0].end, ops[1].end
+        """RayRoPE in the TTT layer. rr_frame='query': for every query view j, code the input keys/values in
+        camera j's frame, update a fresh memory on them, apply it to view j's queries (coded in their own
+        frame), and rotate the output back (v/o). rr_frame='world': one shared frame, one memory."""
+        if self.rr_frame == "query":
+            assert "w0" not in info, "rayrope_ttt(query): the memory depends on the query camera -- use forward(), not reconstruct/rendering"
+            assert len(ops) == 2 and ops[0].update and not ops[0].apply and ops[1].apply and ops[0].start == 0 and ops[1].start == 0, ops
+            n_in, n_all = ops[0].end, ops[1].end
+        else:
+            n_all = q.shape[1]; n_in = ops[0].end
         tpv = info["tokens_per_view"]; V = n_all // tpv; nh = self.num_heads; b = x.shape[0]
         with torch.autocast(device_type=x.device.type, enabled=False):
             K, w2c, c2w = info["view_K_norm"].float(), info["view_w2c"].float(), info["view_c2w"].float()
@@ -2200,6 +2228,21 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                                    (1.0 / d).expand(-1, -1, self.rr_rays)], -1)             # [b, L, R, 4]
                 pd_w.append(torch.einsum("blij,blrj->blri", P_inv[:, vidx], hom))
             p0_w = c2w[:, vidx, :, 3]                                                        # [b, L, 4]
+            if self.rr_frame == "world":
+                cW, sW = self._rr_coeffs_world((pd_w[0], pd_w[1]), p0_w)
+                cW, sW = to_heads(cW, nh), to_heads(sW, nh)
+        if self.rr_frame == "world":
+            qw = apply_rotary_pairs(q, cW, sW, inverse=True)
+            kw = apply_rotary_pairs(k, cW, sW, inverse=True)
+            vw = apply_rotary_pairs(v, cW, sW, inverse=True) if self.rr_vo else v
+            out, w0, w1, w2 = fast_weight_swish_glu_weight_norm_mini_batch_apply(
+                w0, w1, w2, qw, kw, vw, lr0, lr1, lr2, ops, muon_update_steps=self.muon_update_steps)
+            if self.rr_vo:
+                # output tokens = the apply ranges of ops, in order
+                idx = torch.cat([torch.arange(o.start, o.end, device=x.device) for o in ops if o.apply])
+                out = apply_rotary_pairs(out, cW[:, idx], sW[:, idx], inverse=False)
+            return out, w0, w1, w2
+        with torch.autocast(device_type=x.device.type, enabled=False):
             coeffs = []
             for j in range(V):
                 sl = slice(j * tpv, (j + 1) * tpv)
