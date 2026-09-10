@@ -3783,3 +3783,10 @@ Readings so far:
   our best cell on each dataset by +0.09 / +0.10 / +0.16 (RE10K a tie, t=1.8). Cost: one memory per query view
   (V updates/layer; 4-5x training time, no reconstruct/render split). The user then asked (09-11 00:05) for the
   same ingredients WITHOUT the per-query memory -> world-frame variant (`rr_frame: world`), rows below.
+- World-frame RayRoPE (single memory, sigma0 = 3), RE10K (01:59): 22.431 = +0.821 vs base, +0.141 vs point-only, +0.342
+  vs pcam, but -0.568 vs point+ray+v/o and -0.658 vs the query-frame port. The learned sigma bias stays at 2.8-2.96 on
+  every layer (|w_sigma| 0.1-0.37): the depth band never narrows, so sinc(Delta/2) ~ 0 keeps the point code switched
+  OFF for the whole run -- the cell is effectively "camera centre + v/o". Same bootstrapping failure as the zero-init
+  direction gains (F87 add. 5): a code that starts blurred gets no gradient to un-blur. The query-frame cells worked
+  because the init bug had started them SHARP (sigma ~ 0). -> world-frame twins with sigma0 = 0 launched
+  (`*_rayropew0_s137`) so the single-memory variant is measured with the point code on.
