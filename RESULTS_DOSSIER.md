@@ -3772,3 +3772,6 @@ Readings so far:
   output layer of dpt_mlp, which the F87/F88 cells ran with N(0,0.02) instead -- |s| ~ 0.1 at init, immaterial).
   The faithful sigma0 = 3 variant is rerunning as `gobj_rayrope_s3_s137`; the RE10K / DL3DV-u sigma~0 cells finish
   tonight and their sigma0 = 3 twins follow.
+- RayRoPE port, RE10K (23:23, sigma~0 variant): **23.089** = +1.479 vs base (100% of scenes), +0.090 vs point+ray+v/o
+  (t=1.8, 51% -- a tie), +0.186 vs point+ray, +0.312 vs Plucker both. LPIPS 0.2500 is the best RE10K LPIPS of any cell
+  (-0.011 vs point+ray+v/o, t=-10.9). sigma0 = 3 twin running (`re10k_rayrope_s3_s137`).
