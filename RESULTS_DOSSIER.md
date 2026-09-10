@@ -3759,3 +3759,8 @@ Readings so far:
 - Ablation (RE10K, 19:12): point-only + v/o = 22.302 = point-only +0.012 (t=1.0). The carrier alone does nothing on
   RE10K; its +0.10 in row 3 exists only together with the ray half -- the carrier's value transport and the
   direction half's address code are complementary, not additive pieces.
+- Ablation (orbit, 21:09): point-only + v/o = **23.172** = point-only +0.181 (t=12.7, 74%), and +0.141 ABOVE point+ray+v/o
+  (23.031) -- on the orbit the carrier alone is the best cell (new orbit best, +0.26 over the prior 22.911) and the
+  ray half still costs 0.14 even with the carrier. So the carrier is not inert in general: it is inert at narrow
+  baseline (RE10K +0.01) and worth +0.18 at wide baseline, the mirror image of the ray half (+0.61 narrow, -0.18
+  wide). DL3DV-u point-only + v/o running (D2-12) to place the third dataset.
