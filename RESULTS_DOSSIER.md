@@ -3756,3 +3756,6 @@ Readings so far:
   wrap penalty. Row 3 is the best cell on every dataset: RE10K 22.999 (Plucker both 22.777), orbit 23.031 (22.911),
   DL3DV-u 17.022 (16.649) -- one config, no gate, no dataset-dependent switch. (The carrier itself was excluded
   from the F87 program by the user's 09-01 rule; this row reopens it at the user's request.)
+- Ablation (RE10K, 19:12): point-only + v/o = 22.302 = point-only +0.012 (t=1.0). The carrier alone does nothing on
+  RE10K; its +0.10 in row 3 exists only together with the ray half -- the carrier's value transport and the
+  direction half's address code are complementary, not additive pieces.

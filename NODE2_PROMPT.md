@@ -78,7 +78,7 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | D2-7 | `re10k_rayrope_s137` | `config/rayrope_ttt.yaml` (**RayRoPE 이식**: d_pj+0_3d, 3 rays, (log d, σ) 선형 head, depth 대역 구간평균 rotary, q/k + v/o, hidden rope 없음; 쿼리 카메라마다 메모리를 새로 update → 학습 ≈4–5배 느림) | RE10K | [RUNNING node1 gpu0 15:10 — 처음부터] |
 | D2-8 | `gobj_rayrope_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu1 15:10 — 처음부터] |
 | D2-9 | `dl3dvu_rayrope_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu2 17:15 — 단독, 115 GB, 2.6 it/s → ≈20:30] |
-| D2-10 | `re10k_dpmlp_vo_s137` | `config/dp_mlp_vo_both.yaml` (점-only + v/o: 캐리어 단독 효과 분리용 ablation) | RE10K | [RUNNING node1 gpu3 17:20 — 유휴 GPU 활용] |
+| D2-10 | `re10k_dpmlp_vo_s137` | `config/dp_mlp_vo_both.yaml` (점-only + v/o: 캐리어 단독 효과 분리용 ablation) | RE10K | [DONE 22.302 — 점-only(22.290) 대비 +0.01: RE10K에서 캐리어 단독은 무효, v/o 이득은 ray 절반과 함께일 때만(점+ray+v/o +0.10 vs 점+ray)] |
 
 ### 3.DP — **depth 예측 → 3D point → point-RoPE** (2026-09-02 16:30, 사용자 지시; 이전 "PE only / depth head 금지" 규칙 해제)
 사용자 목표: **세 데이터 모두에서 기존 최고 PSNR을 넘기** (RE10K: Plücker TTT-RoPE both +1.17; orbit: foot_all_iso 22.911; DL3DV-u: TTT-RoPE +0.19).
