@@ -85,10 +85,10 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 | D2-14 | `re10k_rayrope_s3_s137` | 같은 config (init 수정판, σ₀=3) | RE10K | [KILLED 00:20 — 같은 이유] |
 | D2-15 | `re10k_rayropew_s137` | `config/rayrope_ttt_world.yaml` (**RayRoPE world-frame**: 카메라 중심 + 3-ray depth 대역(σ 구간평균) 좌표를 장면 공용 좌표계로, 단일 메모리·표준 TTT 비용; q/k + v/o, σ₀=3, init 수정판) | RE10K | [DONE 22.431 — base +0.82; 점-only +0.14; pcam +0.34; **점+ray+v/o 대비 −0.57, 쿼리별 RayRoPE 대비 −0.66**. 학습된 σ bias 2.8~2.96 = 대역이 끝까지 넓음 → 점 코드가 사실상 꺼진 채(카메라 중심 + v/o만) 학습됨] |
 | D2-16 | `gobj_rayropew_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.260 — base −0.03; 점-only 대비 −0.73; pcam 대비 −0.30; 쿼리별 대비 −1.01 — σ 대역이 넓은 채로 남아 점 코드 꺼짐 + 세계좌표 카메라 중심(뷰 ID)만 남음] |
-| D2-17 | `dl3dvu_rayropew_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 00:12] |
+| D2-17 | `dl3dvu_rayropew_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.790 — base +0.39; 점-only 대비 −0.10; 쿼리별 대비 −0.39; σ 역시 ~3 유지] |
 | D2-18 | `re10k_rayropew0_s137` | `config/rayrope_ttt_world_s0.yaml` (world-frame, **σ₀=0**: 점 코드를 켠 채 시작 — 쿼리별 셀이 실제로 돌았던 조건) | RE10K | [RUNNING node1 gpu0 02:03] |
 | D2-19 | `gobj_rayropew0_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu2 02:03] |
-| D2-20 | `dl3dvu_rayropew0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING — gpu3 비면] |
+| D2-20 | `dl3dvu_rayropew0_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3 02:53] |
 
 ### 3.DP — **depth 예측 → 3D point → point-RoPE** (2026-09-02 16:30, 사용자 지시; 이전 "PE only / depth head 금지" 규칙 해제)
 사용자 목표: **세 데이터 모두에서 기존 최고 PSNR을 넘기** (RE10K: Plücker TTT-RoPE both +1.17; orbit: foot_all_iso 22.911; DL3DV-u: TTT-RoPE +0.19).

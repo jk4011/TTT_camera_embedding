@@ -3793,3 +3793,6 @@ Readings so far:
 - World-frame RayRoPE (sigma0 = 3), orbit (02:01): 22.260 = base -0.030 (a null), -0.731 vs point-only, -0.302 vs
   pcam, -1.010 vs the query-frame port; sigma bias 2.9-3.04 on every layer -> the point code stayed off, leaving a
   world-frame camera-centre code (view identity) + v/o, which on the orbit is worth nothing.
+- World-frame RayRoPE (sigma0 = 3), DL3DV-u (02:51): 16.790 = +0.386 vs base, -0.098 vs point-only, -0.391 vs the
+  query-frame port; sigma bias again ~3 on every layer. sigma0 = 3 world-frame summary: 22.431 / 22.260 / 16.790 --
+  below point-only on the two wide-baseline sets, the point code never switched on. sigma0 = 0 twins running.
