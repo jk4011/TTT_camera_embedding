@@ -586,3 +586,7 @@ run_dl3dv.sh (IMG="256 448"). Diagnostic: `diag_depth.py` (per-layer s stats; vs
 User's table (04:10): (1) point+ray = pdir [done] (2) point+camera = pcam (3) point+ray+v/o = pdir_vo (4) RayRoPE.
 Cells: {re10k,gobj,dl3dvu}_{dpmlp_pcam,dpmlp_pdir_vo,rayrope}_s137 (configs dp_mlp_pcam_both / dp_mlp_pdir_vo_both / rayrope_ttt).
 GPUs shared with another project (surflo train.py, ~25 GB/GPU); our cells overlap (57 GB RE10K/orbit, 94 GB DL3DV-u).
+- 2026-09-10 15:20 all six DP2 cells STOPPED at the user's request (moving to a new Slurm container). Resume on the
+  new node = run setup_node.sh, then the SAME launch commands (data is on lustre, no reshard; train.py resumes
+  from the latest model_*.pth in outputs/<exp>): pdir_vo RE10K/orbit from 10k/20k, DL3DV pcam/pdir_vo from 10k,
+  RayRoPE RE10K/orbit from scratch (no 10k ckpt yet), DL3DV RayRoPE not started.
