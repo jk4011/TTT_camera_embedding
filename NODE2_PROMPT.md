@@ -71,13 +71,14 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 |---|---|---|---|---|
 | D2-1 | `re10k_dpmlp_pcam_s137` | `config/dp_mlp_pcam_both.yaml` (**pcam**: 점 절반 + **카메라 위치 o−p*** 절반, seg 21/hseg 42) | RE10K | [DONE 22.089 (+0.479 vs base; **−0.201 vs 점-only t=−16; −0.814 vs pdir t=−26**) — 카메라 위치 절반은 RE10K에서 해로움] |
 | D2-2 | `gobj_dpmlp_pcam_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.563 (+0.272 vs base; **−0.428 vs 점-only t=−28**; −0.246 vs pdir) — orbit에서도 해로움(ray보다 더)] |
-| D2-3 | `dl3dvu_dpmlp_pcam_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [STOPPED 15:20 (컨테이너 이전) — 10k ckpt에서 재개] |
-| D2-4 | `re10k_dpmlp_pdir_vo_s137` | `config/dp_mlp_pdir_vo_both.yaml` (점 + ray + **v/o 캐리어**, 캐리어 좌표 = 예측 depth의 점) | RE10K | [STOPPED 15:20 (컨테이너 이전) — 10k ckpt에서 재개 가능; 같은 명령으로 재실행하면 train.py가 자동 재개] |
-| D2-5 | `gobj_dpmlp_pdir_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [STOPPED 15:20 (컨테이너 이전) — 20k ckpt에서 재개] |
-| D2-6 | `dl3dvu_dpmlp_pdir_vo_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [STOPPED 15:20 (컨테이너 이전) — 10k ckpt에서 재개] |
-| D2-7 | `re10k_rayrope_s137` | `config/rayrope_ttt.yaml` (**RayRoPE 이식**: d_pj+0_3d, 3 rays, (log d, σ) 선형 head, depth 대역 구간평균 rotary, q/k + v/o, hidden rope 없음; 쿼리 카메라마다 메모리를 새로 update → 학습 ≈4–5배 느림) | RE10K | [STOPPED 15:20 (컨테이너 이전) — 9.4k, ckpt 없음 → 처음부터] |
-| D2-8 | `gobj_rayrope_s137` | 같은 config (`DATA=gobj`) | orbit | [STOPPED 15:20 (컨테이너 이전) — 9.4k, ckpt 없음 → 처음부터] |
-| D2-9 | `dl3dvu_rayrope_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [PENDING — RayRoPE는 GPU당 ~78 GB(RE10K) → DL3DV는 ~135 GB 예상; gpu2/3이 비면(≈17:00) 단독 배치] |
+| D2-3 | `dl3dvu_dpmlp_pcam_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE 16.779 — 점-only(16.888) 대비 −0.11, 점+ray(16.943) 대비 −0.16: 세 데이터 모두 카메라 위치 절반은 손해] |
+| D2-4 | `re10k_dpmlp_pdir_vo_s137` | `config/dp_mlp_pdir_vo_both.yaml` (점 + ray + **v/o 캐리어**, 캐리어 좌표 = 예측 depth의 점) | RE10K | [DONE **22.999** — 점+ray(22.903) 대비 +0.10, Plücker(22.777) 대비 +0.22: RE10K 최고 (carrier 없는 기준)] |
+| D2-5 | `gobj_dpmlp_pdir_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 23.031 — 점+ray(22.809) 대비 +0.22, 점-only(22.991) 대비 +0.04: v/o가 orbit에서 방향 절반의 손해를 상쇄] |
+| D2-6 | `dl3dvu_dpmlp_pdir_vo_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE **17.022** — 점+ray(16.943) 대비 +0.08, 점-only 대비 +0.13, 기존 최고(16.649) 대비 +0.37: DL3DV 최고] |
+| D2-7 | `re10k_rayrope_s137` | `config/rayrope_ttt.yaml` (**RayRoPE 이식**: d_pj+0_3d, 3 rays, (log d, σ) 선형 head, depth 대역 구간평균 rotary, q/k + v/o, hidden rope 없음; 쿼리 카메라마다 메모리를 새로 update → 학습 ≈4–5배 느림) | RE10K | [RUNNING node1 gpu0 15:10 — 처음부터] |
+| D2-8 | `gobj_rayrope_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu1 15:10 — 처음부터] |
+| D2-9 | `dl3dvu_rayrope_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu2 17:15 — 단독, 115 GB, 2.6 it/s → ≈20:30] |
+| D2-10 | `re10k_dpmlp_vo_s137` | `config/dp_mlp_vo_both.yaml` (점-only + v/o: 캐리어 단독 효과 분리용 ablation) | RE10K | [RUNNING node1 gpu3 17:20 — 유휴 GPU 활용] |
 
 ### 3.DP — **depth 예측 → 3D point → point-RoPE** (2026-09-02 16:30, 사용자 지시; 이전 "PE only / depth head 금지" 규칙 해제)
 사용자 목표: **세 데이터 모두에서 기존 최고 PSNR을 넘기** (RE10K: Plücker TTT-RoPE both +1.17; orbit: foot_all_iso 22.911; DL3DV-u: TTT-RoPE +0.19).

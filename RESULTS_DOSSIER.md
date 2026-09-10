@@ -3728,3 +3728,31 @@ Program summary (all seed 137, 8-view/30k, paired stats; carrier-free):
   (corr 0.95 with GT, 1/3 the foot prior's error, also for pose-only target rays), scale-like on RE10K.
 Open (not run, per the single-seed rule): seed replication of the <= 0.1 dB comparisons; a budget split other
 than 21/21 for point/direction at many views on DL3DV-u.
+
+## F88: DP2 -- second half of the point code (ray vs camera position), the v/o carrier at the predicted depth,
+## and a RayRoPE port (seed 137, 8-view/30k, both sites unless noted; 2026-09-10)
+User questions (09-10 02:15): (1) camera POSITION instead of the ray direction as the second half, RayRoPE's
+"camera + 3D point" pairing; (2) how much a v/o carrier adds; (3) RayRoPE itself in the TTT layer. Hard gate dropped.
+Code: `pcam` = the pdir second half carries o - p* (constant within a view); `vo_rope` with `vo_coords: foot` now
+phases v (inverse on the output) at the PREDICTED-depth point o + t d; `rayrope_ttt` = RayRoPE port (F88 addendum).
+Data now lives on lustre (`dataset/reshard`), cells ran on a dedicated 4xB200 container after a container loss
+(see EXPERIMENT_QUEUE 09-10).
+| | method | RE10K (n=256) | orbit (n=499) | DL3DV-u (n=140) |
+|---|---|---|---|---|
+| 0 | point-only dpt_mlp (F87) | 22.290 | 22.991 | 16.888 |
+| 1 | point + ray direction (pdir, F87) | 22.903 | 22.809 | 16.943 |
+| 2 | point + camera position (pcam) | 22.089 (-0.201 vs 0, t=-16; -0.814 vs 1) | 22.563 (-0.428 vs 0, t=-28; -0.246 vs 1) | 16.779 (-0.109 vs 0; -0.164 vs 1) |
+| 3 | **point + ray + v/o** (pdir + carrier) | **22.999** (+1.389 vs base, 99%; +0.096 vs 1, t=8.3; +0.222 vs Plucker both) | **23.031** (+0.740 vs base; +0.222 vs 1, t=15; +0.040 vs 0; +0.120 vs prior best) | **17.022** (+0.618 vs base, 95%; +0.079 vs 1; +0.134 vs 0; +0.373 vs prior best) |
+| 4 | RayRoPE port (q/k + v/o, no hidden rope) | running | running | running |
+Readings so far:
+- (2) The camera-position half is worse than point-only on all three datasets and much worse than the ray half.
+  o - p* is constant across a view's tokens, so it only encodes view identity; a view-identity phase pulls same-view
+  tokens together in the address space and works against cross-view retrieval -- the opposite of what a camera
+  code should do. RayRoPE's "camera centre" coordinate lives in the QUERY camera's frame (relative), which a
+  world-frame per-token phase cannot reproduce.
+- (3) The v/o carrier phased at the predicted-depth point adds +0.08 to +0.22 on top of point+ray, and it turns the
+  ray half from a liability into a gain on the orbit (pdir -0.18 vs point-only -> pdir+vo +0.04): the carrier
+  transports stored values into the query's local frame, which is exactly where the direction half was paying the
+  wrap penalty. Row 3 is the best cell on every dataset: RE10K 22.999 (Plucker both 22.777), orbit 23.031 (22.911),
+  DL3DV-u 17.022 (16.649) -- one config, no gate, no dataset-dependent switch. (The carrier itself was excluded
+  from the F87 program by the user's 09-01 rule; this row reopens it at the user's request.)
