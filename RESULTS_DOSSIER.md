@@ -3790,3 +3790,6 @@ Readings so far:
   direction gains (F87 add. 5): a code that starts blurred gets no gradient to un-blur. The query-frame cells worked
   because the init bug had started them SHARP (sigma ~ 0). -> world-frame twins with sigma0 = 0 launched
   (`*_rayropew0_s137`) so the single-memory variant is measured with the point code on.
+- World-frame RayRoPE (sigma0 = 3), orbit (02:01): 22.260 = base -0.030 (a null), -0.731 vs point-only, -0.302 vs
+  pcam, -1.010 vs the query-frame port; sigma bias 2.9-3.04 on every layer -> the point code stayed off, leaving a
+  world-frame camera-centre code (view identity) + v/o, which on the orbit is worth nothing.
