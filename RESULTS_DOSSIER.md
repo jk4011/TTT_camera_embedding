@@ -3778,3 +3778,8 @@ Readings so far:
 - Ablation (DL3DV-u, 00:04): point-only + v/o = 16.896 = point-only +0.008 (inert), -0.126 vs point+ray+v/o
   (t=-6.0): on DL3DV-u, as on RE10K, the carrier only pays together with the ray half. Carrier-alone summary:
   RE10K +0.01, DL3DV-u +0.01, orbit +0.18 -- it matters exactly where the ray half fails.
+- RayRoPE port (query-frame, sigma~0), DL3DV-u (01:49): **17.181** = +0.777 vs base, +0.159 vs point+ray+v/o -- best
+  DL3DV-u cell. Query-frame RayRoPE port summary (sigma~0 init): RE10K 23.089 / orbit 23.270 / DL3DV-u 17.181, above
+  our best cell on each dataset by +0.09 / +0.10 / +0.16 (RE10K a tie, t=1.8). Cost: one memory per query view
+  (V updates/layer; 4-5x training time, no reconstruct/render split). The user then asked (09-11 00:05) for the
+  same ingredients WITHOUT the per-query memory -> world-frame variant (`rr_frame: world`), rows below.
