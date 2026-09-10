@@ -3775,3 +3775,6 @@ Readings so far:
 - RayRoPE port, RE10K (23:23, sigma~0 variant): **23.089** = +1.479 vs base (100% of scenes), +0.090 vs point+ray+v/o
   (t=1.8, 51% -- a tie), +0.186 vs point+ray, +0.312 vs Plucker both. LPIPS 0.2500 is the best RE10K LPIPS of any cell
   (-0.011 vs point+ray+v/o, t=-10.9). sigma0 = 3 twin running (`re10k_rayrope_s3_s137`).
+- Ablation (DL3DV-u, 00:04): point-only + v/o = 16.896 = point-only +0.008 (inert), -0.126 vs point+ray+v/o
+  (t=-6.0): on DL3DV-u, as on RE10K, the carrier only pays together with the ray half. Carrier-alone summary:
+  RE10K +0.01, DL3DV-u +0.01, orbit +0.18 -- it matters exactly where the ray half fails.
