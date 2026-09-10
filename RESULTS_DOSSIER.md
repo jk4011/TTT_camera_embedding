@@ -3801,3 +3801,8 @@ Readings so far:
   +0.276 vs Plucker both. Learned sigma ~ 0 everywhere (|w_sigma| 0.03-0.06): the uncertainty band is never used.
   So on RE10K the single-memory RayRoPE coordinates (camera centre + 3-ray point) match our point+ray+v/o exactly on
   PSNR; LPIPS is worse (0.2761 vs 0.2612, t=17.6 in favour of ours).
+- World-frame RayRoPE sigma0 = 0, orbit (03:52): 22.730 = +0.439 vs base, -0.261 vs point-only, -0.442 vs point+v/o,
+  -0.540 vs the query-frame port, +0.167 vs pcam. With the point code on, the single-memory RayRoPE is a
+  world-frame "camera position + point" code -- and like our pcam it loses to point-only on the orbit: the
+  camera-centre coordinate is view identity unless it is expressed relative to the query camera. What made the
+  query-frame port win here (23.270) is exactly the per-query re-expression, i.e. the part that costs V memories.
