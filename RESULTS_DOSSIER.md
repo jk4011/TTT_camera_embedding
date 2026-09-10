@@ -3796,3 +3796,8 @@ Readings so far:
 - World-frame RayRoPE (sigma0 = 3), DL3DV-u (02:51): 16.790 = +0.386 vs base, -0.098 vs point-only, -0.391 vs the
   query-frame port; sigma bias again ~3 on every layer. sigma0 = 3 world-frame summary: 22.431 / 22.260 / 16.790 --
   below point-only on the two wide-baseline sets, the point code never switched on. sigma0 = 0 twins running.
+- World-frame RayRoPE with sigma0 = 0 (point code ON from the start), RE10K (03:50): **23.053** = +1.443 vs base (100%),
+  +0.054 vs point+ray+v/o (t=1.4, tie), -0.037 vs the query-frame port (t=-1.3, tie), +0.621 vs the sigma0 = 3 twin,
+  +0.276 vs Plucker both. Learned sigma ~ 0 everywhere (|w_sigma| 0.03-0.06): the uncertainty band is never used.
+  So on RE10K the single-memory RayRoPE coordinates (camera centre + 3-ray point) match our point+ray+v/o exactly on
+  PSNR; LPIPS is worse (0.2761 vs 0.2612, t=17.6 in favour of ours).
