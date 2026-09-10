@@ -3764,3 +3764,11 @@ Readings so far:
   ray half still costs 0.14 even with the carrier. So the carrier is not inert in general: it is inert at narrow
   baseline (RE10K +0.01) and worth +0.18 at wide baseline, the mirror image of the ray half (+0.61 narrow, -0.18
   wide). DL3DV-u point-only + v/o running (D2-12) to place the third dataset.
+- RayRoPE port, orbit (22:55): **23.270** = +0.979 vs base (97%), +0.279 vs point-only, +0.239 vs point+ray+v/o,
+  +0.098 vs point-only+v/o (t=5.0) -- the best orbit number so far. CAVEAT found afterwards: LaCTLVSM.__init__
+  calls self.apply(_init_weights) after construction, which re-drew the RayRoPE depth head (weights N(0,0.02),
+  bias 0), so this run started with sigma ~ 0 (narrow depth band) rather than the paper's init_sigma = 3.0 (blurred
+  point code that sharpens as sigma shrinks). Fixed 23:05 via a `_post_init` hook (also restores the exact zero
+  output layer of dpt_mlp, which the F87/F88 cells ran with N(0,0.02) instead -- |s| ~ 0.1 at init, immaterial).
+  The faithful sigma0 = 3 variant is rerunning as `gobj_rayrope_s3_s137`; the RE10K / DL3DV-u sigma~0 cells finish
+  tonight and their sigma0 = 3 twins follow.

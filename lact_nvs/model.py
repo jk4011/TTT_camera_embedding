@@ -527,6 +527,9 @@ class LaCTLVSM(nn.Module):
 
         # apply special scaled init to the residual projections, per GPT-2 paper
         self.apply(_init_weights)
+        for m in self.modules():                       # custom inits that must survive the global re-init
+            if hasattr(m, "_post_init"):
+                m._post_init()
         for pn, p in self.named_parameters():
             if pn.endswith("c_proj.weight"):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(len(block_config) * layers))

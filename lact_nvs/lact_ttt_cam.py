@@ -1188,9 +1188,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert rr_pos_enc == "d_pj+0_3d", "only the paper default 'd_pj+0_3d' is ported"
             self.rr_rays, self.rr_freqs, self.rr_vo = int(rr_rays), int(rr_freqs), bool(rr_vo)
             self.rr_dhead = nn.Linear(dim, 2)
-            nn.init.zeros_(self.rr_dhead.weight)
-            with torch.no_grad():
-                self.rr_dhead.bias.copy_(torch.tensor([0.0, float(rr_init_sigma)]))
+            self.rr_init_sigma = float(rr_init_sigma)      # applied in _post_init (see note at dpt_head)
             offs = {3: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]], 2: [[0.0, 0.0], [1.0, 1.0]], 1: [[0.5, 0.5]]}[self.rr_rays]
             self.register_buffer("rr_offsets", torch.tensor(offs), persistent=False)
             coord_dim = 3 + self.rr_rays * 3
@@ -1230,6 +1228,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if "dpt_mlp" in self.cam_modes:
             self.dpt_head = nn.Sequential(nn.Linear(dim, 64), nn.GELU(), nn.Linear(64, 1))
             nn.init.zeros_(self.dpt_head[2].weight); nn.init.zeros_(self.dpt_head[2].bias)   # s = 0 -> point-RoPE at init
+            # NOTE: LaCTLVSM.__init__ runs self.apply(_init_weights) AFTER construction, which re-draws every
+            # nn.Linear (N(0, 0.02), zero bias). Custom inits therefore live in _post_init(), which the model
+            # calls after that pass (added 2026-09-10; the F87/F88 dpt_mlp cells ran with N(0,0.02) instead of
+            # exact zeros on this layer -- |s| ~ 0.1 at init, materially the same start).
         if "dpt_chan" in self.cam_modes:
             # value projection, head 0, channel 0 (pre-silu) is read as log-depth ratio and
             # zeroed in v (the channel is dedicated to depth; no depth network)
@@ -2125,6 +2127,15 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 muon_update_steps=self.muon_update_steps)
         info.pop(self._dpt_key, None)
         return out, w0, w1, w2
+
+    def _post_init(self):
+        """Custom initialisations that must survive LaCTLVSM's global self.apply(_init_weights)."""
+        if hasattr(self, "dpt_head"):
+            nn.init.zeros_(self.dpt_head[2].weight); nn.init.zeros_(self.dpt_head[2].bias)
+        if hasattr(self, "rr_dhead"):
+            nn.init.zeros_(self.rr_dhead.weight)                     # RayRoPE: zero-init depth projection
+            with torch.no_grad():
+                self.rr_dhead.bias.copy_(torch.tensor([0.0, self.rr_init_sigma], dtype=self.rr_dhead.bias.dtype))
 
     # ---------- RayRoPE port ----------
 
