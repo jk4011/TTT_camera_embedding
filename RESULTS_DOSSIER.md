@@ -3834,3 +3834,23 @@ Conclusions:
    reconstruct/render split) -- attention pays this per-query cost natively, TTT does not.
 5. The uncertainty band (sinc-damped, non-orthogonal rotary) was never exercised: every run that trained the point
    code ended with sigma ~ 0; the only runs where it was active (sigma0 = 3) it acted as a permanent off-switch.
+
+## F89: final-recipe candidate (user, 2026-09-18) -- point+ray 6D RoPE at input+hidden with the depth read from ONE
+## value channel, no v/o, no gate (seed 137, 8-view/30k; GPUs shared with another job -> all cells --actckpt)
+`config/dp_chan_pdir_both.yaml` = `foot_in+h_foot+dpt_chan+pdir`. No depth network: s = dpt_gain * (value head 0,
+channel 0, pre-silu), one zero-init scalar gain per layer, that channel removed from the value. Reference rows are
+the same-seed cells of F87/F88. Paired per-scene stats.
+| dataset | base | point+ray, MLP depth | **point+ray, channel depth (FR)** | FR vs MLP-depth | FR vs base | point-only, channel depth |
+|---|---|---|---|---|---|---|
+| RE10K | 21.610 | 22.903 | **22.834** | -0.069 (t=-8.0, 29% wins) | +1.224 (t=35.8, 99%) | 21.995 (FR +0.839) |
+| orbit | 22.291 | 22.809 | **22.687** | -0.122 (t=-6.6, 37%) | +0.396 (t=16.9, 81%) | 23.006 (FR -0.319, t=-17.7) |
+| DL3DV-u | 16.404 | 16.943 | (running) | | | 16.741 |
+- RE10K: within the 0.1 dB acceptance band of the MLP-depth cell and above the prior best (Plucker both 22.777:
+  +0.057, t=4.1). Learned dpt_gain per layer = 0.068 / 0.011 / 0.026 / 0.020 / -0.015 / -0.005: the channel depth is
+  all but switched off, i.e. on RE10K the cell is effectively the FOOT-depth point + ray code (the MLP-depth twin
+  showed the same thing in F87 add. 1: a token-independent depth). The ray half carries RE10K.
+- orbit: the ray half costs MORE with the channel depth (-0.32 vs point-only) than with the MLP depth (-0.18), and
+  without v/o or a gate nothing offsets it: 22.687 is below point-only (23.006 / 22.991) and the pre-DP best 22.911.
+  dpt_gain 0.016..0.075 in magnitude (same range as the point-only channel cell, which learned metric depth);
+  direction gains stay at 0.9 (the model does not turn the ray half down, as in F87 add. 2).
+
