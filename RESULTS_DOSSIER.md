@@ -3854,3 +3854,18 @@ the same-seed cells of F87/F88. Paired per-scene stats.
   dpt_gain 0.016..0.075 in magnitude (same range as the point-only channel cell, which learned metric depth);
   direction gains stay at 0.9 (the model does not turn the ray half down, as in F87 add. 2).
 
+## F90: NO study -- embeddings made ONLY of camera matrices at the TTT input+hidden sites, no v/o (user, 2026-09-18):
+## does TTT prefer orthogonal codes? (seed 137, 8-view/30k, RE10K + orbit; all cells --actckpt on shared GPUs)
+Flags `mat_in` (q <- M^T q, k <- M^-1 k on the L2-normalised fast q/k, NO re-normalisation, 4x4 tiled over the full
+head dim, v/o untouched) + `h_mat` (hidden: update M^-1 h(k), apply M^T h(q); h_ga's kernel). The relative bilinear
+form q^T (M_j M_i^-1) k is exact for every M; the only thing that differs between the three cells is whether M leaves
+the unit sphere. `mat_kind`: proj = lift(K) w2c (PRoPE's projective matrix), ext = w2c (GTA's SE(3): orthogonal rotation
+block + translation column), rot = [R 0; 0 1] (the orthogonal part alone; control). Paired per-scene stats vs the
+same-seed baseline; the rotary rows are the same-seed F87/F89 cells for scale.
+| cell | matrix | orthogonal? | RE10K (base 21.610) | orbit (base 22.291) |
+|---|---|---|---|---|
+| mat_proj | lift(K) w2c | no (intrinsics + translation) | **21.362 (-0.249, t=-15.7, 10.5% wins)** | (running) |
+| mat_ext | w2c | no (translation) | (running) | (running) |
+| mat_rot | [R 0; 0 1] | yes | (queued) | (queued) |
+| point+ray rotary (F89, channel depth) | -- | yes (phases) | 22.834 (+1.224) | 22.687 (+0.396) |
+

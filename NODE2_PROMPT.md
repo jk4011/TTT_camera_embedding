@@ -80,10 +80,10 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 런처: `run_queue_0918.sh` (락 파일 기반 순차 큐; 우리 셀이 없는 GPU에 다음 셀 기동, 전 셀 `--actckpt`).
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
-| NO-1 | `re10k_mat_proj_s137` | `config/mat_proj_both.yaml` | RE10K | [RUNNING node1 gpu3, 04:17] |
+| NO-1 | `re10k_mat_proj_s137` | `config/mat_proj_both.yaml` | RE10K | [DONE 21.362 (**−0.249 vs base t=−15.7, 10.5% 승**; LPIPS +0.012) — projection 행렬을 input+hidden 전 차원에 걸면 base보다 나빠짐] |
 | NO-2 | `gobj_mat_proj_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu1, 08:12] |
-| NO-3 | `re10k_mat_ext_s137` | `config/mat_ext_both.yaml` | RE10K | [QUEUED] |
-| NO-4 | `gobj_mat_ext_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| NO-3 | `re10k_mat_ext_s137` | `config/mat_ext_both.yaml` | RE10K | [RUNNING node1 gpu0, 08:23] |
+| NO-4 | `gobj_mat_ext_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu3, 08:45] |
 | NO-5 | `re10k_mat_rot_s137` | `config/mat_rot_both.yaml` (직교 대조군) | RE10K | [QUEUED] |
 | NO-6 | `gobj_mat_rot_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
 
