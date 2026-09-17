@@ -62,7 +62,7 @@ main() {
       --steps "$STEPS" --warmup 1500 --lr 1e-4 --lpips_start 5000 --seed "$SEED" \
       --bs_per_gpu 16 --num_all_views 15 --num_input_views 8 --num_target_views 8 \
       --image_size 256 256 --num_workers 7 \
-      --save_every 10000 --log_every 200 \
+      --save_every 10000 --log_every 200 ${EXTRA_ARGS:-} \
       >> "outputs/$EXP/train.log" 2>&1
     echo "EXIT $? $EXP" >> outputs/exp_status.log
   fi

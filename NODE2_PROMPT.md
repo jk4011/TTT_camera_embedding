@@ -65,6 +65,28 @@ vi 셀은 `DATA=gobj_vi NODE=node2 setsid nohup ./run_gobj.sh <gpu> gobjvi_<name
 
 ## 3. 작업표 (위에서부터; 상태 태그는 node2가 갱신)
 
+### 3.FR — **final recipe 후보** (2026-09-18, 사용자 제안): input+hidden 두 사이트, **점 + ray 6D RoPE**, depth = value 채널 하나(`dpt_chan`, depth 네트워크 없음·layer당 스칼라 gain 1개), **v/o 보류**, 게이트 없음. seed 137, 8-view/30k.
+비교 기준(같은 seed, MLP depth): 점+ray 22.903 / 22.809 / 16.943; 점-only 채널 depth 21.995 / 23.006 / 16.741. 판정: 채널 depth가 RE10K·DL3DV에서 MLP 대비 0.1 dB 이내면 채택, 아니면 MLP depth가 본 recipe.
+GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--actckpt`(activation checkpointing; 수치 동일, 메모리 57→37 GB / 94→63 GB).
+| ID | exp | config | 데이터 | 상태 |
+|---|---|---|---|---|
+| FR-1 | `re10k_dpchan_pdir_s137` | `config/dp_chan_pdir_both.yaml` (`foot_in+h_foot+dpt_chan+pdir`) | RE10K | [RUNNING node1 gpu0, 2026-09-18 04:10] |
+| FR-2 | `gobj_dpchan_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu1, 2026-09-18 04:10] |
+| FR-3 | `dl3dvu_dpchan_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu2, 2026-09-18 04:05; `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` + actckpt = 59 GB] |
+
+### 3.NO — **비직교 행렬 embedding 연구** (2026-09-18, 사용자 지시): "TTT는 orthogonal embedding을 선호한다"를 실험으로 보이기. 카메라 행렬**만으로** 만든 embedding을 **input + hidden 두 사이트**에 적용, **v/o 없음**. RE10K + orbit, seed 137, 8-view/30k.
+코드: `mat_in`(q ← Mᵀq, k ← M⁻¹k; L2 정규화 **뒤**, 재정규화 없음, head_dim 전체에 4×4 타일) + `h_mat`(hidden: update M⁻¹h, apply Mᵀh; `h_ga` 커널 재사용). `mat_kind`: `proj` = lift(K)·w2c (PRoPE, 비직교), `ext` = w2c SE(3) (GTA, 평행이동 때문에 비직교), `rot` = [R 0; 0 1] (같은 행렬의 직교 부분 = 대조군, node1이 추가).
+세 셀은 기계가 완전히 같고 행렬만 다름 → 차이는 (비)직교성에서만 옴. 비교 기준(같은 seed): base 21.610 / 22.291, 점+ray 22.903 / 22.809.
+런처: `run_queue_0918.sh` (락 파일 기반 순차 큐; 우리 셀이 없는 GPU에 다음 셀 기동, 전 셀 `--actckpt`).
+| ID | exp | config | 데이터 | 상태 |
+|---|---|---|---|---|
+| NO-1 | `re10k_mat_proj_s137` | `config/mat_proj_both.yaml` | RE10K | [QUEUED] |
+| NO-2 | `gobj_mat_proj_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| NO-3 | `re10k_mat_ext_s137` | `config/mat_ext_both.yaml` | RE10K | [QUEUED] |
+| NO-4 | `gobj_mat_ext_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| NO-5 | `re10k_mat_rot_s137` | `config/mat_rot_both.yaml` (직교 대조군) | RE10K | [QUEUED] |
+| NO-6 | `gobj_mat_rot_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+
 ### 3.DP2 — **depth 심화** (2026-09-10 02:20, 사용자 지시: 하드 게이트 제거, depth만 파기; 04:10 4행 표로 확정). 기준: base / 점-only dpt_mlp both (RE10K 22.290 / orbit 22.991 / DL3DV-u 16.888). seed 137, 8-view/30k. 데이터는 lustre(`dataset/reshard`), GPU는 타 프로젝트와 공유.
 사용자가 원하는 결과표: (1) 3D point + ray = pdir [완료: 22.903 / 22.809 / 16.943] (2) 3D point + camera position = pcam (3) 3D point + ray + v/o = pdir_vo (4) RayRoPE = rayrope_ttt.
 | ID | exp | config | 데이터 | 상태 |

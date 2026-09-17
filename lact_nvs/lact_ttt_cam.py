@@ -1129,11 +1129,18 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         rr_vo: bool = True,
         rr_init_sigma: float = 3.0,
         rr_frame: str = "query",
+        mat_kind: str = "proj",
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
         self.cam_modes = set(cam_mode.split("+"))
         known = {"qk_rope_cam", "qk_rope_camimg", "plucker_sinc", "point_rope", "pra_sinc", "vo_rel", "ogta", "h_ga", "rot_raw",
+                 # NO study (2026-09-18, user): an embedding made ONLY of camera matrices, at the input
+                 # site (mat_in: q <- M^T q, k <- M^-1 k, after the L2 norm, no re-norm, full head dim,
+                 # NO v/o) and the hidden site (h_mat: update M^-1 h, apply M^T h). mat_kind picks M:
+                 # 'proj' = lift(K) w2c (PRoPE, non-orthogonal), 'ext' = w2c SE(3) (GTA, non-orthogonal
+                 # through the translation), 'rot' = [R 0; 0 1] (the orthogonal part, control).
+                 "mat_in", "h_mat",
                  "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
@@ -1296,7 +1303,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                        "shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in"}
         assert len(rotary_fams & self.cam_modes) <= 1, "only one rotary family at a time"
         matrix_fams = {"prope_raw", "prope_in_raw", "rot_raw", "prope_orig", "prope_imgrope",
-                       "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content", "gate_shell_rot"}
+                       "prope_ttt", "prope_in", "gta_in", "ogta", "raygta", "rot_content", "gate_shell_rot", "mat_in"}
         assert len(matrix_fams & self.cam_modes) <= 1, "only one matrix/transport family at a time"
         self.seg_in_modes = {"shell_sinc", "shell_iso", "pt_gt", "pt_gt_in", "anchor_in", "foot_in", "sweep_in", "head_anchor", "asym_in", "gate_shell_rot", "layer_pt", "near_in"}
         if "asym_in" in self.cam_modes:
@@ -1322,7 +1329,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             assert self.num_heads >= 2, "head_anchor needs >= 2 fast-weight heads"
         self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_layer_pt", "h_near"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
-        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump", "h_qh", "h_epi", "h_bf"} | self.seg_h_modes
+        hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump", "h_qh", "h_epi", "h_bf", "h_mat"} | self.seg_h_modes
+        if self.cam_modes & {"mat_in", "h_mat"}:
+            assert not (self.cam_modes - {"mat_in", "h_mat"}), "mat_in / h_mat are a standalone matrix-only embedding"
+            assert mat_kind in ("proj", "ext", "rot"), mat_kind
+            assert head_dim % 4 == 0 and (head_dim * inter_multi) % 4 == 0
+        self.mat_kind = mat_kind
         if "h_lam" in self.cam_modes:
             assert self.cam_modes & {"h_epi", "h_bf"}, "h_lam is a modifier of h_epi / h_bf"
         if "h_qh" in self.cam_modes:
@@ -2273,6 +2285,18 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         P_inv = info["view_c2w"].float() @ lift_K4_inv(K)
         return P, P_inv
 
+    def _mat_pair(self, info):
+        """(M, M^-1) per view for mat_in / h_mat. [b, V, 4, 4] fp32."""
+        if self.mat_kind == "proj":
+            return self._prope_mats(info)
+        w2c = info["view_w2c"].float()
+        if self.mat_kind == "ext":
+            return w2c, info["view_c2w"].float()
+        M = torch.zeros_like(w2c)                     # 'rot': orthogonal part only
+        M[..., :3, :3] = w2c[..., :3, :3]
+        M[..., 3, 3] = 1.0
+        return M, M.transpose(-1, -2)
+
     # ---------- forward ----------
 
     def forward(self, x: torch.Tensor, info={}, *args):
@@ -2437,6 +2461,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             if modes & {"prope_raw", "rot_raw"}:
                 v = apply_tiled_mat4(v, P_inv_h, tpv, span)
                 prope_raw_P_h = P_h
+
+        if "mat_in" in modes:
+            # matrix-only input embedding: exact relative bilinear form <M_j^T q, M_i^-1 k> = q^T (M_j M_i^-1) k,
+            # no re-normalisation (a non-orthogonal M leaves the unit sphere), q/k only -- v and o untouched.
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                M, M_inv = self._mat_pair(info)
+            q = apply_tiled_mat4(q, to_heads(M, nh).transpose(-1, -2), tpv, self.head_dim)
+            k = apply_tiled_mat4(k, to_heads(M_inv, nh), tpv, self.head_dim)
 
         cfr_R = None
         if "cfr_in" in modes:
@@ -2949,6 +2981,21 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 M_tok = Mh[:, vidx]                              # [(b nh), L, 4, 4]
             output, w0, w1, w2 = fast_weight_swish_glu_hidden_mat4_apply(
                 w0, w1, w2, q, k, v, lr0, lr1, lr2, M_tok, M_tok, ttt_op_order,
+                muon_update_steps=self.muon_update_steps,
+            )
+        elif "h_mat" in modes:
+            # matrix-only hidden embedding (h_ga's wiring with a selectable matrix): update side M^-1 h(k),
+            # apply side M^T h(q) -> <M_j^T h_q, M_i^-1 h_k> = h_q^T (M_j M_i^-1) h_k.
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                M, M_inv = self._mat_pair(info)
+                V = M.shape[1]
+                Mt = to_heads(M.reshape(M.shape[0], V, 16), nh).reshape(-1, V, 4, 4)
+                Mi = to_heads(M_inv.reshape(M.shape[0], V, 16), nh).reshape(-1, V, 4, 4)
+                vidx = torch.arange(q.shape[1], device=q.device) // tpv
+                Ma_tok = Mt[:, vidx].transpose(-1, -2)
+                Mu_tok = Mi[:, vidx]
+            output, w0, w1, w2 = fast_weight_swish_glu_hidden_mat4_apply(
+                w0, w1, w2, q, k, v, lr0, lr1, lr2, Mu_tok, Ma_tok, ttt_op_order,
                 muon_update_steps=self.muon_update_steps,
             )
         elif "h_ga" in modes:

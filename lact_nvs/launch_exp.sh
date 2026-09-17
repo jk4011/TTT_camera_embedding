@@ -24,6 +24,8 @@ DATASET=${DATASET:-re10k}
 # 43.7% of the horizontal field. IMAGE_SIZE="256 448" keeps 98.5% of it (no crop) at the
 # cost of 1.75x tokens/view -- the DL3DV view-overlap test.
 IMAGE_SIZE=${IMAGE_SIZE:-"256 256"}
+# EXTRA_ARGS: optional extra train.py flags (e.g. "--actckpt" to fit next to another job on a shared GPU;
+# activation checkpointing recomputes the same forward, so the protocol numerics are unchanged). Default empty.
 
 PY_ENV=/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/lvsm/bin
 cd "$(dirname "$0")"
@@ -46,6 +48,6 @@ CUDA_VISIBLE_DEVICES=$GPU $PY_ENV/torchrun \
   --steps $STEPS --warmup $WARMUP --lr 1e-4 --lpips_start 5000 --seed $SEED \
   --bs_per_gpu 16 --num_all_views 15 --num_input_views 8 --num_target_views 8 \
   --image_size $IMAGE_SIZE --num_workers 7 \
-  --save_every 10000 --log_every 200 \
+  --save_every 10000 --log_every 200 ${EXTRA_ARGS:-} \
   > outputs/$EXP/train.log 2>&1
 echo "EXIT $? $EXP" >> outputs/exp_status.log

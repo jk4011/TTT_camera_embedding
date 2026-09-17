@@ -593,3 +593,19 @@ GPUs shared with another project (surflo train.py, ~25 GB/GPU); our cells overla
 - 2026-09-11 05:40 DP2 CLOSED (20 cells): summary table in RESULTS_DOSSIER F88. Best single-memory recipe stays
   point + ray + v/o (dp_mlp_pdir_vo_both); RayRoPE beats it only with per-query-view memories (4-5x cost).
   All GPUs idle, queue empty.
+
+## 2026-09-18 FR: final-recipe candidate (user proposal) + NO: non-orthogonal matrix embedding study
+FR = input+hidden point+ray 6D RoPE with the depth read from ONE value channel (`dpt_chan`; no depth network, one
+zero-init scalar gain per layer), v/o on hold, no gate. Config `config/dp_chan_pdir_both.yaml`. Seed 137, 8-view/30k.
+Cells {re10k,gobj,dl3dvu}_dpchan_pdir_s137; reference rows = the same-seed MLP-depth point+ray cells (22.903 / 22.809 / 16.943).
+GPUs are shared with another project (~115 GB/GPU, ~100% util, user decision: overlap) -> every cell runs with
+`EXTRA_ARGS=--actckpt` (new passthrough in launch_exp.sh / run_gobj.sh; numerics unchanged, 37 GB RE10K/orbit, 63 GB DL3DV-u).
+- 04:10 FR-1 re10k (gpu0), FR-2 orbit (gpu1) launched; FR-3 DL3DV-u pending a memory check (63 GB vs ~68 GB free).
+- 04:05 FR-3 DL3DV-u launched on gpu2 (actckpt + expandable_segments allocator: 59 GB peak vs ~68 GB free).
+NO study (user, 04:0x): show empirically that TTT prefers ORTHOGONAL embeddings. Embedding made only of camera
+matrices at the input + hidden sites, no v/o: new flags `mat_in` (q <- M^T q, k <- M^-1 k after the L2 norm, no
+re-norm, full head dim) + `h_mat` (update M^-1 h, apply M^T h; reuses the h_ga kernel), `mat_kind` = proj (PRoPE
+lift(K) w2c) | ext (GTA SE(3) w2c) | rot ([R 0; 0 1], the orthogonal part -- control added by node1).
+Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_both.yaml`, sequential launcher
+`lact_nvs/run_queue_0918.sh` (lock-file based, next cell on any GPU without one of our cells; log outputs/queue_0918.log).
+
