@@ -1247,7 +1247,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.pdir_gate = pdir_gate      # soft: exp(-(theta/theta0)^2); hard: 1[theta < theta0]
         if dpt_modes or "pdir" in self.cam_modes:
             assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
-            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg", "pmix", "vo_rope"} - dpt_modes), \
+            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg", "pmix", "vo_rope",
+                                          "mlp2", "fw3l", "fw4l"} - dpt_modes), \
                 "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf, vo_rope)"
             if "vo_rope" in self.cam_modes:
                 assert "dpt_mem" not in self.cam_modes, "vo_rope carrier at the predicted depth needs a single-pass depth (mlp/chan)"
@@ -1291,9 +1292,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             return reg[key]
         # Q2 depth-3 fast weights: standalone modes; rot2/rot3 reuse the stock
         # qk_rope_cam machinery for the input rotary site.
+        # The camera recipe may ride on a deeper inner model: `fw3l+foot_in+h_foot+dpt_chan+pdir+vo_rope`
+        # etc. (2026-09-19, paper table:diverse_fast_weight). Everything else stays standalone.
+        _INNER_OK = {"foot_in", "h_foot", "dpt_chan", "dpt_mlp", "pdir", "pmix", "vo_rope", "iso", "sharedf"}
         self.fw3l = bool(self.cam_modes & {"fw3l", "fw3l_rot2", "fw3l_rot3"})
         if self.fw3l:
-            assert len(self.cam_modes) == 1, "fw3l modes are standalone (no '+' combos)"
+            assert not (self.cam_modes - {"fw3l", "fw3l_rot2", "fw3l_rot3"} - _INNER_OK), \
+                "fw3l combines only with the camera recipe modes"
             if self.cam_modes & {"fw3l_rot2", "fw3l_rot3"}:
                 self.cam_modes.add("qk_rope_cam")
         # Depth-4 fast weights (third point of the depth x rotary interaction):
@@ -1301,7 +1306,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         # the input site and adds ladders at h1 / s2 / s3.
         self.fw4l = bool(self.cam_modes & {"fw4l", "fw4l_rot4"})
         if self.fw4l:
-            assert len(self.cam_modes) == 1, "fw4l modes are standalone (no '+' combos)"
+            assert not (self.cam_modes - {"fw4l", "fw4l_rot4"} - _INNER_OK), \
+                "fw4l combines only with the camera recipe modes"
             if "fw4l_rot4" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
         # Gateless 2-layer-MLP fast weights (inner-model generality control):
@@ -1309,7 +1315,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         # machinery) + hidden rotary on the single hidden activation.
         self.mlp2 = bool(self.cam_modes & {"mlp2", "mlp2_rot2"})
         if self.mlp2:
-            assert len(self.cam_modes) == 1, "mlp2 modes are standalone (no '+' combos)"
+            assert not (self.cam_modes - {"mlp2", "mlp2_rot2"} - _INNER_OK), \
+                "mlp2 combines only with the camera recipe modes"
             if "mlp2_rot2" in self.cam_modes:
                 self.cam_modes.add("qk_rope_cam")
         rotary_fams = {"qk_rope_cam", "plucker_sinc", "point_rope", "pra_sinc", "cone_pra",
@@ -2883,6 +2890,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             hcos = hsin = None
             if "mlp2_rot2" in modes:
                 hcos, hsin = self._rope_coeffs(info, self.omega_mh, self.gain_mh)
+            elif "h_foot" in modes:
+                hcos, hsin = self._point_site_coeffs(info, "h")
             output, w0, w1 = fast_weight_mlp2_weight_norm_apply(
                 w0, w1, q, k, v, lr0, lr1, hcos, hsin, ttt_op_order,
                 muon_update_steps=self.muon_update_steps,
@@ -2894,6 +2903,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 h1cos, h1sin = self._rope_coeffs(info, self.omega_h1, self.gain_h1)
             if modes & {"fw3l_rot2", "fw3l_rot3"}:
                 s2cos, s2sin = self._rope_coeffs(info, self.omega_s2, self.gain_s2)
+            if "h_foot" in modes:
+                h1cos, h1sin = self._point_site_coeffs(info, "h")
+                s2cos, s2sin = h1cos, h1sin
             output, w0, w1, w2, wb = fast_weight_swiglu3l_weight_norm_apply(
                 w0, w2, wb, w1, q, k, v, lr0, lr2, lrb, lr1,
                 h1cos, h1sin, s2cos, s2sin, ttt_op_order,
@@ -2904,6 +2916,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             wb = info["wb"] if "wb" in info else self.wb.repeat(x.shape[0], 1, 1)
             wc = info["wc"] if "wc" in info else self.wc.repeat(x.shape[0], 1, 1)
             h1cos = h1sin = s2cos = s2sin = s3cos = s3sin = None
+            if "h_foot" in modes:
+                h1cos, h1sin = self._point_site_coeffs(info, "h")
+                s2cos, s2sin = s3cos, s3sin = h1cos, h1sin
             if "fw4l_rot4" in modes:
                 h1cos, h1sin = self._rope_coeffs(info, self.omega_h1, self.gain_h1)
                 s2cos, s2sin = self._rope_coeffs(info, self.omega_s2, self.gain_s2)
