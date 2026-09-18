@@ -644,4 +644,7 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
   it would leave dpt_gain unused and trip DDP). Configs renamed `ray_vo_both.yaml` / `raycam_vo_both.yaml`, cells
   {re10k,gobj}_{ray,raycam}_vo_s137, runner restarted. Final-recipe smoke again bit-identical (9.527 / 0.7326).
   Note: these two rows therefore also lack the value-channel masking that dpt_chan applies in rows (1)/(2).
+- 2026-09-19 00:00 site ablation CLOSED (4 cells) -> RESULTS_DOSSIER F91. Headline: hidden > input everywhere, and on
+  the orbit hidden-ONLY (22.775) beats both sites (22.687) and ties the full recipe (22.796) -- the orbit weakness is
+  an input-site effect. Embedding-coordinate cells launched on the freed GPUs.
 

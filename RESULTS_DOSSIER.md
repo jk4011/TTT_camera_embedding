@@ -3916,3 +3916,20 @@ it is +0.51 over base but 0.11 below foot_all_iso (the user chose this over swit
 which would be 23.031 there). Supporting ablations: F89 (channel vs MLP depth, v/o off), F88 (ray vs camera position,
 carrier), F90 (orthogonality), F87 (depth sources, single sites).
 
+## F91: ablation ladder of the FINAL RECIPE (user, 2026-09-18; seed 137, 8-view/30k, RE10K + orbit -- the user
+## dropped DL3DV from the ablations). Rows (3)/(4) are the final recipe with ONE rotary site and no v/o.
+| row | cam_mode | RE10K (base 21.610) | orbit (base 22.291) |
+|---|---|---|---|
+| (5) NoPE | -- | 21.610 | 22.291 |
+| (3) input only | `foot_in+dpt_chan+pdir` | 22.266 (+0.656, t=27.3, 94%) | 22.639 (+0.348, t=15.2, 80%) |
+| (4) hidden only | `h_foot+dpt_chan+pdir` | 22.405 (+0.795, t=43.0, 99%) | 22.775 (+0.485, t=22.9, 86%) |
+| (2) input+hidden | `foot_in+h_foot+dpt_chan+pdir` | 22.834 (+1.224) | 22.687 (+0.396) |
+| (1) **final = +v/o** | `... +vo_rope` | **22.949 (+1.338)** | **22.796 (+0.506)** |
+1. **Hidden > input at both baselines** (paired hidden - input = +0.139, t=7.2 on RE10K; +0.137, t=8.2 on the orbit),
+   confirming F87 add. 6 / add. 10 on this recipe.
+2. **The two sites add on RE10K but not on the orbit.** RE10K: +0.66 / +0.80 singly, +1.22 together (both - hidden =
+   +0.429, t=16.9). Orbit: hidden alone (22.775) BEATS both sites (22.687) by +0.089 (t=5.1) and is statistically
+   level with the full recipe (22.796, -0.021); the input site contributes nothing there. So the orbit weakness of
+   this recipe (below point-only and below foot_all_iso) is an INPUT-SITE effect, not a v/o or depth-source effect.
+3. v/o adds +0.11 on top of both sites at both baselines (F89 addendum).
+

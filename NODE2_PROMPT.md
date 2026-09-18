@@ -77,10 +77,10 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 ### 3.ABL — **최종 recipe 기준 ablation** (2026-09-18 21:50 사용자 지시; 21:52 "DL3DV는 돌릴 필요 없다" → RE10K + orbit만). 사다리: (5) NoPE=base → (3) input만 → (4) hidden만 → (2) input+hidden → (1) +v/o. (1)(2)(5) 완료. (3)(4)는 **v/o 없는** 단일 사이트. seed 137, `--actckpt`.
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
-| AB-3a | `re10k_dpchan_pdir_in_s137` | `config/dp_chan_pdir_in.yaml` (`foot_in+dpt_chan+pdir`) | RE10K | [RUNNING gpu0, 21:48] |
-| AB-3b | `gobj_dpchan_pdir_in_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING gpu1, 21:48] |
-| AB-4a | `re10k_dpchan_pdir_h_s137` | `config/dp_chan_pdir_h.yaml` (`h_foot+dpt_chan+pdir`) | RE10K | [RUNNING gpu3, 21:50] |
-| AB-4b | `gobj_dpchan_pdir_h_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING gpu2, 21:54] |
+| AB-3a | `re10k_dpchan_pdir_in_s137` | `config/dp_chan_pdir_in.yaml` (`foot_in+dpt_chan+pdir`) | RE10K | [DONE 22.266 (+0.656 vs base; −0.568 vs (2); −0.139 vs hidden-only)] |
+| AB-3b | `gobj_dpchan_pdir_in_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.639 (+0.348 vs base; −0.048 vs (2); −0.137 vs hidden-only)] |
+| AB-4a | `re10k_dpchan_pdir_h_s137` | `config/dp_chan_pdir_h.yaml` (`h_foot+dpt_chan+pdir`) | RE10K | [DONE 22.405 (+0.795 vs base; −0.429 vs (2))] |
+| AB-4b | `gobj_dpchan_pdir_h_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE **22.775** (+0.485 vs base; **+0.089 vs (2) t=5.1** — orbit에서는 hidden만 쓰는 게 두 사이트보다 나음; 최종 recipe 22.796과 동률)] |
 | (취소) | `dl3dvu_dpchan_pdir_{in,h}_s137` | — | DL3DV-u | [DROPPED 21:52 — 사용자: DL3DV ablation 불필요] |
 
 ### 3.EMB — **embedding 좌표 설계 ablation** (2026-09-18 22:00 사용자 지시; 23:20 "점 정보를 완전히 뺀 행으로" → 캐리어까지 점 제거). 기준은 최종 recipe(input+hidden+v/o), 점-사이트의 **좌표 조합만** 변경. RE10K + orbit, seed 137.
