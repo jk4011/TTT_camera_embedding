@@ -652,3 +652,21 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
   21.669 (-0.62 BELOW NoPE), ray+camera 20.727 (-1.56). The point half is a liability at narrow baseline and
   essential at wide baseline. All 8 ablation cells done, GPUs idle, queue empty.
 
+
+## 2026-09-19 PAPER PROGRAM (user, 6 chained items; answers to my 4 questions recorded inline)
+Target file: `paper_overleaf/sections/4.experiment.tex` (pull works now: Overleaf token stored in .git-credentials).
+DECISIONS: (1) rebuild `table:comparison_nvs` at SEED 137 / 8-view for RE10K + Objaverse + DL3DV-u, 5 rows
+NoPE/PRoPE/GTA/RayRoPE(sigma0=3, world-frame)/CaPET(= the 2026-09-18 final recipe `dp_chan_pdir_vo_both`);
+(2) tttLRM and CCV get the FULL final recipe ported (point at channel-predicted depth + ray + v/o), not the old
+input+hidden Plucker rotary; (3) `table:diverse_fast_weight` keeps its existing NoPE column, only the CaPET column is
+re-run (2/3/4-layer MLP, 3 cells); (4) CCV is evaluated with camera accuracy (RotErr/TransErr/CamMC, CamI2V formulas,
+poses from VGGT or GLOMAP) AND FVD.
+1. NVS baselines: 9 cells {re10k,gobj,dl3dvu} x {NoPE, PRoPE(cam_prope_orig), GTA(cam_gta_in)}, seed 137, launcher
+   `run_queue_0919.sh` -> table:comparison_nvs.
+2. Input-view sweep (eval only, no training) for all 5 methods x 3 datasets -> fig:input-scale (replaces the current
+   3-task figure with a 3-dataset one).
+3. Qualitative figure: 5 scenes x {NoPE, PRoPE, GTA, RayRoPE, CaPET, GT} -> new fig:comparison_nvs; pick scenes with
+   large, visible PSNR gaps.
+4. Fast-weight analysis: final recipe on 2/3/4-layer MLP fast weights (needs code: those modes are standalone today).
+5. tttLRM: NoPE + final recipe, numbers only -> tab:recon.
+6. CCV: NoPE + final recipe, ReCamMaster-lineage metrics -> tab:ccv.
