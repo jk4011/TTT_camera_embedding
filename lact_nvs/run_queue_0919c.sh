@@ -18,6 +18,11 @@ while [ $i -lt ${#QUEUE[@]} ]; do
     [ -f outputs/.gpu_locks/node1_gpu$g ] && continue
     set -- ${QUEUE[$i]}; exp=$1; cfg=$2
     if [ -f outputs/$exp/eval.json ]; then echo "$(date '+%F %T') skip $exp (done)" >> $LOG; i=$((i+1)); continue; fi
+    # never launch a cell that is already training (a restarted runner would otherwise
+    # start a duplicate on a second GPU: both truncate the same log and race on the
+    # checkpoint). The wrapper's command line carries the experiment name.
+    if pgrep -f "run_[a-z0-9]*\.sh [0-9] $exp " > /dev/null 2>&1; then
+      echo "$(date '+%F %T') skip $exp (already running)" >> $LOG; i=$((i+1)); continue; fi
     EXTRA_ARGS=--actckpt setsid nohup ./run_re10k.sh $g $exp $cfg 137 > outputs/$exp.launch.log 2>&1 < /dev/null &
     echo "$(date '+%F %T') launched $exp on gpu$g" >> $LOG
     i=$((i+1)); sleep 45
