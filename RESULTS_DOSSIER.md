@@ -3933,3 +3933,24 @@ carrier), F90 (orthogonality), F87 (depth sources, single sites).
    this recipe (below point-only and below foot_all_iso) is an INPUT-SITE effect, not a v/o or depth-source effect.
 3. v/o adds +0.11 on top of both sites at both baselines (F89 addendum).
 
+## F92: coordinate-design ablation of the FINAL RECIPE (user, 2026-09-18/19; seed 137, RE10K + orbit). Base machinery
+## fixed (input + hidden rotary + v/o carrier); only WHICH COORDINATES are phase-coded changes. The two point-free
+## rows are point-free everywhere: `vo_coords: pmix` puts the carrier on the same halves, and `dpt_chan` is dropped
+## (no point -> no depth to predict), so they also lack the value-channel masking of the point rows.
+| row | coordinates (address + carrier) | dims coded (input) | RE10K (base 21.610) | orbit (base 22.291) |
+|---|---|---|---|---|
+| (1) final recipe | 3D point at predicted depth + ray direction | 252/256 | 22.949 (+1.339) | **22.796 (+0.506)** |
+| (2) ray only | ray direction d | 126/256 | **23.046 (+1.436)**; +0.098 vs (1), t=3.9 | 21.669 (-0.622); **-1.128 vs (1)** |
+| (3) ray + camera origin | d + (o - p*) | 252/256 | 23.002 (+1.392); +0.053 vs (1), t=2.4; -0.044 vs (2) | 20.727 (-1.564); -2.069 vs (1), -0.942 vs (2) |
+1. **The two regimes want OPPOSITE codes.** At narrow baseline the 3D point is not merely unnecessary, it is a
+   liability: a pure ray-direction rotary on HALF the coded dimensions beats the full recipe (+0.098) and the prior
+   RE10K record (Plucker TTT-RoPE 22.777, +0.269), with no depth head, no value channel removed, no point anywhere.
+   At the 91-deg orbit the same code falls 0.62 BELOW NoPE and 1.13 below the recipe: with wide baselines a
+   direction-only code cannot address a scene point at all.
+2. **The camera origin is dead weight or worse** -- RE10K -0.044 vs ray-only (t=-3.9), orbit -0.942. Third
+   independent confirmation (F88 row 2 pcam, F90's translation column, now this).
+3. Consequence for the paper: the final recipe's RE10K number is NOT evidence that the point code helps there; the
+   ray half carries RE10K and the point half carries the orbit. A single-recipe claim on both rests on the point
+   half being tolerable at narrow baseline (-0.10), not on it being useful. The gate the user dropped (F87 add. 8-12)
+   is the only device tried so far that adapts this per scene.
+

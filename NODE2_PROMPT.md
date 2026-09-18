@@ -88,10 +88,10 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
 | EM-1 | (최종 recipe = pt+dir) | `dp_chan_pdir_vo_both.yaml` | RE10K / orbit | [DONE 22.949 / 22.796] |
-| EM-2a | `re10k_ray_vo_s137` | `config/ray_vo_both.yaml` (`foot_in+h_foot+pmix+vo_rope`, `p_coords: dir`, `vo_coords: pmix`) | RE10K | [QUEUED 23:22] |
-| EM-2b | `gobj_ray_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
-| EM-3a | `re10k_raycam_vo_s137` | `config/raycam_vo_both.yaml` (`p_coords: dir+cam`) | RE10K | [QUEUED] |
-| EM-3b | `gobj_raycam_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| EM-2a | `re10k_ray_vo_s137` | `config/ray_vo_both.yaml` (`foot_in+h_foot+pmix+vo_rope`, `p_coords: dir`, `vo_coords: pmix`) | RE10K | [DONE **23.046** (+1.436 vs base; **+0.098 vs 최종 recipe t=3.9**; Plücker 대비 +0.269) — 점 없이, 코딩 차원 절반으로 최고] |
+| EM-2b | `gobj_ray_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 21.669 (**−0.622 vs base**, 승률 4.8%; −1.128 vs 최종 recipe) — orbit에서는 방향만으로 불가] |
+| EM-3a | `re10k_raycam_vo_s137` | `config/raycam_vo_both.yaml` (`p_coords: dir+cam`) | RE10K | [DONE 23.002 (+1.392 vs base; +0.053 vs 최종 recipe; **−0.044 vs ray only**)] |
+| EM-3b | `gobj_raycam_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 20.727 (**−1.564 vs base**, 승률 0.4%; −0.942 vs ray only) — **EMB 종료 02:15, GPU 4장 유휴, 큐 비어 있음**] |
 
 ### 3.FINAL — **최종 recipe 확정** (2026-09-18 21:00, 사용자 결정): `config/dp_chan_pdir_vo_both.yaml` = 점+ray 6D RoPE(input+hidden) + value 채널 depth + v/o carrier. 22.949 / 22.796 / 16.978. orbit은 base 대비 +0.51로 주장(foot_all_iso 22.911에는 −0.11).
 

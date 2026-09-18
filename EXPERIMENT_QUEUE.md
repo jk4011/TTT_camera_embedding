@@ -647,4 +647,8 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
 - 2026-09-19 00:00 site ablation CLOSED (4 cells) -> RESULTS_DOSSIER F91. Headline: hidden > input everywhere, and on
   the orbit hidden-ONLY (22.775) beats both sites (22.687) and ties the full recipe (22.796) -- the orbit weakness is
   an input-site effect. Embedding-coordinate cells launched on the freed GPUs.
+- 2026-09-19 02:15 EMB CLOSED (4 cells) -> RESULTS_DOSSIER F92. RE10K: ray-only 23.046 BEATS the final recipe (+0.098)
+  and Plucker (+0.269) with no point anywhere and half the coded dims; ray+camera-origin 23.002. Orbit: ray-only
+  21.669 (-0.62 BELOW NoPE), ray+camera 20.727 (-1.56). The point half is a liability at narrow baseline and
+  essential at wide baseline. All 8 ablation cells done, GPUs idle, queue empty.
 
