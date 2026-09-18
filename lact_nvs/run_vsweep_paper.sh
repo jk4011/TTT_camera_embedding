@@ -3,7 +3,7 @@
 # Five arms -- NoPE / PRoPE / GTA / RayRoPE (sigma0=3, world-frame) / CaPET (final recipe) --
 # re-evaluated at several input-view counts with NO additional training. Seed 137 throughout.
 #
-#   ./run_vsweep_paper.sh <dataset: re10k|gobj|dl3dvu> <gpu> [views]
+#   ./run_vsweep_paper.sh <dataset: re10k|gobj|dl3dvu> <gpu> [views]   (default 4 8 16 32, user 2026-09-19)
 #
 # A fixed --min_frames keeps the scene set identical across view counts, so per-scene paired
 # deltas stay valid. Writes outputs/<exp>/eval_paper_nv<V>.json and skips finished ones.
@@ -27,22 +27,22 @@ case "$DS" in
   re10k)
     declare -A EXP=( [nope]=base_s137_re [prope]=re10k_prope_s137 [gta]=re10k_gta_s137 \
                      [rayrope]=re10k_rayropew_s137 [capet]=re10k_dpchan_pdir_vo_s137 )
-    DP=$DATA_ROOT/re10k/test_index.json; NSC=256; EXTRA=(--min_frames 52); VIEWS=${3:-"4 8 12 20 32 48"} ;;
+    DP=$DATA_ROOT/re10k/test_index.json; NSC=256; EXTRA=(--min_frames 52); VIEWS=${3:-"4 8 16 32"} ;;
   gobj)
     declare -A EXP=( [nope]=gobj_base_s137_re [prope]=gobj_prope_s137 [gta]=gobj_gta_s137 \
                      [rayrope]=gobj_rayropew_s137 [capet]=gobj_dpchan_pdir_vo_s137 )
-    DP=$DATA_ROOT/gobj/test_index.json; NSC=500; EXTRA=(--min_frames 36); VIEWS=${3:-"4 8 12 20 32"} ;;   # 40-frame orbits
+    DP=$DATA_ROOT/gobj/test_index.json; NSC=500; EXTRA=(--min_frames 36); VIEWS=${3:-"4 8 16 32"} ;;   # 40-frame orbits
   dl3dvu)
     declare -A EXP=( [nope]=dl3dvu_base_s137_re [prope]=dl3dvu_prope_s137 [gta]=dl3dvu_gta_s137 \
                      [rayrope]=dl3dvu_rayropew_s137 [capet]=dl3dvu_dpchan_pdir_vo_s137 )
-    DP=$DATA_ROOT/dl3dv/test_index.json; NSC=140; EXTRA=(--min_frames 52 --image_size 256 448); VIEWS=${3:-"4 8 12 20 32"}; WIDE=1 ;;
+    DP=$DATA_ROOT/dl3dv/test_index.json; NSC=140; EXTRA=(--min_frames 52 --image_size 256 448); VIEWS=${3:-"4 8 16 32"}; WIDE=1 ;;
   *) echo "unknown dataset $DS"; exit 1 ;;
 esac
 [ -f "$DP" ] || { echo "FATAL: $DP missing"; exit 1; }
 
 for V in $VIEWS; do
-  if [ "$V" -ge 32 ]; then BS=2; elif [ "$V" -ge 20 ]; then BS=4; else BS=8; fi
-  [ "$WIDE" = "1" ] && [ "$V" -ge 20 ] && BS=1
+  if [ "$V" -ge 32 ]; then BS=2; elif [ "$V" -ge 16 ]; then BS=4; else BS=8; fi
+  [ "$WIDE" = "1" ] && [ "$V" -ge 16 ] && BS=1
   for ARM in nope prope gta rayrope capet; do
     E=${EXP[$ARM]}; CK=outputs/$E/model_0030000.pth; OUT=outputs/$E/eval_paper_nv${V}.json
     [ -f "$OUT" ] && { echo "[$DS gpu$GPU] $ARM v$V done"; continue; }
