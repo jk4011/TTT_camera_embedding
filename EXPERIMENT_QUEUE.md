@@ -608,4 +608,12 @@ re-norm, full head dim) + `h_mat` (update M^-1 h, apply M^T h; reuses the h_ga k
 lift(K) w2c) | ext (GTA SE(3) w2c) | rot ([R 0; 0 1], the orthogonal part -- control added by node1).
 Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_both.yaml`, sequential launcher
 `lact_nvs/run_queue_0918.sh` (lock-file based, next cell on any GPU without one of our cells; log outputs/queue_0918.log).
+- 08:1x-08:4x results: FR-2 orbit 22.687 (-0.12 vs MLP depth, below point-only), FR-1 RE10K 22.834 (-0.07 vs MLP depth,
+  > Plucker 22.777; dpt_gain ~0 -> effectively foot-depth point + ray), NO-1 RE10K projective 21.362 (-0.249 vs base).
+- ~09:30 CONTAINER LOST (DCTN-0910121937; the session resumed at 11:36 on DCTN-0916112642, cause unknown to me -- our
+  side: 4 cells with --actckpt, 37-59 GB GPU each, system RAM ~470 GB used of 2.2 TB, no tmpfs). All four running cells
+  died: dl3dvu FR-3 at 26.4k, gobj_mat_proj at 13.8k, re10k_mat_ext at 7.4k, gobj_mat_ext at 6.6k.
+- 11:37 relaunched on the new container (same commands; stale node1_gpu* locks removed): dl3dvu FR-3 resumes from
+  model_0020000 (gpu1), gobj_mat_proj from model_0010000 (gpu0), re10k_mat_ext (gpu2) and gobj_mat_ext (gpu3) from
+  scratch; run_queue_0918.sh restarted for the two rot cells. Interrupted logs kept as train.log.part1_*.
 
