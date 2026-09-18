@@ -624,4 +624,6 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
 - 17:20 FRV (user): FR + v/o carrier, `config/dp_chan_pdir_vo_both.yaml` (smoke passed), cells
   {re10k,gobj,dl3dvu}_dpchan_pdir_vo_s137 on gpu1/2/3 (gpu0 holds the other project's 115 GB job), --actckpt as the FR
   cells; reference rows FR (F89) and MLP-depth+v/o (F88 row 3).
+- 20:45 FRV CLOSED: FR + v/o = 22.949 / 22.796 / 16.978 (+0.11 / +0.11 / +0.13 over FR; -0.05 / -0.24 / -0.04 vs the
+  MLP-depth v/o twin). All 4 GPUs idle, queue empty.
 

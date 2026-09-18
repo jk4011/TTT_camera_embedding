@@ -80,7 +80,7 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 |---|---|---|---|---|
 | FRV-1 | `re10k_dpchan_pdir_vo_s137` | `config/dp_chan_pdir_vo_both.yaml` (`foot_in+h_foot+dpt_chan+pdir+vo_rope`) | RE10K | [DONE **22.949** (+1.338 vs base; **+0.114 vs FR(v/o 없음) t=8.3, 73% 승**; −0.050 vs MLP depth+v/o t=−7.2; +0.172 vs Plücker t=8.0)] |
 | FRV-2 | `gobj_dpchan_pdir_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.796 (+0.506 vs base; **+0.109 vs FR t=7.9, 66% 승**; −0.235 vs MLP depth+v/o(23.031) t=−15.9; −0.209 vs 채널 depth 점-only(23.006); −0.114 vs foot_all_iso(22.911) t=−6.3) — 채널 depth에서는 v/o가 MLP depth 때(+0.22)의 절반만 되돌림, orbit 기존 최고 미달] |
-| FRV-3 | `dl3dvu_dpchan_pdir_vo_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3, 17:20] |
+| FRV-3 | `dl3dvu_dpchan_pdir_vo_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE **16.978** (+0.575 vs base t=19.0, 96% 승; **+0.126 vs FR t=9.2, 81% 승**; −0.044 vs MLP depth+v/o(17.022) t=−4.0; +0.091 vs MLP 점-only; 기존 최고 16.649 대비 +0.33) — **FRV 3셀 완료(20:45), GPU 4장 유휴, 큐 비어 있음**] |
 
 ### 3.NO — **비직교 행렬 embedding 연구** (2026-09-18, 사용자 지시): "TTT는 orthogonal embedding을 선호한다"를 실험으로 보이기. 카메라 행렬**만으로** 만든 embedding을 **input + hidden 두 사이트**에 적용, **v/o 없음**. RE10K + orbit, seed 137, 8-view/30k.
 코드: `mat_in`(q ← Mᵀq, k ← M⁻¹k; L2 정규화 **뒤**, 재정규화 없음, head_dim 전체에 4×4 타일) + `h_mat`(hidden: update M⁻¹h, apply Mᵀh; `h_ga` 커널 재사용). `mat_kind`: `proj` = lift(K)·w2c (PRoPE, 비직교), `ext` = w2c SE(3) (GTA, 평행이동 때문에 비직교), `rot` = [R 0; 0 1] (같은 행렬의 직교 부분 = 대조군, node1이 추가).

@@ -3862,11 +3862,14 @@ the same-seed cells of F87/F88. Paired per-scene stats.
 |---|---|---|---|---|---|---|
 | RE10K | 22.834 | **22.949** | +0.114 (t=8.3, 73%) | 22.999 | -0.050 (t=-7.2) | +1.338 |
 | orbit | 22.687 | **22.796** | +0.109 (t=7.9, 66%) | 23.031 | -0.235 (t=-15.9) | +0.506 |
-| DL3DV-u | 16.852 | (running) | | 17.022 | | |
+| DL3DV-u | 16.852 | **16.978** | +0.126 (t=9.2, 81%) | 17.022 | -0.044 (t=-4.0) | +0.575 |
 v/o is worth +0.11 on both datasets with the channel depth. On RE10K that puts the recipe 0.05 below the MLP-depth
 v/o twin and +0.17 over Plucker. On the orbit v/o recovers only half of what it recovered with the MLP depth (+0.22),
 so the cell stays below channel-depth point-only (23.006, -0.21) and below the pre-DP best foot_all_iso (22.911, -0.11):
 with the channel depth the ray half's orbit cost is larger (-0.32) and the carrier does not cover it.
+DL3DV-u: +0.126 for v/o, 0.04 below the MLP-depth v/o twin, +0.33 over the pre-DP best. Summary of the carrier with
+the channel depth: +0.11 / +0.11 / +0.13 on RE10K / orbit / DL3DV-u (paired t 8-9 everywhere), and the recipe lands
+0.04-0.05 below its MLP-depth twin on RE10K and DL3DV-u, 0.24 below it on the orbit. FRV closed 20:45, GPUs idle.
 VERDICT (user's acceptance rule: channel depth within 0.1 dB of the MLP depth on RE10K and DL3DV-u): PASSES on both
 (-0.069 / -0.091), fails it on the orbit (-0.122). One config, no depth network, +1.22 / +0.40 / +0.45 over base and
 above the pre-DP best on RE10K and DL3DV-u; on the orbit it stays below point-only and the pre-DP best because the
