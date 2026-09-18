@@ -628,4 +628,7 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
   MLP-depth v/o twin). All 4 GPUs idle, queue empty.
 - 21:00 USER DECISION: FINAL RECIPE = FR + v/o (`config/dp_chan_pdir_vo_both.yaml`), 22.949 / 22.796 / 16.978. Orbit
   claim is vs base (+0.51), not vs foot_all_iso. Queue empty, GPUs idle.
+- 21:50 ABL (user): final-recipe ablation ladder. Done rows: (1) final 22.949/22.796/16.978, (2) w/o v/o 22.834/22.687/16.852,
+  (5) NoPE=base. New: (3) input-only `dp_chan_pdir_in.yaml`, (4) hidden-only `dp_chan_pdir_h.yaml` (both without v/o), 3
+  datasets each = 6 cells via `run_queue_0918c.sh` (4 GPUs free, all --actckpt). Smoke passed for both configs.
 
