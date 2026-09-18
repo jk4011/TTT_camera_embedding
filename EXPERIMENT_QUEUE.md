@@ -616,4 +616,9 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
 - 11:37 relaunched on the new container (same commands; stale node1_gpu* locks removed): dl3dvu FR-3 resumes from
   model_0020000 (gpu1), gobj_mat_proj from model_0010000 (gpu0), re10k_mat_ext (gpu2) and gobj_mat_ext (gpu3) from
   scratch; run_queue_0918.sh restarted for the two rot cells. Interrupted logs kept as train.log.part1_*.
+- 16:20 FR + NO CLOSED (9 cells). FR: channel-depth point+ray 22.834 / 22.687 / 16.852 -- within 0.1 dB of the MLP depth
+  on RE10K (-0.07) and DL3DV-u (-0.09), -0.12 on the orbit; above the pre-DP best on RE10K/DL3DV-u, below it on the
+  orbit (no v/o, no gate). NO: rot (orthogonal) +0.04 / +0.06 vs base; ext -0.22 / -0.17; proj -0.25 / -0.22 -> the
+  translation column alone costs 0.22-0.27 dB with everything else fixed (RESULTS_DOSSIER F89/F90). All 4 GPUs idle,
+  queue empty. Untested follow-up the user may want: fully parameter-free foot-depth point+ray (`config/pdir_both.yaml`).
 

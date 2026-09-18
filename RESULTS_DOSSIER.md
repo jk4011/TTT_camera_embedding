@@ -3875,6 +3875,21 @@ same-seed baseline; the rotary rows are the same-seed F87/F89 cells for scale.
 |---|---|---|---|---|
 | mat_proj | lift(K) w2c | no (intrinsics + translation) | **21.362 (-0.249, t=-15.7, 10.5% wins)** | **22.072 (-0.219, t=-14.0, 25.5% wins)** |
 | mat_ext | w2c | no (translation) | **21.386 (-0.224, t=-16.8, 9.8% wins)**; = proj (+0.024, t=1.6) | **22.125 (-0.165, t=-10.3, 29.7% wins)**; vs proj +0.053 (t=3.9) |
-| mat_rot | [R 0; 0 1] | yes | **21.653 (+0.043, t=4.3, 65.6% wins)**; vs ext +0.267 (t=19.9, 93%); vs proj +0.292 (t=17.1, 91%) | (running) |
+| mat_rot | [R 0; 0 1] | yes | **21.653 (+0.043, t=4.3, 65.6% wins)**; vs ext +0.267 (t=19.9, 93%); vs proj +0.292 (t=17.1, 91%) | **22.348 (+0.057, t=3.3, 55.5% wins)**; vs ext +0.222 (t=14.8, 78%); vs proj +0.276 (t=16.1, 78%) |
 | point+ray rotary (F89, channel depth) | -- | yes (phases) | 22.834 (+1.224) | 22.687 (+0.396) |
+Conclusions (2026-09-18 16:20; 6 cells, single seed):
+1. **Orthogonality is the variable.** With the machinery held fixed (same sites, same tiling, same exact relative
+   product M_j M_i^-1), the orthogonal matrix sits at or slightly above base on both datasets (+0.04 / +0.06) while
+   the two non-orthogonal ones lose 0.17-0.25 dB: adding the translation column alone costs -0.27 (RE10K) / -0.22
+   (orbit) against the rotation-only control, paired t 15-20. Adding the intrinsics lift on top changes almost nothing
+   (proj vs ext: -0.02 / -0.05). This is the controlled version of F3/F34's projective penalty: the loss comes from
+   leaving the unit sphere the fast-weight MLP was trained on, not from "being a matrix" and not from intrinsics.
+2. **A one-rung orthogonal matrix action is still almost worthless on its own** (+0.04 / +0.06 vs the rotary codes'
+   +1.22 / +0.40): the fundamental representation cannot resolve small pose differences under a cosine-capped linear
+   readout; the sharpness has to come from a multi-frequency ladder (F56 phase-vs-matrix, F89). The two statements
+   belong in the paper together: TTT prefers orthogonal codes, and it needs high-frequency ones.
+3. Caveats: seed 137 only; gobj_mat_proj resumed from 10k after the container loss, re10k/gobj_mat_ext were retrained
+   from scratch after it. Prior seed-95 input-only cells (gta_in -0.14/-0.15, prope_in -0.18/-0.11, ogta +0.08/-0.09)
+   agree in sign on RE10K; the orbit ogta loss (-0.09) is not reproduced by mat_rot (+0.06) -- ogta also carried
+   SO(2) translation phases, mat_rot does not.
 
