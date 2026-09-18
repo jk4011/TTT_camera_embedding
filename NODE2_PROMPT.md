@@ -82,10 +82,10 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 |---|---|---|---|---|
 | NO-1 | `re10k_mat_proj_s137` | `config/mat_proj_both.yaml` | RE10K | [DONE 21.362 (**−0.249 vs base t=−15.7, 10.5% 승**; LPIPS +0.012) — projection 행렬을 input+hidden 전 차원에 걸면 base보다 나빠짐] |
 | NO-2 | `gobj_mat_proj_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu1, 08:12] |
-| NO-3 | `re10k_mat_ext_s137` | `config/mat_ext_both.yaml` | RE10K | [RUNNING node1 gpu0, 08:23] |
+| NO-3 | `re10k_mat_ext_s137` | `config/mat_ext_both.yaml` | RE10K | [DONE 21.386 (**−0.224 vs base t=−16.8, 9.8% 승**; projection 셀과 동률 +0.024 t=1.6) — intrinsics 없이 평행이동만으로도 projection과 같은 손해; 컨테이너 소실 후 처음부터 재학습한 셀] |
 | NO-4 | `gobj_mat_ext_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu3, 08:45] |
 | NO-5 | `re10k_mat_rot_s137` | `config/mat_rot_both.yaml` (직교 대조군) | RE10K | [RUNNING node1 gpu1, 12:51] |
-| NO-6 | `gobj_mat_rot_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| NO-6 | `gobj_mat_rot_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu2, 13:55] |
 
 ### 3.DP2 — **depth 심화** (2026-09-10 02:20, 사용자 지시: 하드 게이트 제거, depth만 파기; 04:10 4행 표로 확정). 기준: base / 점-only dpt_mlp both (RE10K 22.290 / orbit 22.991 / DL3DV-u 16.888). seed 137, 8-view/30k. 데이터는 lustre(`dataset/reshard`), GPU는 타 프로젝트와 공유.
 사용자가 원하는 결과표: (1) 3D point + ray = pdir [완료: 22.903 / 22.809 / 16.943] (2) 3D point + camera position = pcam (3) 3D point + ray + v/o = pdir_vo (4) RayRoPE = rayrope_ttt.

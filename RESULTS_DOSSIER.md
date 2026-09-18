@@ -3874,7 +3874,7 @@ same-seed baseline; the rotary rows are the same-seed F87/F89 cells for scale.
 | cell | matrix | orthogonal? | RE10K (base 21.610) | orbit (base 22.291) |
 |---|---|---|---|---|
 | mat_proj | lift(K) w2c | no (intrinsics + translation) | **21.362 (-0.249, t=-15.7, 10.5% wins)** | (running) |
-| mat_ext | w2c | no (translation) | (running) | (running) |
+| mat_ext | w2c | no (translation) | **21.386 (-0.224, t=-16.8, 9.8% wins)**; = proj (+0.024, t=1.6) | (running) |
 | mat_rot | [R 0; 0 1] | yes | (queued) | (queued) |
 | point+ray rotary (F89, channel depth) | -- | yes (phases) | 22.834 (+1.224) | 22.687 (+0.396) |
 
