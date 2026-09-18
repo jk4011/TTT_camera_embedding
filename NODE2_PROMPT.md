@@ -81,7 +81,7 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
 | NO-1 | `re10k_mat_proj_s137` | `config/mat_proj_both.yaml` | RE10K | [DONE 21.362 (**−0.249 vs base t=−15.7, 10.5% 승**; LPIPS +0.012) — projection 행렬을 input+hidden 전 차원에 걸면 base보다 나빠짐] |
-| NO-2 | `gobj_mat_proj_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu1, 08:12] |
+| NO-2 | `gobj_mat_proj_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.072 (**−0.219 vs base t=−14.0, 25.5% 승**) — orbit에서도 projection 행렬은 base 아래; 컨테이너 소실 후 10k에서 재개한 셀] |
 | NO-3 | `re10k_mat_ext_s137` | `config/mat_ext_both.yaml` | RE10K | [DONE 21.386 (**−0.224 vs base t=−16.8, 9.8% 승**; projection 셀과 동률 +0.024 t=1.6) — intrinsics 없이 평행이동만으로도 projection과 같은 손해; 컨테이너 소실 후 처음부터 재학습한 셀] |
 | NO-4 | `gobj_mat_ext_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu3, 08:45] |
 | NO-5 | `re10k_mat_rot_s137` | `config/mat_rot_both.yaml` (직교 대조군) | RE10K | [RUNNING node1 gpu1, 12:51] |
