@@ -3857,6 +3857,16 @@ the same-seed cells of F87/F88. Paired per-scene stats.
   TTT-RoPE 16.649), tie with MLP-depth point-only (16.888, t=-1.8). dpt_gain magnitudes 0.03-0.17: here the channel
   depth IS used. Caveat: this cell was resumed from its 20k checkpoint after the container loss (~09:30), so its data
   order after 20k differs from an uninterrupted run (same class of caveat as the DP2 resumes).
+### F89 addendum (2026-09-18 19:30): FR + v/o carrier (user: "how much does v/o add?") -- `dp_chan_pdir_vo_both.yaml`
+| dataset | FR (no v/o) | **FR + v/o** | vs FR | MLP depth + v/o (F88 row 3) | vs that | vs base |
+|---|---|---|---|---|---|---|
+| RE10K | 22.834 | **22.949** | +0.114 (t=8.3, 73%) | 22.999 | -0.050 (t=-7.2) | +1.338 |
+| orbit | 22.687 | **22.796** | +0.109 (t=7.9, 66%) | 23.031 | -0.235 (t=-15.9) | +0.506 |
+| DL3DV-u | 16.852 | (running) | | 17.022 | | |
+v/o is worth +0.11 on both datasets with the channel depth. On RE10K that puts the recipe 0.05 below the MLP-depth
+v/o twin and +0.17 over Plucker. On the orbit v/o recovers only half of what it recovered with the MLP depth (+0.22),
+so the cell stays below channel-depth point-only (23.006, -0.21) and below the pre-DP best foot_all_iso (22.911, -0.11):
+with the channel depth the ray half's orbit cost is larger (-0.32) and the carrier does not cover it.
 VERDICT (user's acceptance rule: channel depth within 0.1 dB of the MLP depth on RE10K and DL3DV-u): PASSES on both
 (-0.069 / -0.091), fails it on the orbit (-0.122). One config, no depth network, +1.22 / +0.40 / +0.45 over base and
 above the pre-DP best on RE10K and DL3DV-u; on the orbit it stays below point-only and the pre-DP best because the
