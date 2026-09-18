@@ -626,4 +626,6 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
   cells; reference rows FR (F89) and MLP-depth+v/o (F88 row 3).
 - 20:45 FRV CLOSED: FR + v/o = 22.949 / 22.796 / 16.978 (+0.11 / +0.11 / +0.13 over FR; -0.05 / -0.24 / -0.04 vs the
   MLP-depth v/o twin). All 4 GPUs idle, queue empty.
+- 21:00 USER DECISION: FINAL RECIPE = FR + v/o (`config/dp_chan_pdir_vo_both.yaml`), 22.949 / 22.796 / 16.978. Orbit
+  claim is vs base (+0.51), not vs foot_all_iso. Queue empty, GPUs idle.
 

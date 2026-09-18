@@ -3906,3 +3906,13 @@ Conclusions (2026-09-18 16:20; 6 cells, single seed):
    agree in sign on RE10K; the orbit ogta loss (-0.09) is not reproduced by mat_rot (+0.06) -- ogta also carried
    SO(2) translation phases, mat_rot does not.
 
+## FINAL RECIPE (user decision, 2026-09-18 21:00)
+`config/dp_chan_pdir_vo_both.yaml` = `foot_in+h_foot+dpt_chan+pdir+vo_rope` (vo_coords foot): point + ray-direction 6D
+rotary at the input (q/k) and hidden (h) sites, the point at a depth read from ONE value channel (no depth network;
+one zero-init scalar gain per layer, that channel removed from v), plus the v/o carrier phased at the same point.
+No gate. Seed 137, 8-view/30k: RE10K 22.949 / orbit 22.796 / DL3DV-u 16.978 = +1.34 / +0.51 / +0.57 over base
+(F89 addendum). Claims: above the pre-DP best on RE10K (+0.17 vs Plucker TTT-RoPE) and DL3DV-u (+0.33); on the orbit
+it is +0.51 over base but 0.11 below foot_all_iso (the user chose this over switching the depth source to the MLP,
+which would be 23.031 there). Supporting ablations: F89 (channel vs MLP depth, v/o off), F88 (ray vs camera position,
+carrier), F90 (orthogonality), F87 (depth sources, single sites).
+
