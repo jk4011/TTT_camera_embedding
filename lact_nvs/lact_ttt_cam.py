@@ -1130,6 +1130,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         rr_init_sigma: float = 3.0,
         rr_frame: str = "query",
         mat_kind: str = "proj",
+        p_coords: str = "pt+dir",
     ):
         super().__init__(dim, head_dim, inter_multi, bias, base_lr, muon_update_steps)
         self.cam_mode = cam_mode
@@ -1141,6 +1142,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # 'proj' = lift(K) w2c (PRoPE, non-orthogonal), 'ext' = w2c SE(3) (GTA, non-orthogonal
                  # through the translation), 'rot' = [R 0; 0 1] (the orthogonal part, control).
                  "mat_in", "h_mat",
+                 #   pmix : coordinate-design ablation (2026-09-18, user). The point-site code is built from
+                 #   the halves listed in `p_coords` (subset/order of pt = 3D point at the predicted depth,
+                 #   dir = ray direction d, cam = camera origin o - p*), each on the SAME dirs/ladder with its
+                 #   own gains. "pt+dir" reproduces foot+pdir; "dir" = ray only; "dir+cam" = ray + camera origin.
+                 "pmix",
                  "prope_ttt", "prope_in", "gta_in", "prope_in_raw", "prope_raw", "prope_orig", "prope_imgrope", "cam_lr", "adaln_cam", "q_reinject", "cam_registers",
                  "hyper_init", "h_pra", "h_dpra", "cone_pra", "ms2",
                  "w0_mask", "omega_map", "m_scale", "res2", "mip", "h_strat",
@@ -1227,6 +1233,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.cam_modes.discard("pdir0"); self.cam_modes.add("pdir"); self._pdir_zero = True
         else:
             self._pdir_zero = False
+        if "pmix" in self.cam_modes:
+            assert not (self.cam_modes & {"pdir", "pdir0", "pcam", "pdirg"}), "pmix replaces pdir/pcam"
+            self._pmix = [c for c in p_coords.split("+") if c]
+            assert self._pmix and len(set(self._pmix)) == len(self._pmix) and \
+                all(c in ("pt", "dir", "cam") for c in self._pmix), p_coords
+        else:
+            self._pmix = None
         if "pdirg" in self.cam_modes:
             assert "pdir" in self.cam_modes, "pdirg is a modifier of pdir"
             assert pdir_gate in ("soft", "hard"), pdir_gate
@@ -1234,7 +1247,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.pdir_gate = pdir_gate      # soft: exp(-(theta/theta0)^2); hard: 1[theta < theta0]
         if dpt_modes or "pdir" in self.cam_modes:
             assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
-            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg", "vo_rope"} - dpt_modes), \
+            assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg", "pmix", "vo_rope"} - dpt_modes), \
                 "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf, vo_rope)"
             if "vo_rope" in self.cam_modes:
                 assert "dpt_mem" not in self.cam_modes, "vo_rope carrier at the predicted depth needs a single-pass depth (mlp/chan)"
@@ -1575,12 +1588,21 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 self.gain_dir_in = _gain("gain_dir_in", nd, num_freqs_seg)
                 if self._pdir_zero:
                     nn.init.zeros_(self.gain_dir_in)
+            elif self._pmix is not None:
+                # one half per coordinate in p_coords, same ladder, own gains. Gains of ABSENT halves are
+                # not created: an unused parameter trips DDP (same reason as shell_r_raw above).
+                mult *= len(self._pmix)
+                if "dir" in self._pmix:
+                    self.gain_dir_in = _gain("gain_dir_in", nd, num_freqs_seg)
+                if "cam" in self._pmix:
+                    self.gain_cam_in = _gain("gain_cam_in", nd, num_freqs_seg)
             assert 2 * nd * num_freqs_seg * mult <= head_dim, (nd, num_freqs_seg, mult, head_dim)
             self.register_buffer("dirs_in", _dirs(nd), persistent=False)
             self.register_buffer("omega_seg3", math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), num_freqs_seg, base=2.0) * omega_scale,
                 persistent=False)
-            self.gain_seg3 = _gain("gain_seg3", nd, num_freqs_seg)
+            if self._pmix is None or "pt" in self._pmix:
+                self.gain_seg3 = _gain("gain_seg3", nd, num_freqs_seg)
         if self.cam_modes & self.seg_h_modes:
             nd = n_dirs if (self.cam_modes & {"h_shell_iso", "iso"}) else 3
             mult = self.n_anchor if "h_anchor" in self.cam_modes else 1
@@ -1603,10 +1625,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 self.gain_dir_h = _gain("gain_dir_h", nd, num_freqs_hseg)
                 if self._pdir_zero:
                     nn.init.zeros_(self.gain_dir_h)
+            elif self._pmix is not None:
+                mult *= len(self._pmix)
+                if "dir" in self._pmix:
+                    self.gain_dir_h = _gain("gain_dir_h", nd, num_freqs_hseg)
+                if "cam" in self._pmix:
+                    self.gain_cam_h = _gain("gain_cam_h", nd, num_freqs_hseg)
             assert 2 * nd * num_freqs_hseg * mult <= d_h, (nd, num_freqs_hseg, mult, d_h)
             self.register_buffer("dirs_h", _dirs(nd), persistent=False)
             self.register_buffer("omega_hseg", omega_h_l, persistent=False)
-            self.gain_hseg = _gain("gain_hseg", nd, num_freqs_hseg)
+            if self._pmix is None or "pt" in self._pmix:
+                self.gain_hseg = _gain("gain_hseg", nd, num_freqs_hseg)
         if "h_bump" in self.cam_modes:
             # HIDDEN BUMP CODE (2026-08-31): amplitude, not phase. Hidden pair p is scaled by
             # a_p(u) = exp(-kappa (1 - u . c_p)), u = unit direction focus -> token's camera,
@@ -2046,8 +2075,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 use = use & (idx < n_in)
             t1 = torch.where(use, tg, t1)
             t2 = torch.where(use, tg, t2)
-        dirs, om, gn = ((self.dirs_in, self.omega_seg3, self.gain_seg3) if site == "in"
-                        else (self.dirs_h, self.omega_hseg, self.gain_hseg))
+        dirs, om, gn = ((self.dirs_in, self.omega_seg3, getattr(self, "gain_seg3", None)) if site == "in"
+                        else (self.dirs_h, self.omega_hseg, getattr(self, "gain_hseg", None)))
         if "head_anchor" in modes and site == "in":
             # per-HEAD anchor: head k -> point at chord fraction (k+0.5)/H; layout (b h)
             cs, ss = [], []
@@ -2078,6 +2107,23 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 # point, x_c = o + t_c d (no integral, no radius; env = 1). With a dpt_* mode the
                 # forward stores a per-token predicted depth under self._dpt_key instead.
                 tc = info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02)
+            if self._pmix is not None:
+                cs, ss = [], []
+                for half in self._pmix:
+                    if half == "pt":
+                        c0, s0 = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
+                    else:
+                        if half == "dir":
+                            g = self.gain_dir_in if site == "in" else self.gain_dir_h
+                            sec = info["tok_d"]
+                        else:
+                            g = self.gain_cam_in if site == "in" else self.gain_cam_h
+                            sec = info["tok_o"] - info["focus"][:, None, :]
+                        th = ((sec @ dirs.t())[..., None] * (om[None, None, None] * g[None, None])).flatten(2)
+                        c0, s0 = th.cos(), th.sin()
+                    cs.append(c0); ss.append(s0)
+                c, sn = torch.cat(cs, -1), torch.cat(ss, -1)
+                return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
             c, sn = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
             if "pdir" in modes:
                 # + direction half: phases of d projected on the same dirs / ladder, own gains

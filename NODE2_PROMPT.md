@@ -74,15 +74,25 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 | FR-2 | `gobj_dpchan_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.687 (+0.396 vs base t=16.9, 81%; **−0.122 vs MLP depth 점+ray t=−6.6**; −0.319 vs 채널 depth 점-only 23.006 t=−17.7) — orbit에서는 ray 절반의 손해가 채널 depth일 때 더 큼(−0.32 vs MLP의 −0.18)] |
 | FR-3 | `dl3dvu_dpchan_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE **16.852** (+0.448 vs base t=16.3, 93%; **−0.091 vs MLP depth 점+ray t=−6.9** = 기준 0.1 이내(경계); +0.111 vs 채널 depth 점-only; −0.036 vs MLP 점-only n.s.; 기존 최고 16.649 대비 +0.20) — 컨테이너 소실로 20k에서 재개한 셀(20k 이후 데이터 순서가 달라짐). dpt_gain |0.03~0.17|: DL3DV에서는 채널 depth가 실제로 쓰임] |
 
-### 3.ABL — **최종 recipe 기준 ablation** (2026-09-18 21:50, 사용자 지시). 누적 사다리: (5) NoPE=base → (3) input만 → (4) hidden만 → (2) input+hidden → (1) +v/o. (1)(2)(5)는 완료, (3)(4)는 v/o 없는 단일 사이트. seed 137, `--actckpt`(1·2행과 동일). 런처 `run_queue_0918c.sh`.
+### 3.ABL — **최종 recipe 기준 ablation** (2026-09-18 21:50 사용자 지시; 21:52 "DL3DV는 돌릴 필요 없다" → RE10K + orbit만). 사다리: (5) NoPE=base → (3) input만 → (4) hidden만 → (2) input+hidden → (1) +v/o. (1)(2)(5) 완료. (3)(4)는 **v/o 없는** 단일 사이트. seed 137, `--actckpt`.
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
-| AB-3a | `re10k_dpchan_pdir_in_s137` | `config/dp_chan_pdir_in.yaml` (`foot_in+dpt_chan+pdir`) | RE10K | [QUEUED 21:50] |
-| AB-3b | `gobj_dpchan_pdir_in_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
-| AB-3c | `dl3dvu_dpchan_pdir_in_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [QUEUED] |
-| AB-4a | `re10k_dpchan_pdir_h_s137` | `config/dp_chan_pdir_h.yaml` (`h_foot+dpt_chan+pdir`) | RE10K | [QUEUED] |
-| AB-4b | `gobj_dpchan_pdir_h_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
-| AB-4c | `dl3dvu_dpchan_pdir_h_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [QUEUED] |
+| AB-3a | `re10k_dpchan_pdir_in_s137` | `config/dp_chan_pdir_in.yaml` (`foot_in+dpt_chan+pdir`) | RE10K | [RUNNING gpu0, 21:48] |
+| AB-3b | `gobj_dpchan_pdir_in_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING gpu1, 21:48] |
+| AB-4a | `re10k_dpchan_pdir_h_s137` | `config/dp_chan_pdir_h.yaml` (`h_foot+dpt_chan+pdir`) | RE10K | [RUNNING gpu3, 21:50] |
+| AB-4b | `gobj_dpchan_pdir_h_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING gpu2, 21:54] |
+| (취소) | `dl3dvu_dpchan_pdir_{in,h}_s137` | — | DL3DV-u | [DROPPED 21:52 — 사용자: DL3DV ablation 불필요] |
+
+### 3.EMB — **embedding 좌표 설계 ablation** (2026-09-18 22:00, 사용자 지시): 기준은 최종 recipe(input+hidden+v/o), 점-사이트의 **좌표 조합만** 변경. RE10K + orbit, seed 137.
+새 플래그 `pmix` + `p_coords`(pt = 예측 depth의 3D 점, dir = ray 방향 d, cam = 카메라 원점 o−p*): 각 half는 같은 dirs/사다리에 자기 gain. `"pt+dir"`는 기존 pdir와 동치(스모크 수치 동일 확인: 9.527 / 0.7326). 런처 `run_queue_0918d.sh`.
+**주의**: v/o 캐리어는 세 행 모두 `vo_coords: foot`(예측 depth의 점) 그대로 — 주소 코드만 비교하는 설계. ray-only 행도 캐리어에는 점이 남아 있음.
+| ID | exp | config | 데이터 | 상태 |
+|---|---|---|---|---|
+| EM-1 | (최종 recipe = pt+dir) | `dp_chan_pdir_vo_both.yaml` | RE10K / orbit | [DONE 22.949 / 22.796] |
+| EM-2a | `re10k_dpchan_ray_vo_s137` | `config/dp_chan_ray_vo_both.yaml` (`p_coords: dir`) | RE10K | [QUEUED 22:00] |
+| EM-2b | `gobj_dpchan_ray_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| EM-3a | `re10k_dpchan_raycam_vo_s137` | `config/dp_chan_raycam_vo_both.yaml` (`p_coords: dir+cam`) | RE10K | [QUEUED] |
+| EM-3b | `gobj_dpchan_raycam_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
 
 ### 3.FINAL — **최종 recipe 확정** (2026-09-18 21:00, 사용자 결정): `config/dp_chan_pdir_vo_both.yaml` = 점+ray 6D RoPE(input+hidden) + value 채널 depth + v/o carrier. 22.949 / 22.796 / 16.978. orbit은 base 대비 +0.51로 주장(foot_all_iso 22.911에는 −0.11).
 

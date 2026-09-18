@@ -631,4 +631,12 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
 - 21:50 ABL (user): final-recipe ablation ladder. Done rows: (1) final 22.949/22.796/16.978, (2) w/o v/o 22.834/22.687/16.852,
   (5) NoPE=base. New: (3) input-only `dp_chan_pdir_in.yaml`, (4) hidden-only `dp_chan_pdir_h.yaml` (both without v/o), 3
   datasets each = 6 cells via `run_queue_0918c.sh` (4 GPUs free, all --actckpt). Smoke passed for both configs.
+- 21:52 user: no DL3DV in the ablations -> dl3dvu_dpchan_pdir_in killed at ~100 iter (dir removed), dl3dvu_*_h never
+  launched, runner 0918c stopped; gobj_dpchan_pdir_h launched manually on the freed gpu2. Site ablation = 4 cells.
+- 22:00 EMB (user): embedding-coordinate ablation on top of the final recipe (input+hidden+v/o) -- (1) pt+dir = the
+  final recipe, (2) ray only, (3) ray + camera origin; RE10K + orbit = 4 new cells via `run_queue_0918d.sh`.
+  New code: `pmix` flag + `p_coords` param in lact_ttt_cam.py (halves pt/dir/cam on the same dirs+ladder, own gains;
+  gains of absent halves are not created, else DDP trips on unused parameters). Backward compat verified: the
+  final-recipe smoke reproduces its pre-patch numbers exactly (PSNR 9.527, LPIPS 0.7326). The v/o carrier stays
+  phased at the predicted-depth point in every row, so these rows ablate the ADDRESS code only.
 
