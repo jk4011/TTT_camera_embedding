@@ -3844,7 +3844,7 @@ the same-seed cells of F87/F88. Paired per-scene stats.
 |---|---|---|---|---|---|---|
 | RE10K | 21.610 | 22.903 | **22.834** | -0.069 (t=-8.0, 29% wins) | +1.224 (t=35.8, 99%) | 21.995 (FR +0.839) |
 | orbit | 22.291 | 22.809 | **22.687** | -0.122 (t=-6.6, 37%) | +0.396 (t=16.9, 81%) | 23.006 (FR -0.319, t=-17.7) |
-| DL3DV-u | 16.404 | 16.943 | (running) | | | 16.741 |
+| DL3DV-u | 16.404 | 16.943 | **16.852** | -0.091 (t=-6.9, 29%) | +0.448 (t=16.3, 93%) | 16.741 (FR +0.111, t=5.1) |
 - RE10K: within the 0.1 dB acceptance band of the MLP-depth cell and above the prior best (Plucker both 22.777:
   +0.057, t=4.1). Learned dpt_gain per layer = 0.068 / 0.011 / 0.026 / 0.020 / -0.015 / -0.005: the channel depth is
   all but switched off, i.e. on RE10K the cell is effectively the FOOT-depth point + ray code (the MLP-depth twin
@@ -3853,6 +3853,15 @@ the same-seed cells of F87/F88. Paired per-scene stats.
   without v/o or a gate nothing offsets it: 22.687 is below point-only (23.006 / 22.991) and the pre-DP best 22.911.
   dpt_gain 0.016..0.075 in magnitude (same range as the point-only channel cell, which learned metric depth);
   direction gains stay at 0.9 (the model does not turn the ray half down, as in F87 add. 2).
+- DL3DV-u: -0.091 vs the MLP-depth cell (inside the 0.1 band, at its edge), +0.203 over the pre-DP best (hidden
+  TTT-RoPE 16.649), tie with MLP-depth point-only (16.888, t=-1.8). dpt_gain magnitudes 0.03-0.17: here the channel
+  depth IS used. Caveat: this cell was resumed from its 20k checkpoint after the container loss (~09:30), so its data
+  order after 20k differs from an uninterrupted run (same class of caveat as the DP2 resumes).
+VERDICT (user's acceptance rule: channel depth within 0.1 dB of the MLP depth on RE10K and DL3DV-u): PASSES on both
+(-0.069 / -0.091), fails it on the orbit (-0.122). One config, no depth network, +1.22 / +0.40 / +0.45 over base and
+above the pre-DP best on RE10K and DL3DV-u; on the orbit it stays below point-only and the pre-DP best because the
+ray half costs there and neither v/o nor a gate is present (user's choice: v/o on hold, gate dropped). Untested but
+suggested by the RE10K gains (~0): the fully parameter-free FOOT-depth point + ray (`config/pdir_both.yaml`).
 
 ## F90: NO study -- embeddings made ONLY of camera matrices at the TTT input+hidden sites, no v/o (user, 2026-09-18):
 ## does TTT prefer orthogonal codes? (seed 137, 8-view/30k, RE10K + orbit; all cells --actckpt on shared GPUs)
