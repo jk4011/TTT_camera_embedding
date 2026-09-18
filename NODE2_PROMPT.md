@@ -83,16 +83,15 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 | AB-4b | `gobj_dpchan_pdir_h_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING gpu2, 21:54] |
 | (취소) | `dl3dvu_dpchan_pdir_{in,h}_s137` | — | DL3DV-u | [DROPPED 21:52 — 사용자: DL3DV ablation 불필요] |
 
-### 3.EMB — **embedding 좌표 설계 ablation** (2026-09-18 22:00, 사용자 지시): 기준은 최종 recipe(input+hidden+v/o), 점-사이트의 **좌표 조합만** 변경. RE10K + orbit, seed 137.
-새 플래그 `pmix` + `p_coords`(pt = 예측 depth의 3D 점, dir = ray 방향 d, cam = 카메라 원점 o−p*): 각 half는 같은 dirs/사다리에 자기 gain. `"pt+dir"`는 기존 pdir와 동치(스모크 수치 동일 확인: 9.527 / 0.7326). 런처 `run_queue_0918d.sh`.
-**주의**: v/o 캐리어는 세 행 모두 `vo_coords: foot`(예측 depth의 점) 그대로 — 주소 코드만 비교하는 설계. ray-only 행도 캐리어에는 점이 남아 있음.
+### 3.EMB — **embedding 좌표 설계 ablation** (2026-09-18 22:00 사용자 지시; 23:20 "점 정보를 완전히 뺀 행으로" → 캐리어까지 점 제거). 기준은 최종 recipe(input+hidden+v/o), 점-사이트의 **좌표 조합만** 변경. RE10K + orbit, seed 137.
+새 플래그 `pmix` + `p_coords`(pt = 예측 depth의 3D 점, dir = ray 방향 d, cam = 카메라 원점 o−p*): 각 half는 같은 dirs/사다리에 자기 gain. `vo_coords: pmix` = 캐리어도 같은 half만 사용(pair 예산 동일: 3좌표×2F 또는 6좌표×F). 점이 없는 두 행은 **depth 예측 자체가 불필요하므로 `dpt_chan`도 제거**(안 그러면 dpt_gain이 미사용 파라미터가 되어 DDP가 죽음). 스모크에서 최종 recipe config는 패치 전과 완전히 동일(9.527 / 0.7326). 런처 `run_queue_0918d.sh`.
 | ID | exp | config | 데이터 | 상태 |
 |---|---|---|---|---|
 | EM-1 | (최종 recipe = pt+dir) | `dp_chan_pdir_vo_both.yaml` | RE10K / orbit | [DONE 22.949 / 22.796] |
-| EM-2a | `re10k_dpchan_ray_vo_s137` | `config/dp_chan_ray_vo_both.yaml` (`p_coords: dir`) | RE10K | [QUEUED 22:00] |
-| EM-2b | `gobj_dpchan_ray_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
-| EM-3a | `re10k_dpchan_raycam_vo_s137` | `config/dp_chan_raycam_vo_both.yaml` (`p_coords: dir+cam`) | RE10K | [QUEUED] |
-| EM-3b | `gobj_dpchan_raycam_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| EM-2a | `re10k_ray_vo_s137` | `config/ray_vo_both.yaml` (`foot_in+h_foot+pmix+vo_rope`, `p_coords: dir`, `vo_coords: pmix`) | RE10K | [QUEUED 23:22] |
+| EM-2b | `gobj_ray_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
+| EM-3a | `re10k_raycam_vo_s137` | `config/raycam_vo_both.yaml` (`p_coords: dir+cam`) | RE10K | [QUEUED] |
+| EM-3b | `gobj_raycam_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [QUEUED] |
 
 ### 3.FINAL — **최종 recipe 확정** (2026-09-18 21:00, 사용자 결정): `config/dp_chan_pdir_vo_both.yaml` = 점+ray 6D RoPE(input+hidden) + value 채널 depth + v/o carrier. 22.949 / 22.796 / 16.978. orbit은 base 대비 +0.51로 주장(foot_all_iso 22.911에는 −0.11).
 

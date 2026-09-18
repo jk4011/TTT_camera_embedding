@@ -15,11 +15,11 @@ block_config:
       inter_multi: 2
       base_lr: 0.01
       muon_update_steps: 5
-      cam_mode: foot_in+h_foot+dpt_chan+pmix+vo_rope
-      p_coords: "dir"
+      cam_mode: foot_in+h_foot+pmix+vo_rope
+      p_coords: "dir+cam"
       num_freqs_seg: 21
       num_freqs_hseg: 42
-      vo_coords: foot
+      vo_coords: pmix
   - type: model.MLP
     length_dim: vl
     params:

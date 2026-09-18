@@ -639,4 +639,9 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
   gains of absent halves are not created, else DDP trips on unused parameters). Backward compat verified: the
   final-recipe smoke reproduces its pre-patch numbers exactly (PSNR 9.527, LPIPS 0.7326). The v/o carrier stays
   phased at the predicted-depth point in every row, so these rows ablate the ADDRESS code only.
+- 23:20 user: make the ray-only / ray+camera rows POINT-FREE everywhere. Added `vo_coords: "pmix"` (carrier uses the
+  same halves as the address code) and dropped `dpt_chan` from those two cells (no point -> no depth needed; keeping
+  it would leave dpt_gain unused and trip DDP). Configs renamed `ray_vo_both.yaml` / `raycam_vo_both.yaml`, cells
+  {re10k,gobj}_{ray,raycam}_vo_s137, runner restarted. Final-recipe smoke again bit-identical (9.527 / 0.7326).
+  Note: these two rows therefore also lack the value-channel masking that dpt_chan applies in rows (1)/(2).
 

@@ -1507,9 +1507,19 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             # vo_coords "6d": the 6 coordinates ((d, m) or (o, d)); "d": the ray DIRECTION only
             # (3 coords, twice the rungs -> same 252-dim budget) -- the user's "camera ray only"
             # carrier, the phase analogue of the rotation-matrix transport (d transforms with R).
-            assert vo_coords in ("6d", "d", "foot")
+            # "pmix": the carrier uses the SAME coordinate halves as the pmix address code, so a
+            # point-free address code is point-free in the carrier too (user, 2026-09-18). Pair budget
+            # is unchanged: 3 coords x 2F (one half) or 6 coords x F (two halves) = 6F pairs either way.
+            assert vo_coords in ("6d", "d", "foot", "pmix")
+            if vo_coords == "pmix":
+                assert self._pmix is not None, "vo_coords 'pmix' requires the pmix address code"
+                assert len(self._pmix) <= 2, "carrier budget covers at most two halves"
             self.vo_coords = vo_coords
-            n_c, F_vo = (6, num_freqs) if vo_coords == "6d" else (3, 2 * num_freqs)   # d/foot: 3 coords
+            if vo_coords == "pmix":
+                n_c = 3 * len(self._pmix)
+                F_vo = num_freqs if n_c == 6 else 2 * num_freqs
+            else:
+                n_c, F_vo = (6, num_freqs) if vo_coords == "6d" else (3, 2 * num_freqs)   # d/foot: 3 coords
             assert 2 * n_c * F_vo <= head_dim
             self.register_buffer("omega_vo", math.pi * torch.logspace(
                 math.log2(0.5), math.log2(16.0), F_vo, base=2.0) * omega_scale, persistent=False)
@@ -2768,6 +2778,20 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 xc_tok = info["tok_o"] + info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02).to(info["tok_o"].dtype) * info["tok_d"]
                 th = (xc_tok[..., None] * (self.omega_vo[None, None, None]
                                            * self.gain_vo[None, None])).flatten(2)
+                vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)
+            elif self.vo_coords == "pmix":
+                parts = []
+                for half in self._pmix:
+                    if half == "pt":
+                        parts.append(info["tok_o"] + info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02)
+                                     .to(info["tok_o"].dtype) * info["tok_d"])
+                    elif half == "dir":
+                        parts.append(info["tok_d"])
+                    else:
+                        parts.append(info["tok_o"] - info["focus"][:, None, :])
+                co = torch.cat(parts, dim=-1)
+                th = (co[..., None] * (self.omega_vo[None, None, None]
+                                       * self.gain_vo[None, None])).flatten(2)
                 vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)
             elif self.vo_coords == "d":
                 th = (info["tok_d"][..., None] * (self.omega_vo[None, None, None]
