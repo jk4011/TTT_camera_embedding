@@ -74,6 +74,14 @@ GPU는 타 프로젝트(장당 ~115 GB)와 공유 → 모든 셀 `EXTRA_ARGS=--a
 | FR-2 | `gobj_dpchan_pdir_s137` | 같은 config (`DATA=gobj`) | orbit | [DONE 22.687 (+0.396 vs base t=16.9, 81%; **−0.122 vs MLP depth 점+ray t=−6.6**; −0.319 vs 채널 depth 점-only 23.006 t=−17.7) — orbit에서는 ray 절반의 손해가 채널 depth일 때 더 큼(−0.32 vs MLP의 −0.18)] |
 | FR-3 | `dl3dvu_dpchan_pdir_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [DONE **16.852** (+0.448 vs base t=16.3, 93%; **−0.091 vs MLP depth 점+ray t=−6.9** = 기준 0.1 이내(경계); +0.111 vs 채널 depth 점-only; −0.036 vs MLP 점-only n.s.; 기존 최고 16.649 대비 +0.20) — 컨테이너 소실로 20k에서 재개한 셀(20k 이후 데이터 순서가 달라짐). dpt_gain |0.03~0.17|: DL3DV에서는 채널 depth가 실제로 쓰임] |
 
+### 3.FRV — **final recipe + v/o** (2026-09-18 17:20, 사용자 지시: "수치 차이가 얼마나 날지"): FR config에 `vo_rope`(캐리어 좌표 = 예측 depth의 점, `vo_coords: foot`)만 추가. seed 137, 8-view/30k, `--actckpt`(FR 셀과 동일 조건).
+비교 기준: FR(채널 depth, v/o 없음) 22.834 / 22.687 / 16.852; MLP depth + v/o(D2-4~6) 22.999 / 23.031 / 17.022.
+| ID | exp | config | 데이터 | 상태 |
+|---|---|---|---|---|
+| FRV-1 | `re10k_dpchan_pdir_vo_s137` | `config/dp_chan_pdir_vo_both.yaml` (`foot_in+h_foot+dpt_chan+pdir+vo_rope`) | RE10K | [RUNNING node1 gpu1, 17:20] |
+| FRV-2 | `gobj_dpchan_pdir_vo_s137` | 같은 config (`DATA=gobj`) | orbit | [RUNNING node1 gpu2, 17:20] |
+| FRV-3 | `dl3dvu_dpchan_pdir_vo_s137` | 같은 config (`IMG="256 448"`) | DL3DV-u | [RUNNING node1 gpu3, 17:20] |
+
 ### 3.NO — **비직교 행렬 embedding 연구** (2026-09-18, 사용자 지시): "TTT는 orthogonal embedding을 선호한다"를 실험으로 보이기. 카메라 행렬**만으로** 만든 embedding을 **input + hidden 두 사이트**에 적용, **v/o 없음**. RE10K + orbit, seed 137, 8-view/30k.
 코드: `mat_in`(q ← Mᵀq, k ← M⁻¹k; L2 정규화 **뒤**, 재정규화 없음, head_dim 전체에 4×4 타일) + `h_mat`(hidden: update M⁻¹h, apply Mᵀh; `h_ga` 커널 재사용). `mat_kind`: `proj` = lift(K)·w2c (PRoPE, 비직교), `ext` = w2c SE(3) (GTA, 평행이동 때문에 비직교), `rot` = [R 0; 0 1] (같은 행렬의 직교 부분 = 대조군, node1이 추가).
 세 셀은 기계가 완전히 같고 행렬만 다름 → 차이는 (비)직교성에서만 옴. 비교 기준(같은 seed): base 21.610 / 22.291, 점+ray 22.903 / 22.809.

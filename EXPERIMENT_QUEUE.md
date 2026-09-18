@@ -621,4 +621,7 @@ Cells {re10k,gobj}_mat_{proj,ext,rot}_s137, configs `config/mat_{proj,ext,rot}_b
   orbit (no v/o, no gate). NO: rot (orthogonal) +0.04 / +0.06 vs base; ext -0.22 / -0.17; proj -0.25 / -0.22 -> the
   translation column alone costs 0.22-0.27 dB with everything else fixed (RESULTS_DOSSIER F89/F90). All 4 GPUs idle,
   queue empty. Untested follow-up the user may want: fully parameter-free foot-depth point+ray (`config/pdir_both.yaml`).
+- 17:20 FRV (user): FR + v/o carrier, `config/dp_chan_pdir_vo_both.yaml` (smoke passed), cells
+  {re10k,gobj,dl3dvu}_dpchan_pdir_vo_s137 on gpu1/2/3 (gpu0 holds the other project's 115 GB job), --actckpt as the FR
+  cells; reference rows FR (F89) and MLP-depth+v/o (F88 row 3).
 
