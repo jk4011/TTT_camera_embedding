@@ -2474,11 +2474,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             quart = (hd - half) // 2
             P_h = to_heads(P, nh)
             P_inv_h = to_heads(P_inv, nh)
+            # patch grid: (rows, cols) from the model, so non-square images work
+            # (DL3DV uncropped is 256x448 -> 16x28 tokens per view, not a square grid).
             import math as _m
-            px = int(_m.sqrt(tpv)); assert px * px == tpv, tpv
+            ph, pw = info.get("patch_grid", (int(_m.sqrt(tpv)), int(_m.sqrt(tpv))))
+            assert ph * pw == tpv, (ph, pw, tpv)
             pos = torch.arange(tpv, device=q.device)
-            cx, sx = _prope_rope_coeffs(pos % px, quart, q.device)
-            cy, sy = _prope_rope_coeffs(pos // px, quart, q.device)
+            cx, sx = _prope_rope_coeffs(pos % pw, quart, q.device)
+            cy, sy = _prope_rope_coeffs(pos // pw, quart, q.device)
             V = P.shape[1]
             cx, sx = cx.repeat(V, 1), sx.repeat(V, 1)
             cy, sy = cy.repeat(V, 1), sy.repeat(V, 1)

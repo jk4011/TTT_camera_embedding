@@ -448,7 +448,7 @@ def compute_camera_info(fxfycxcy, c2w, h, w, patch_size, ray_o, ray_d, num_input
         "cam_feat": cam_feat, "cam_feat_lr": cam_feat_lr,
         "view_rot": rot, "view_w2c": w2c, "view_c2w": c2w,
         "view_K_norm": K_norm, "view_pose11": view_pose11,
-        "tokens_per_view": tokens_per_view,
+        "tokens_per_view": tokens_per_view, "patch_grid": (hh, ww),
         "num_views": v, "num_input_views": num_input_views,
     }
     if tok_t_gt is not None:
