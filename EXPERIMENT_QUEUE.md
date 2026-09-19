@@ -707,3 +707,7 @@ poses from VGGT or GLOMAP) AND FVD.
     point phases and rotates the output back. `ttt_hrope_frac: 1.0` so the hidden site codes the WHOLE hidden
     width as in NVS (the earlier video runs used 0.5).
   Still to do for item 6: the ReCamMaster-lineage metric pipeline (RotErr/TransErr/CamMC + FVD) for tab:ccv.
+  Tooling for the ccv metrics: pycolmap 4.2.0 installed in its OWN venv at
+  `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/sfm` (not `.venv_llm`, so a dependency bump can never touch a
+  running training). PSNR/SSIM/LPIPS and FVD already exist (`eval_ccv_common.py`, `compute_fvd_video2.py`);
+  RotErr / TransErr / CamMC do not and need poses estimated from the generated videos.

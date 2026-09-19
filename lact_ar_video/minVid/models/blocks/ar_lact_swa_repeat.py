@@ -1595,6 +1595,10 @@ class ARFastWeightSwiGLU(nn.Module):
             v_mask = fast_v.new_ones(self.num_fw_heads, 1, fast_v.shape[-1])
             v_mask[0, 0, 0] = 0.0
             fast_v = fast_v * v_mask.repeat(b, 1, 1)
+        elif self.cam_phase_mode == "capet":
+            # a capet run with no coordinates would train as plain No Encoding and look
+            # like a result rather than a wiring bug
+            raise RuntimeError("cam_phase_mode='capet' but no cam_coords reached the block")
 
         if self.ttt_input_rope and self.cam_phase_mode == "none":
             # grid-carrier input rope (Q43): phases via the same carrier trick as the
