@@ -676,3 +676,15 @@ poses from VGGT or GLOMAP) AND FVD.
   ~15k steps, ETA 2026-09-20 early morning. Item 6 (CCV) not started: needs the CaPET port into minVid and the
   ReCamMaster-lineage metric pipeline (RotErr/TransErr/CamMC + FVD).
 
+- 2026-09-19 14:40 speed investigation of CaPET on tttLRM (user asked why it is ~40% slower than No Encoding).
+  Per-layer, interleaved min-of-75 on a shared GPU: stock 51.4 ms, +input 0, +carrier +10, +hidden +22, full +32 ms.
+  The cost is rotating the SwiGLU hidden activation h ([B, L, 3072], the layer's largest tensor) three times per
+  layer, not the phase build: fusing the coefficient build (7x faster in isolation) left the step time unchanged
+  (3.508 -> 3.569 s/step over 50+ samples each), and halving the ladder width did not help either.
+  Rejected: token chunking (slower and MORE peak memory: the intermediates chunking would save are already fused
+  away, while the input/output cannot be chunked); lane-write rotary (4.6x faster forward but -32% with backward).
+  PENDING when the GPUs free: bf16 rotation. The rotation upcasts h to fp32 (upstream comment claims bf16 "loses
+  more than the phases can afford"), which costs 2x time and 1.5x peak memory. Measured against an fp32 reference:
+  current 0.54% mean relative error, bf16 math 0.66% -- the error is dominated by h ALREADY being bf16, so the
+  upcast buys almost nothing, while bf16 math is 50% faster and 32% lighter. Validate with 300 steps from the same
+  checkpoint (loss curve) before adopting.
