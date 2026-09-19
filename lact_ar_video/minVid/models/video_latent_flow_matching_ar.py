@@ -353,7 +353,7 @@ class VideoLatentFlowMatching(nn.Module):
 
         # camera conditioning (built once per step, fp32, no_grad)
         cam12_arg, coords_arg = None, None
-        if self.use_cam_encoder or self.cam_phase_mode in ("plucker", "capet", "prope"):
+        if self.use_cam_encoder or self.cam_phase_mode in ("plucker", "capet", "prope", "rayrope"):
             with torch.no_grad(), torch.autocast(device_type="cuda", enabled=False):
                 cam12_per_frame, coords6 = build_ccv_cam_inputs(
                     data_dict["c2w_src"][0].float(),
@@ -367,7 +367,8 @@ class VideoLatentFlowMatching(nn.Module):
                 cam12_arg = cam12_per_frame[None]  # [1, F_total, 12]
             if self.cam_phase_mode == "plucker":
                 coords_arg = coords6[None]  # [1, L_total, 6]
-            elif self.cam_phase_mode == "prope":
+            elif self.cam_phase_mode in ("prope", "rayrope"):
+                # both baselines read the same per-slot (K_norm, c2w) pair
                 with torch.no_grad(), torch.autocast(device_type="cuda", enabled=False):
                     coords_arg = build_ccv_prope_inputs(
                         data_dict["c2w_src"][0].float(),

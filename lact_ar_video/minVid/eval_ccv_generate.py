@@ -90,7 +90,7 @@ def generate_target_video(model, batch, n_steps, shift, seed, guide_scale=1.0,
 
     # camera conditioning, built exactly as _forward_pair does
     cam12_arg, coords_arg = None, None
-    if model.use_cam_encoder or model.cam_phase_mode in ("plucker", "capet", "prope"):
+    if model.use_cam_encoder or model.cam_phase_mode in ("plucker", "capet", "prope", "rayrope"):
         with torch.autocast(device_type="cuda", enabled=False):
             cam12_per_frame, coords6 = build_ccv_cam_inputs(
                 batch["c2w_src"][0].float(),
@@ -104,7 +104,7 @@ def generate_target_video(model, batch, n_steps, shift, seed, guide_scale=1.0,
             cam12_arg = cam12_per_frame[None].to(device)
         if model.cam_phase_mode == "plucker":
             coords_arg = coords6[None].to(device)
-        elif model.cam_phase_mode == "prope":
+        elif model.cam_phase_mode in ("prope", "rayrope"):
             with torch.autocast(device_type="cuda", enabled=False):
                 coords_arg = build_ccv_prope_inputs(
                     batch["c2w_src"][0].float(),

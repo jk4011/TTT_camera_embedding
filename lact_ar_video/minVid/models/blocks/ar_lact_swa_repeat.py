@@ -1182,7 +1182,7 @@ class ARFastWeightSwiGLU(nn.Module):
         self.qk_norm = qk_norm
         self.eps = eps
 
-        assert cam_phase_mode in ("none", "plucker", "capet", "prope")
+        assert cam_phase_mode in ("none", "plucker", "capet", "prope", "rayrope")
         self.cam_phase_mode = cam_phase_mode
         self.ttt_input_rope = ttt_input_rope
         self.ttt_single_chunk = ttt_single_chunk
@@ -1270,6 +1270,29 @@ class ARFastWeightSwiGLU(nn.Module):
         ####    point over t_c * [1/12, 12] at init and nothing bootstraps (NVS F87).
         ####  * a v/o carrier rotates v by the point phases on the update and rotates the
         ####    output back on the apply.
+        if cam_phase_mode == "rayrope":
+            # RayRoPE, world frame -- the variant the NVS paper row uses. Defaults match it:
+            # 3 rays per patch, 4 frequencies, base 3.0, v/o carrier on, sigma init 3.0.
+            # The query-frame original re-codes every key in each query camera's frame, which
+            # in an AR TTT stream would mean rebuilding the fast weight per slot.
+            self.rr_rays, self.rr_freqs, self.rr_vo = 3, 4, True
+            self.rr_dhead = nn.Linear(dim, 2)
+            nn.init.zeros_(self.rr_dhead.weight)
+            with torch.no_grad():
+                self.rr_dhead.bias.copy_(torch.tensor([0.0, 3.0]))
+            self.register_buffer("rr_offsets",
+                                 torch.tensor([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]),
+                                 persistent=False)
+            coord_dim = 3 + self.rr_rays * 3
+            assert 2 * self.rr_freqs * coord_dim <= fw_head_dim
+            max_p, base = 4.0, 3.0
+            min_p = max_p / base ** (self.rr_freqs - 1)
+            self.register_buffer(
+                "rr_f_p0",
+                torch.exp(torch.linspace(math.log(2 * math.pi / max_p),
+                                         math.log(2 * math.pi / min_p), self.rr_freqs)),
+                persistent=False)
+
         if cam_phase_mode == "prope":
             # faithful original PRoPE, the same site and split as the NVS paper row:
             # [head_dim/2 tiled projective | head_dim/4 image-x rope | /4 image-y rope]
@@ -1631,6 +1654,63 @@ class ARFastWeightSwiGLU(nn.Module):
             cam_coords = cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]
             cam_coords = cam_coords.float()
             assert cam_coords.shape[0] == b and cam_coords.shape[1] == s
+        rr_state = None
+        if cam_coords6 is not None and self.cam_phase_mode == "rayrope":
+            cc = (cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]).float()
+            assert cc.shape[2] == 20, cc.shape
+            n_slots = self.src_latent_f + 2 * self.n_latent_f - self.ar_window_f
+            tpv = s // n_slots
+            hh, ww = int(grid_sizes[0, 1].item()), int(grid_sizes[0, 2].item())
+            assert hh * ww == tpv, (hh, ww, tpv)
+            with torch.autocast(device_type="cuda", enabled=False):
+                per_slot = cc[:, ::tpv, :]
+                K_norm = per_slot[..., :4]
+                c2w = per_slot[..., 4:].reshape(b, n_slots, 4, 4)
+                P_inv = c2w @ lift_K4_inv(K_norm)
+                idx = torch.arange(s, device=x.device)
+                vidx, pix = idx // tpv, idx % tpv
+                rows, cols = (pix // ww).float(), (pix % ww).float()
+                offs = self.rr_offsets
+                u = (cols[:, None] + offs[None, :, 0]) / ww - 0.5
+                vv = (rows[:, None] + offs[None, :, 1]) / hh - 0.5
+                # the video model runs in bf16, so the depth head is cast rather than
+                # the activations downcast: the band is exp(+-sigma) and bf16 there is coarse
+                dh = F.linear(x.float(), self.rr_dhead.weight.float(),
+                              self.rr_dhead.bias.float())
+                logd, sig = dh[..., 0:1], dh[..., 1:2]
+                pd_w = []
+                for sgn in (-1.0, 1.0):
+                    d = torch.exp(torch.clamp(logd + sgn * sig, max=3.0)).clamp(1e-2, 100.0)
+                    hom = torch.stack([
+                        u.expand(b, -1, -1), vv.expand(b, -1, -1),
+                        torch.ones(b, s, self.rr_rays, device=x.device),
+                        (1.0 / d).expand(-1, -1, self.rr_rays)], -1)
+                    pd_w.append(torch.einsum("blij,blrj->blri", P_inv[:, vidx], hom))
+                p0_w = c2w[:, vidx, :, 3]
+                xc = p0_w[..., :3] / p0_w[..., 3:4].clamp_min(1e-4)
+                th0 = self.rr_f_p0[None, None, :, None] * xc[:, :, None, :]
+                ths = []
+                for pd in pd_w:
+                    xyz = (pd[..., :3] / pd[..., 3:4].clamp_min(1e-4)).flatten(-2, -1)
+                    ths.append(self.rr_f_p0[None, None, :, None] * xyz[:, :, None, :])
+                t1, t2 = ths
+                delta = t2 - t1
+                same = delta.abs() < 1e-2
+                dsafe = torch.where(same, torch.ones_like(delta), delta)
+                e_cos = torch.where(same, t1.cos(), (t2.sin() - t1.sin()) / dsafe)
+                e_sin = torch.where(same, t1.sin(), (t1.cos() - t2.cos()) / dsafe)
+                rr_cos = torch.cat([th0.cos(), e_cos], -1).flatten(2)
+                rr_sin = torch.cat([th0.sin(), e_sin], -1).flatten(2)
+                rr_cos = rr_cos.repeat_interleave(self.num_fw_heads, dim=0)
+                rr_sin = rr_sin.repeat_interleave(self.num_fw_heads, dim=0)
+            fast_q = apply_rotary_pairs(fast_q, rr_cos, rr_sin, inverse=True)
+            fast_k = apply_rotary_pairs(fast_k, rr_cos, rr_sin, inverse=True)
+            if self.rr_vo:
+                fast_v = apply_rotary_pairs(fast_v, rr_cos, rr_sin, inverse=True)
+            rr_state = (rr_cos, rr_sin)
+        elif cam_coords6 is None and self.cam_phase_mode == "rayrope":
+            raise RuntimeError("cam_phase_mode='rayrope' but no cam matrices reached the block")
+
         prope_state = None
         if cam_coords6 is not None and self.cam_phase_mode == "prope":
             cc = (cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]).float()
@@ -1913,6 +1993,9 @@ class ARFastWeightSwiGLU(nn.Module):
                     self.cur_w1 = fw_w1
                     self.cur_w2 = fw_w2
 
+
+        if rr_state is not None and self.rr_vo:
+            fw_x = apply_rotary_pairs(fw_x, rr_state[0], rr_state[1], inverse=False)
 
         if prope_state is not None:
             _P_h, _papply = prope_state
