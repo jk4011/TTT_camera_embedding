@@ -728,3 +728,15 @@ poses from VGGT or GLOMAP) AND FVD.
   Scripts: `minVid/eval_ccv_campose_prep.py` (frames + conditioning poses, training env) and
   `minVid/eval_ccv_campose.py` (COLMAP + metrics, envs/sfm). `--from_dataset N` runs the GT floor without
   needing any generated video; `--which gt` is the floor row.
+- 2026-09-20 00:15 ccv timing, measured: base 10.51 s/step, CaPET 11.93 s/step (1 GPU each, batch 1).
+  To step 14000 (the step every earlier ccv eval used, `gen_ccv_*_13999`): base 40 h, CaPET 46 h.
+  To the config's max_fwdbwd_passes 20000: 58 h / 66 h.
+  THIS ALLOCATION ENDS FIRST: the node has been up 1 d 14 h against the 2-day interactive limit, so ~10 h
+  remain (base would reach ~3.7k, CaPET ~3.2k). Resume is automatic -- DCP checkpoint every 250 steps
+  (~45 min of exposure), `find_latest_checkpoint` + `resume_job_dcp` on relaunch -- so the runs just need
+  resubmitting; they need roughly one more full allocation.
+  TWO TRAPS: (1) `keep_last_iter: 1000` keeps only the 4 most recent checkpoints, so step 13999 is PRUNED
+  once a run passes ~15000. Either stop at 14000 or copy 13999 aside the moment it is written.
+  (2) lustre is at 4.0 T free of 600 T; two runs hold ~60 GB of checkpoints plus the generated mp4s.
+  After training: generation is ~18 min/pair on one GPU and the established protocol is 8 pairs, so ~2.4 h
+  per model (both in parallel on two GPUs), then camera metrics ~1-3 h on CPU and FVD is minutes.
