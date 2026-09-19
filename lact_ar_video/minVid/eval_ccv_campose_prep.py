@@ -54,7 +54,11 @@ def save_frames(frames, out_dir, quality=95):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gen_dir", required=True, help="eval_ccv_generate.py output dir")
+    ap.add_argument("--gen_dir", default=None, help="eval_ccv_generate.py output dir")
+    ap.add_argument("--from_dataset", type=int, default=0,
+                    help="no generated videos yet: take the first N pairs of the dataset index "
+                         "and write only their GT frames (validates the metric end to end, and "
+                         "gives the floor stage 2 reads the generated numbers against)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--n_pairs", type=int, default=0, help="0 = all pairs in the dir")
     ap.add_argument("--data_root", default=None)
@@ -64,10 +68,13 @@ def main():
     ap.add_argument("--skip_gt", action="store_true")
     args = ap.parse_args()
 
-    with open(os.path.join(args.gen_dir, "metrics.json")) as f:
-        recs = json.load(f)["per_pair"]
-    if args.n_pairs:
-        recs = recs[:args.n_pairs]
+    assert args.gen_dir or args.from_dataset, "pass --gen_dir or --from_dataset N"
+    recs = None
+    if args.gen_dir:
+        with open(os.path.join(args.gen_dir, "metrics.json")) as f:
+            recs = json.load(f)["per_pair"]
+        if args.n_pairs:
+            recs = recs[:args.n_pairs]
     os.makedirs(args.out, exist_ok=True)
 
     kw = {}
@@ -77,6 +84,9 @@ def main():
         kw["cam_root"] = args.cam_root
     ds = MultiCamPairDataset(num_pairs=args.num_pairs, index_seed=args.index_seed, **kw)
     by_key = {(p[1], p[2], p[3]): i for i, p in enumerate(ds.pairs)}
+    if recs is None:
+        recs = [{"index": i, "relpath": p[1], "src_cam": p[2], "tgt_cam": p[3]}
+                for i, p in enumerate(ds.pairs[:args.from_dataset])]
 
     out = {"pairs": [], "pose_frame_ids": list(range(0, ds.num_frames, ds.pose_stride))}
     for rec in recs:
@@ -86,12 +96,12 @@ def main():
         item = ds[by_key[key]]
 
         n_gen = 0
-        gen_mp4 = os.path.join(args.gen_dir, f"{tag}_gen.mp4")
-        if os.path.isfile(gen_mp4):
+        gen_mp4 = os.path.join(args.gen_dir, f"{tag}_gen.mp4") if args.gen_dir else None
+        if gen_mp4 and os.path.isfile(gen_mp4):
             import imageio.v3 as iio
             vid = torch.from_numpy(np.asarray(iio.imread(gen_mp4))).float().div_(255.0)
             n_gen = save_frames(vid.permute(0, 3, 1, 2), os.path.join(args.out, tag, "gen"))
-        else:
+        elif gen_mp4:
             print(f"[prep] MISSING {gen_mp4}", flush=True)
         if not args.skip_gt:
             save_frames(item["frames_tgt"].permute(1, 0, 2, 3), os.path.join(args.out, tag, "gt"))

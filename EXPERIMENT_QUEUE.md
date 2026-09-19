@@ -711,3 +711,20 @@ poses from VGGT or GLOMAP) AND FVD.
   `/NHNHOME/WORKSPACE/26msit001_A/jinhyeok/envs/sfm` (not `.venv_llm`, so a dependency bump can never touch a
   running training). PSNR/SSIM/LPIPS and FVD already exist (`eval_ccv_common.py`, `compute_fvd_video2.py`);
   RotErr / TransErr / CamMC do not and need poses estimated from the generated videos.
+- 2026-09-20 00:10 ccv camera-accuracy metric (tab:ccv) built and VALIDATED ON REAL VIDEO, with two findings
+  that change what the table can claim:
+  * **23 of the 64 held-out target cameras are pure rotation** (pan/tilt, zero translation; source cameras:
+    19/64). SfM has no baseline there and fails outright ("no good initial image pair"), so those pairs cannot
+    have a trajectory estimated at all. Added a second path: chained two-view geometry between CONSECUTIVE
+    conditioning frames (COLMAP's panoramic configuration). Frame-0-to-frame-j does NOT work, because a 27 deg
+    field of view and a 33 deg pan leave no overlap. Those pairs get RotErr and the rotation part of CamMC;
+    TransErr is undefined for them and averages over the 41 translating pairs only.
+  * **the metric's floor is 2 deg**, measured by running the whole pipeline on the REAL target-camera video:
+    rotation-only pair 1.90 deg (chaining drift), SfM pair 2.19 deg / TransErr 0.148 / CamMC 0.160 with
+    exhaustive matching (5.24 deg with sequential -- use exhaustive). So differences below ~2 deg between
+    methods are not resolvable, and every generated number must be reported against this GT row.
+  * COLMAP's default SIFT is not usable on this data: MultiCamVideo renders at f/2.4 with a 50mm-equivalent
+    lens, so most of the frame is bokeh and the default peak threshold finds ~300 keypoints. 0.001 gives ~1800.
+  Scripts: `minVid/eval_ccv_campose_prep.py` (frames + conditioning poses, training env) and
+  `minVid/eval_ccv_campose.py` (COLMAP + metrics, envs/sfm). `--from_dataset N` runs the GT floor without
+  needing any generated video; `--which gt` is the floor row.
