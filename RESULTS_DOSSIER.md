@@ -3997,3 +3997,33 @@ Artifacts: `lact_nvs/run_vsweep_paper.sh`, `plot_input_scale.py`, `render_compar
 Incidents: a restarted queue runner started a duplicate of a running cell (guard added); PRoPE's image rope assumed
 a square patch grid and crashed on DL3DV-u 256x448 (now reads the real grid).
 
+
+## F94 (2026-09-19): CaPET costs 5.7% of a training step, not 34% -- three Triton kernels
+The tttLRM port ran at 3.383 s/step against No Encoding's 2.572 (1.34x), which made the "same model, one extra
+rotation" claim awkward. Profiling one layer (B=4, 16 views x 2040 tokens, d_h=3072) attributed the +20.3 ms as:
+| site | before | after |
+|---|---|---|
+| input (fast-weight q/k) | +4.6 ms | +3.1 ms |
+| hidden (SwiGLU activation) | +13.8 ms | +3.1 ms |
+| v/o carrier | +5.8 ms | +3.0 ms |
+| **full recipe** | **+20.3 ms (1.47x)** | **+5.3 ms (1.12x)** |
+Real 1-GPU training, identical configs: No Encoding 2.408 s/step, CaPET 2.545 s/step = **1.057x** (was 1.33x).
+Three findings, each measured, in `tttlrm_ref/model/capet_kernel.py`:
+1. **The rotation was never the cost.** With the phase tables made non-differentiable (foot depth, frozen gains)
+   the hidden site cost +2.7 ms of its +10.4. The other +7.6 was autograd bookkeeping: the tables feed three call
+   sites, so each site produced a full [rows, 1536] gradient for cos and for sin that had to be zeroed, cast to
+   fp32 and summed. Fix: the rotation kernel takes the tables as non-differentiable inputs and reduces straight
+   into the [3, F] gains and the [rows] depth, so no [rows, P] gradient ever exists.
+2. **The phase build is a special-function problem, not bandwidth.** 200M fp32 sin/cos pairs cost 3.09 ms/layer.
+   The hardware SFU (`libdevice.fast_cosf/fast_sinf`) is ~1e-7 accurate here and the tables are stored bf16
+   (~1e-3), so the accurate path bought nothing: 3.09 -> ~1.0 ms.
+3. **Interleaved pairs must be read as pairs.** Loading channel 2j and 2j+1 as two stride-2 gathers halves the
+   useful bytes per transaction; loading the 2-element run contiguously and splitting in registers (`tl.split`)
+   took the fused kernel from +24.1 ms to +3.1 ms at the hidden site. This was the single largest factor.
+Rejected on measurement: building the phase inside the rotation (removes the tables but recomputes 200M sin/cos
+six times per layer: +34.9 ms); the half-split (Llama) pair layout, which was 3.6x faster in isolation but slower
+in the layer (+25.5 ms) and would invalidate every CaPET checkpoint. Layout stays interleaved, so the running
+tttLRM cell and all NVS checkpoints remain valid.
+Correctness: the rotation matches the old path to 3e-8 (fp32 values) and 2e-7 (gradients). At layer level the
+deviation is 1e-2, which is NOT error: Muon's Newton-Schulz amplifies a 1e-7 perturbation to 9.6e-3 (measured by
+perturbing the reference path by the same amount), and with `muon_update_steps=0` the layer deviation is 4e-6.

@@ -109,3 +109,70 @@ def build_ccv_cam_inputs(c2w_src: torch.Tensor, c2w_tgt: torch.Tensor,
         [eye12.expand(c2w_src.shape[0], 12), rel12[order]], dim=0
     )
     return cam12_per_frame, coords6
+
+
+# ---------------------------------------------------------------------------
+# CaPET (final NVS recipe) inputs: the 3D point at a predicted depth needs the ray
+# ORIGIN as well as its direction, which the Plucker pair (d, o x d) does not expose
+# per token. `build_ccv_capet_inputs` returns (o, d, t_c) instead, t_c being the ray's
+# closest approach to the scene focus -- the depth the layer's learned channel scales.
+# ---------------------------------------------------------------------------
+
+def point_ray_per_token(c2w: torch.Tensor, K: torch.Tensor,
+                        latent_hw=(30, 52), pixels_per_token: int = 16):
+    """Per-token ray origin and unit direction, same token order as plucker_per_token.
+
+    Returns (o, d), each [F, H*W, 3] fp32.
+    """
+    H, W = latent_hw
+    device = c2w.device
+    py, px = torch.meshgrid(
+        torch.arange(H, device=device, dtype=torch.float32),
+        torch.arange(W, device=device, dtype=torch.float32),
+        indexing="ij",
+    )
+    u = (px.reshape(-1) + 0.5) * pixels_per_token
+    v = (py.reshape(-1) + 0.5) * pixels_per_token
+    pix = torch.stack([u, v, torch.ones_like(u)], dim=0)
+    dirs_cam = torch.inverse(K.float()) @ pix
+    R = c2w[:, :3, :3].float()
+    d = torch.einsum("fij,jl->fli", R, dirs_cam)
+    d = d / d.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+    o = c2w[:, :3, 3].float()[:, None, :].expand_as(d).contiguous()
+    return o, d
+
+
+def scene_focus(c2w: torch.Tensor, lam: float = 1e-2) -> torch.Tensor:
+    """Least-squares intersection of a camera trajectory's optical axes ([3] fp32).
+
+    Same estimator as the NVS layer (tttlrm_ref/model/capet.py set_point_info), fed
+    here by the SRC trajectory -- the ccv analogue of the input views.
+    """
+    cen = c2w[:, :3, 3].float()                                   # [F, 3]
+    fwd = c2w[:, :3, 2].float()                                   # +z optical axis
+    fwd = fwd / fwd.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+    eye3 = torch.eye(3, device=c2w.device, dtype=torch.float32)
+    Pm = eye3[None] - fwd[:, :, None] * fwd[:, None, :]           # I - f f^T
+    A = Pm.sum(0) + lam * eye3
+    f_mean = fwd.mean(0)
+    f_mean = f_mean / f_mean.norm().clamp_min(1e-8)
+    prior = cen.mean(0) + f_mean
+    b = torch.einsum("fij,fj->i", Pm, cen) + lam * prior
+    return torch.linalg.solve(A, b)
+
+
+def build_ccv_capet_inputs(c2w_src: torch.Tensor, c2w_tgt: torch.Tensor,
+                           K: torch.Tensor, latent_hw=(30, 52),
+                           n_latent_f: int = 21, ar_window_f: int = 3):
+    """[L_total, 7] fp32 = (ray origin, unit direction, foot depth t_c) per token.
+
+    Sequence order matches build_ccv_cam_inputs: [SRC frames || TGT interleave order].
+    """
+    order = tgt_interleave_frame_order(n_latent_f, ar_window_f)
+    o_s, d_s = point_ray_per_token(c2w_src, K, latent_hw)
+    o_t, d_t = point_ray_per_token(c2w_tgt, K, latent_hw)
+    o = torch.cat([o_s.reshape(-1, 3), o_t[order].reshape(-1, 3)], dim=0)
+    d = torch.cat([d_s.reshape(-1, 3), d_t[order].reshape(-1, 3)], dim=0)
+    focus = scene_focus(c2w_src)
+    tc = ((focus[None, :] - o) * d).sum(-1, keepdim=True)
+    return torch.cat([o, d, tc], dim=-1)
