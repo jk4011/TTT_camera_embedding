@@ -1,0 +1,9 @@
+# PE baselines on the two extra tasks (user request 2026-09-20), in this order.
+# Format: <n_gpus> <label> <command, {GPUS} is replaced with the assigned gpu list>
+# A job is skipped once lact_nvs/outputs/queue_pe_done/<label> exists, so this file can be
+# resubmitted after a node reset.
+#
+# tttLRM cells take 2 GPUs (bs 4 each, matching scratch_base_re / scratch_capet);
+# ccv cells take 1 (batch_size_per_gpu 1, matching ccv_base_re / ccv_capet_re).
+2 tttlrm_prope bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs/run_tttlrm_pair.sh {GPUS} configs/scratch_prope.yaml scratch_prope
+1 ccv_prope bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs/run_ccv_start.sh {GPUS} prope ccv_prope_re

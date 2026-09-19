@@ -13,8 +13,17 @@ LOCKS=$REPO/lact_nvs/outputs/.gpu_locks
 LOG=$REPO/lact_nvs/outputs/queue_pe.log
 STATE=$REPO/lact_nvs/outputs/queue_pe_done
 QUEUE=${1:-$REPO/lact_nvs/PE_QUEUE.txt}
-HOST=node1
+HOST=node1                 # the convention our launchers write
+REALHOST=$(hostname -s)    # what eval_scratch_ladder.sh writes
 mkdir -p "$STATE" "$LOCKS"
+# Locks from dead allocations would otherwise block every card forever, and a lock written
+# under the OTHER prefix is invisible to a check that assumes one of them -- which is how a
+# tttLRM cell and the tab:recon evaluation both landed on gpu2 on 2026-09-20.
+for f in "$LOCKS"/*_gpu*; do
+  [ -e "$f" ] || continue
+  pre=$(basename "$f"); pre=${pre%_gpu*}
+  [ "$pre" = "$HOST" ] || [ "$pre" = "$REALHOST" ] || rm -f "$f"
+done
 
 free_gpus() {
   local out=""
@@ -23,7 +32,8 @@ free_gpus() {
     local mem
     mem=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $g 2>/dev/null)
     # a foreign process can sit on a card without one of our locks, so both must be clear
-    if [ "${mem:-99999}" -le 2048 ] && [ ! -f "$LOCKS/${HOST}_gpu$g" ]; then out="$out $g"; fi
+    if [ "${mem:-99999}" -le 2048 ] && [ ! -f "$LOCKS/${HOST}_gpu$g" ] \
+       && [ ! -f "$LOCKS/${REALHOST}_gpu$g" ]; then out="$out $g"; fi
   done
   echo $out
 }

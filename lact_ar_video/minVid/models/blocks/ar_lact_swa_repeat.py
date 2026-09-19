@@ -313,6 +313,52 @@ if hasattr(torch, "compile") and os.environ.get("TTTROPE_NO_COMPILE", "0") != "1
     except Exception:
         apply_rotary_pairs = _apply_rotary_pairs_impl
 
+def _prope_rope_coeffs(positions, feat_dim, device):
+    """Official PRoPE image RoPE (freq_base 100, split pairing): [L] -> (cos, sin)."""
+    num_freqs = feat_dim // 2
+    freqs = 100.0 ** (-torch.arange(num_freqs, device=device, dtype=torch.float32)
+                      / num_freqs)
+    ang = positions.float()[:, None] * freqs[None]
+    return ang.cos(), ang.sin()
+
+
+def _prope_rope_apply(x, cos, sin, inverse=False):
+    h = x.shape[-1] // 2
+    x1, x2 = x[..., :h].float(), x[..., h:].float()
+    if not inverse:
+        out = torch.cat([cos * x1 + sin * x2, -sin * x1 + cos * x2], dim=-1)
+    else:
+        out = torch.cat([cos * x1 - sin * x2, sin * x1 + cos * x2], dim=-1)
+    return out.to(x.dtype)
+
+
+def apply_tiled_mat4(x, M, tokens_per_view, num_dims):
+    """Per-view 4x4 on the 4-dim blocks of x[..., :num_dims]. x [B,L,D], M [B,V,4,4]."""
+    B, L, _ = x.shape
+    V = M.size(1)
+    nb = num_dims // 4
+    blocks = x[..., : nb * 4].float().reshape(B, V, tokens_per_view, nb, 4)
+    out = torch.einsum("bvij,bvtkj->bvtki", M.float(), blocks).reshape(B, L, nb * 4)
+    return torch.cat([out.to(x.dtype), x[..., nb * 4 :]], dim=-1)
+
+
+def lift_K4(K_norm):
+    b, v, _ = K_norm.shape
+    M = torch.eye(4, device=K_norm.device, dtype=K_norm.dtype).expand(b, v, 4, 4).clone()
+    M[..., 0, 0] = K_norm[..., 0]; M[..., 1, 1] = K_norm[..., 1]
+    M[..., 0, 2] = K_norm[..., 2]; M[..., 1, 2] = K_norm[..., 3]
+    return M
+
+
+def lift_K4_inv(K_norm):
+    b, v, _ = K_norm.shape
+    M = torch.eye(4, device=K_norm.device, dtype=K_norm.dtype).expand(b, v, 4, 4).clone()
+    M[..., 0, 0] = 1.0 / K_norm[..., 0]; M[..., 1, 1] = 1.0 / K_norm[..., 1]
+    M[..., 0, 2] = -K_norm[..., 2] / K_norm[..., 0]
+    M[..., 1, 2] = -K_norm[..., 3] / K_norm[..., 1]
+    return M
+
+
 def apply_rotary_cols(x, cos, sin, inverse: bool = False):
     """Rotate adjacent row-pairs of column-major tokens.
 
@@ -1136,7 +1182,7 @@ class ARFastWeightSwiGLU(nn.Module):
         self.qk_norm = qk_norm
         self.eps = eps
 
-        assert cam_phase_mode in ("none", "plucker", "capet")
+        assert cam_phase_mode in ("none", "plucker", "capet", "prope")
         self.cam_phase_mode = cam_phase_mode
         self.ttt_input_rope = ttt_input_rope
         self.ttt_single_chunk = ttt_single_chunk
@@ -1224,6 +1270,12 @@ class ARFastWeightSwiGLU(nn.Module):
         ####    point over t_c * [1/12, 12] at init and nothing bootstraps (NVS F87).
         ####  * a v/o carrier rotates v by the point phases on the update and rotates the
         ####    output back on the apply.
+        if cam_phase_mode == "prope":
+            # faithful original PRoPE, the same site and split as the NVS paper row:
+            # [head_dim/2 tiled projective | head_dim/4 image-x rope | /4 image-y rope]
+            self.prope_half = int(fw_head_dim * 0.5) // 8 * 8
+            self.prope_quart = (fw_head_dim - self.prope_half) // 2
+
         if cam_phase_mode == "capet":
             nf_vo = (fw_head_dim - 2 * 3) // (2 * 3)
             self.cam_num_freqs_vo = nf_vo
@@ -1579,7 +1631,50 @@ class ARFastWeightSwiGLU(nn.Module):
             cam_coords = cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]
             cam_coords = cam_coords.float()
             assert cam_coords.shape[0] == b and cam_coords.shape[1] == s
-        elif cam_coords6 is not None and self.cam_phase_mode == "capet":
+        prope_state = None
+        if cam_coords6 is not None and self.cam_phase_mode == "prope":
+            cc = (cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]).float()
+            assert cc.shape[0] == b and cc.shape[1] == s and cc.shape[2] == 20, cc.shape
+            n_slots = self.src_latent_f + 2 * self.n_latent_f - self.ar_window_f
+            tpv = s // n_slots
+            assert tpv * n_slots == s, (s, n_slots)
+            with torch.autocast(device_type="cuda", enabled=False):
+                per_slot = cc[:, ::tpv, :]                       # [b, V, 20]
+                K_norm = per_slot[..., :4]
+                c2w = per_slot[..., 4:].reshape(b, n_slots, 4, 4)
+                R = c2w[..., :3, :3]
+                w2c = torch.zeros_like(c2w)
+                w2c[..., :3, :3] = R.transpose(-1, -2)
+                w2c[..., :3, 3] = -torch.einsum("bvij,bvj->bvi",
+                                                R.transpose(-1, -2), c2w[..., :3, 3])
+                w2c[..., 3, 3] = 1.0
+                P = lift_K4(K_norm) @ w2c
+                P_inv = c2w @ lift_K4_inv(K_norm)
+            half, quart = self.prope_half, self.prope_quart
+            P_h = P.repeat_interleave(self.num_fw_heads, dim=0)
+            P_inv_h = P_inv.repeat_interleave(self.num_fw_heads, dim=0)
+            ph, pw = int(grid_sizes[0, 1].item()), int(grid_sizes[0, 2].item())
+            assert ph * pw == tpv, (ph, pw, tpv)
+            pos = torch.arange(tpv, device=fast_q.device)
+            cx, sx = _prope_rope_coeffs(pos % pw, quart, fast_q.device)
+            cy, sy = _prope_rope_coeffs(pos // pw, quart, fast_q.device)
+            cx, sx = cx.repeat(n_slots, 1), sx.repeat(n_slots, 1)
+            cy, sy = cy.repeat(n_slots, 1), sy.repeat(n_slots, 1)
+
+            def _prope_apply(t, mat, inv=False):
+                t2 = apply_tiled_mat4(t, mat, tpv, half)
+                a = _prope_rope_apply(t2[..., half:half + quart], cx, sx, inv)
+                bq = _prope_rope_apply(t2[..., half + quart:], cy, sy, inv)
+                return torch.cat([t2[..., :half], a, bq], dim=-1)
+
+            fast_q = _prope_apply(fast_q, P_h.transpose(-1, -2))
+            fast_k = _prope_apply(fast_k, P_inv_h)
+            fast_v = _prope_apply(fast_v, P_inv_h)
+            prope_state = (P_h, _prope_apply)
+        elif cam_coords6 is None and self.cam_phase_mode == "prope":
+            raise RuntimeError("cam_phase_mode='prope' but no cam matrices reached the block")
+
+        if cam_coords6 is not None and self.cam_phase_mode == "capet":
             # [b, L, 7] = (ray origin, unit direction, foot depth t_c)
             cc = (cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]).float()
             assert cc.shape[0] == b and cc.shape[1] == s and cc.shape[2] == 7, cc.shape
@@ -1818,6 +1913,10 @@ class ARFastWeightSwiGLU(nn.Module):
                     self.cur_w1 = fw_w1
                     self.cur_w2 = fw_w2
 
+
+        if prope_state is not None:
+            _P_h, _papply = prope_state
+            fw_x = _papply(fw_x, _P_h, inv=True)
 
         if vo_cos is not None:
             fw_x = apply_rotary_pairs(fw_x, vo_cos, vo_sin, inverse=True)

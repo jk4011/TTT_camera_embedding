@@ -54,7 +54,9 @@ from eval_ccv_common import (
     psnr_per_frame,
     ssim_per_frame,
 )
-from minVid.models.blocks.cam_phase_builder import build_ccv_cam_inputs, build_ccv_capet_inputs
+from minVid.models.blocks.cam_phase_builder import (build_ccv_cam_inputs,
+                                                     build_ccv_capet_inputs,
+                                                     build_ccv_prope_inputs)
 from minVid.utils.io_utils import save_video
 
 GEN_SEED_BASE = 424242  # per-pair generation seed = GEN_SEED_BASE + index
@@ -88,7 +90,7 @@ def generate_target_video(model, batch, n_steps, shift, seed, guide_scale=1.0,
 
     # camera conditioning, built exactly as _forward_pair does
     cam12_arg, coords_arg = None, None
-    if model.use_cam_encoder or model.cam_phase_mode in ("plucker", "capet"):
+    if model.use_cam_encoder or model.cam_phase_mode in ("plucker", "capet", "prope"):
         with torch.autocast(device_type="cuda", enabled=False):
             cam12_per_frame, coords6 = build_ccv_cam_inputs(
                 batch["c2w_src"][0].float(),
@@ -102,6 +104,16 @@ def generate_target_video(model, batch, n_steps, shift, seed, guide_scale=1.0,
             cam12_arg = cam12_per_frame[None].to(device)
         if model.cam_phase_mode == "plucker":
             coords_arg = coords6[None].to(device)
+        elif model.cam_phase_mode == "prope":
+            with torch.autocast(device_type="cuda", enabled=False):
+                coords_arg = build_ccv_prope_inputs(
+                    batch["c2w_src"][0].float(),
+                    batch["c2w_tgt"][0].float(),
+                    batch["K"][0].float(),
+                    latent_hw=(h_lat // 2, w_lat // 2),
+                    n_latent_f=n_tgt_f,
+                    ar_window_f=fw,
+                )[None].to(device)
         elif model.cam_phase_mode == "capet":
             with torch.autocast(device_type="cuda", enabled=False):
                 coords_arg = build_ccv_capet_inputs(

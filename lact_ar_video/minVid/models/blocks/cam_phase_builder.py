@@ -176,3 +176,38 @@ def build_ccv_capet_inputs(c2w_src: torch.Tensor, c2w_tgt: torch.Tensor,
     focus = scene_focus(c2w_src)
     tc = ((focus[None, :] - o) * d).sum(-1, keepdim=True)
     return torch.cat([o, d, tc], dim=-1)
+
+
+# ---------------------------------------------------------------------------
+# PRoPE baseline inputs: per-slot intrinsics and extrinsics.
+#
+# PRoPE codes the RELATIVE camera as a projective transform, so unlike the rotary
+# recipes it needs the matrices themselves, not per-token coordinates. The block's
+# only camera channel is the per-token `cam_coords6` argument, so the per-slot
+# (K_norm, c2w) pair is broadcast along that slot's tokens and sliced back out in
+# the block; at 93,600 tokens x 20 floats that is 7.5 MB, which is not worth a new
+# argument through three wrapper signatures.
+# ---------------------------------------------------------------------------
+
+def build_ccv_prope_inputs(c2w_src: torch.Tensor, c2w_tgt: torch.Tensor,
+                           K: torch.Tensor, latent_hw=(30, 52),
+                           n_latent_f: int = 21, ar_window_f: int = 3,
+                           pixels_per_token: int = 16):
+    """[L_total, 20] fp32 = (K_norm 4 | c2w 16) repeated over each slot's tokens.
+
+    K_norm is PRoPE's normalised (fx/W, fy/H, cx/W - 0.5, cy/H - 0.5) on the DECODED
+    pixel frame, the same convention the NVS cell uses. Slot order matches
+    build_ccv_cam_inputs: [SRC frames || TGT interleave order].
+    """
+    order = tgt_interleave_frame_order(n_latent_f, ar_window_f)
+    H, W = latent_hw
+    tpv = H * W
+    Wpx, Hpx = W * pixels_per_token, H * pixels_per_token
+    K = K.float()
+    K_norm = torch.tensor(
+        [K[0, 0] / Wpx, K[1, 1] / Hpx, K[0, 2] / Wpx - 0.5, K[1, 2] / Hpx - 0.5],
+        device=K.device, dtype=torch.float32)                      # shared by all slots
+    c2w = torch.cat([c2w_src.float(), c2w_tgt.float()[order]], dim=0)   # [V, 4, 4]
+    V = c2w.shape[0]
+    per_slot = torch.cat([K_norm[None].expand(V, 4), c2w.reshape(V, 16)], dim=-1)  # [V, 20]
+    return per_slot[:, None, :].expand(V, tpv, 20).reshape(V * tpv, 20).contiguous()
