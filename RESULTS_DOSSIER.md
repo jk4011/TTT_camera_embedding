@@ -3954,3 +3954,46 @@ carrier), F90 (orthogonality), F87 (depth sources, single sites).
    half being tolerable at narrow baseline (-0.10), not on it being useful. The gate the user dropped (F87 add. 8-12)
    is the only device tried so far that adapts this per scene.
 
+## F93: PAPER PROGRAM (user, 2026-09-19) -- five methods on three datasets, the input-view sweep, the
+## qualitative figure, and the recipe on four fast-weight inner models. Seed 137, 8-view/30k throughout.
+NoPE / PRoPE (`cam_prope_orig`) / GTA (`cam_gta_in`) were RETRAINED because the 2026-09-07 purge removed their
+checkpoints; the retrains reproduce their originals (RE10K NoPE 21.609 vs 21.610, PRoPE 22.049 vs 22.019; the
+orbit pair moves -0.08 / -0.16, which sets the reproducibility floor on that dataset at ~0.1 dB). RayRoPE is the
+sigma0=3 world-frame port (F88 rows 4b) and CaPET is `dp_chan_pdir_vo_both` (the 2026-09-18 final recipe).
+### Main comparison (PSNR; table:comparison_nvs)
+| method | RE10K | Objaverse | DL3DV-u |
+|---|---|---|---|
+| No Encoding | 21.61 | 22.21 | 16.42 |
+| GTA | 21.55 | 22.12 | 16.55 |
+| PRoPE | 22.05 | 22.25 | 16.38 |
+| RayRoPE | 22.43 | 22.26 | 16.79 |
+| **CaPET** | **22.95** | **22.80** | **16.98** |
+CaPET takes all nine cells (PSNR/SSIM/LPIPS x 3 datasets). The attention-native ports transfer poorly: GTA is below
+No Encoding on RE10K and Objaverse, PRoPE is below it on DL3DV-u; RayRoPE is the strongest baseline everywhere.
+### Input-view sweep, evaluation only (PSNR at 4 / 8 / 16 / 32 input views; fig:input-scale)
+| dataset | No Encoding | GTA | PRoPE | RayRoPE | CaPET |
+|---|---|---|---|---|---|
+| RE10K | 20.52 / 21.55 / 21.85 / 21.95 | 20.50 / 21.50 / 21.76 / 21.86 | 20.62 / 21.99 / 22.30 / 22.42 | 20.87 / 22.37 / 22.78 / 22.91 | 20.82 / 22.87 / 23.68 / **23.97** |
+| Objaverse | 19.50 / 22.21 / 22.33 / 22.17 | 19.48 / 22.12 / 22.26 / 22.14 | 19.59 / 22.25 / 22.44 / 22.29 | 19.74 / 22.26 / 22.40 / 22.27 | 19.93 / 22.80 / 22.91 / **22.81** |
+| DL3DV-u | 15.43 / 16.42 / 16.67 / 16.75 | 15.45 / 16.54 / 16.87 / 16.97 | 15.34 / 16.38 / 16.72 / 16.83 | 15.58 / 16.79 / 17.21 / 17.34 | 15.55 / 16.98 / 17.57 / **17.81** |
+Trained at 8 views; 16 and 32 are extrapolation. The gap widens with view count on RE10K (+2.0 at 32) and DL3DV-u
+(+1.06), saturates after 8 on the orbit, and nearly vanishes at 4 views on all three.
+### Fast-weight inner models (RE10K; table:diverse_fast_weight; NoPE column = the earlier 3-seed runs)
+| inner model | NoPE | CaPET | delta |
+|---|---|---|---|
+| SwiGLU | 21.69 | 22.95 | +1.26 |
+| 2-layer MLP | 20.50 | 22.69 | **+2.19** |
+| 3-layer MLP | 21.87 | 23.33 | +1.46 |
+| 4-layer MLP | 21.90 | 23.37 | +1.47 |
+The recipe transfers to every inner model and earns MOST on the gateless 2-layer MLP, so it is not an artifact of
+SwiGLU. Code: the `mlp2` / `fw3l` / `fw4l` modes now accept the camera recipe (they were standalone), and every
+internal address space shares one set of point-code coefficients.
+### Ablation DL3DV columns (completing F91/F92 on the third dataset)
+Sites: input only 16.72, hidden only 16.73, both 16.85, both+carrier 16.98 -- DL3DV composes like RE10K, unlike the
+orbit. Coordinates: Ray 16.69, Ray+Cam 16.60, Ray+Point 16.98 -- DL3DV sits between the two regimes (direction alone
+beats No Encoding but needs the point), and the camera origin loses on all three datasets.
+Artifacts: `lact_nvs/run_vsweep_paper.sh`, `plot_input_scale.py`, `render_compare.py`, `pick_scenes.py`,
+`compose_figure.py`; figures in `paper_overleaf/figs/`.
+Incidents: a restarted queue runner started a duplicate of a running cell (guard added); PRoPE's image rope assumed
+a square patch grid and crashed on DL3DV-u 256x448 (now reads the real grid).
+

@@ -670,3 +670,9 @@ poses from VGGT or GLOMAP) AND FVD.
 4. Fast-weight analysis: final recipe on 2/3/4-layer MLP fast weights (needs code: those modes are standalone today).
 5. tttLRM: NoPE + final recipe, numbers only -> tab:recon.
 6. CCV: NoPE + final recipe, ReCamMaster-lineage metrics -> tab:ccv.
+- 2026-09-19 12:30 items 1-4 of the paper program CLOSED (16 cells + 60 sweep evals) -> RESULTS_DOSSIER F93;
+  tables comparison_nvs / ablation_position / ablation_design / diverse_fast_weight and figures input_scale /
+  comparison_nvs are filled and pushed to Overleaf. Item 5 (tttLRM) training on 2+2 GPUs since 11:44/12:18,
+  ~15k steps, ETA 2026-09-20 early morning. Item 6 (CCV) not started: needs the CaPET port into minVid and the
+  ReCamMaster-lineage metric pipeline (RotErr/TransErr/CamMC + FVD).
+
