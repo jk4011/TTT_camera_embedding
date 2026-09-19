@@ -4019,7 +4019,8 @@ Three findings, each measured, in `tttlrm_ref/model/capet_kernel.py`:
    (~1e-3), so the accurate path bought nothing: 3.09 -> ~1.0 ms.
 3. **Interleaved pairs must be read as pairs.** Loading channel 2j and 2j+1 as two stride-2 gathers halves the
    useful bytes per transaction; loading the 2-element run contiguously and splitting in registers (`tl.split`)
-   took the fused kernel from +24.1 ms to +3.1 ms at the hidden site. This was the single largest factor.
+   took the hidden site from +24.1 ms to +3.1 ms. This was the single largest factor, but note it is a
+   Triton-INTERNAL fix: it repairs the first kernel I wrote, it is not something inductor was doing badly.
 Rejected on measurement: building the phase inside the rotation (removes the tables but recomputes 200M sin/cos
 six times per layer: +34.9 ms); the half-split (Llama) pair layout, which was 3.6x faster in isolation but slower
 in the layer (+25.5 ms) and would invalidate every CaPET checkpoint. Layout stays interleaved, so the running
@@ -4027,3 +4028,19 @@ tttLRM cell and all NVS checkpoints remain valid.
 Correctness: the rotation matches the old path to 3e-8 (fp32 values) and 2e-7 (gradients). At layer level the
 deviation is 1e-2, which is NOT error: Muon's Newton-Schulz amplifies a 1e-7 perturbation to 9.6e-3 (measured by
 perturbing the reference path by the same amount), and with `muon_update_steps=0` the layer deviation is 4e-6.
+
+**Was Triton necessary?** Mostly no, but only with `torch.compile`. Measured at the hidden shape
+(B=4, 16320 tokens, d_h=3072; three rotations + the phase build + backward; interleaved min-of-12 on a
+co-tenanted GPU, so read the ratios, not the absolute ms):
+| implementation | ms | vs Triton |
+|---|---|---|
+| status quo: phase tables visible to autograd | 7.62 | 2.52x |
+| pure PyTorch custom autograd.Function, eager | 36.39 | 12.0x |
+| the same Function, `torch.compile`d | 4.17 | 1.38x |
+| Triton (shipped) | 3.03 | 1.00x |
+So the IDEA -- make the phase tables non-differentiable inputs and have each rotation reduce into the [3, F]
+gains and the [rows] depth itself -- carries about three quarters of the win and needs no custom kernel. What
+Triton adds on top is the hardware sin/cos and never materialising the [rows, 1536] phase-gradient that the
+torch version still writes and re-reads. Written eagerly the same Function is 12x SLOWER than the thing it
+replaces, so "pure PyTorch" here means compiled PyTorch, and this layer's kernel cannot be compiled as a whole
+(sp_all_reduce's ProcessGroup breaks inductor), so only the pieces could have been.
