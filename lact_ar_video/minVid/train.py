@@ -627,7 +627,15 @@ class Trainer:
         torch.cuda.empty_cache()
         self.model.train()
         start_time = time.time()
-        while self.step < self.config.max_fwdbwd_passes:
+        # `stop_at_step` ends the run early WITHOUT touching max_fwdbwd_passes, which is
+        # also the cosine schedule's period: the ccv comparison is read at step 13999 of a
+        # 20000-step schedule (every earlier ccv eval was), so shortening the schedule
+        # instead would change the learning rate the compared checkpoints were trained at.
+        stop_at = int(self.config.get("stop_at_step", 0) or 0) or int(self.config.max_fwdbwd_passes)
+        stop_at = min(stop_at, int(self.config.max_fwdbwd_passes))
+        print_rank0(f"training until step {stop_at} "
+                    f"(lr schedule period {self.config.max_fwdbwd_passes})")
+        while self.step < stop_at:
             if self.config.get("deterministic_noise", False):
                 # identical timestep/noise draws across ablation variants
                 torch.manual_seed(123457 + self.step)

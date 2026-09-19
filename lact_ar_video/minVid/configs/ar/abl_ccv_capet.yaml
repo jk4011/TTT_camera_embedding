@@ -103,6 +103,10 @@ beta2: 0.95
 weight_decay: 0.01
 lr_scheduler_type: cosine
 max_fwdbwd_passes: 20000
+# Stop at 14000 so the final checkpoint is step 13999, the step every earlier ccv eval used
+# (gen_ccv_*_13999) and the one keep_last_iter would prune once a run passes ~15000.
+# max_fwdbwd_passes stays 20000 because it is the cosine schedule's period.
+stop_at_step: 14000
 warmup: 200
 grad_accum_steps: 1 # not accum
 grad_clip_norm: 1.0

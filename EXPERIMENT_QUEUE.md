@@ -740,3 +740,12 @@ poses from VGGT or GLOMAP) AND FVD.
   (2) lustre is at 4.0 T free of 600 T; two runs hold ~60 GB of checkpoints plus the generated mp4s.
   After training: generation is ~18 min/pair on one GPU and the established protocol is 8 pairs, so ~2.4 h
   per model (both in parallel on two GPUs), then camera metrics ~1-3 h on CPU and FVD is minutes.
+- 2026-09-20 00:30 USER DECISION: the ccv cells stop at step 14000. Implemented as a new `stop_at_step` key
+  (train.py), NOT by shortening `max_fwdbwd_passes`, because that value is also the cosine schedule's period
+  and every earlier ccv eval read step 13999 of a 20000-step schedule. Verified: the loop ends at 14000, the
+  last checkpoint written is step 13999, and `keep_last_iter` keeps [13249, 13499, 13749, 13999], so the eval
+  checkpoint survives. Configs without the key (e.g. abl_ccv_both) are unchanged.
+  The two RUNNING cells still hold the old code; they are relaunched when this allocation ends (~10 h, at
+  step ~3.7k / ~3.2k) and pick it up then. They were deliberately NOT restarted now: ccv_capet_re has not yet
+  written its first checkpoint (first save is step 249), so a restart would send it back to step 0.
+  New ETA to the final checkpoint: base 09-21 16:15, CaPET 09-21 22:00, assuming no allocation gap.
