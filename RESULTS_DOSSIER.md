@@ -4044,3 +4044,17 @@ Triton adds on top is the hardware sin/cos and never materialising the [rows, 15
 torch version still writes and re-reads. Written eagerly the same Function is 12x SLOWER than the thing it
 replaces, so "pure PyTorch" here means compiled PyTorch, and this layer's kernel cannot be compiled as a whole
 (sp_all_reduce's ProcessGroup breaks inductor), so only the pieces could have been.
+
+## F95 (2026-09-20): tab:recon -- CaPET transfers to tttLRM (+0.26 dB on DL3DV-140)
+Both cells trained from scratch, 15,000 steps, 8 input + 8 virtual views at 272x480, seed-matched, 2 GPUs each;
+evaluated on the 140 held-out DL3DV scenes at the cell's own trained geometry (`eval_scratch_ladder.sh`).
+| method | PSNR | SSIM | LPIPS |
+|---|---|---|---|
+| No Encoding | 15.279 | 0.3665 | 0.6395 |
+| **CaPET** | **15.538** | **0.3758** | **0.6257** |
+These are NOT comparable to the 25.062 anchor or the fine-tune grid (that protocol is 32 views at 536x960);
+they are comparable to each other, which is what the contrast needs.
+PRoPE and RayRoPE cells are training (user request 2026-09-20, `lact_nvs/PE_QUEUE.txt`). Both are ported at the
+SAME site as the NVS paper rows -- the fast weights' q/k/v/o, not attention, which in this model is per-view and
+would make a relative-camera code an identity. Measured cost per step on one GPU: No Encoding 2.41, CaPET 2.55,
+RayRoPE 3.05, PRoPE 3.31.
