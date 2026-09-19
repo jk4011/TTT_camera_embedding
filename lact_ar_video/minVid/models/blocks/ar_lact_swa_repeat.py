@@ -22,6 +22,21 @@ from minVid.models.blocks.cam_phase_builder import make_cam_ladder, cam_phase_ta
 from torch.nn import init
 
 
+# --- F72 follow-up: masked key-InstanceNorm ---------------------------------
+# Populated-slot mask for the AR interleave, set externally per forward by the
+# generation eval (eval_video2_generate). 1-D tensor over interleave slots
+# (True = slot carries real content, False = future/empty). When set and
+# TTT_MASKED_IN=1, the t5 key InstanceNorm computes its sequence statistics over
+# populated tokens only, so the normalization at generation matches the fully
+# populated training regime. None -> fall back to nonzero-key detection.
+_MASKED_IN_VALID_SLOTS = None
+
+
+def set_masked_in_valid_slots(v):
+    global _MASKED_IN_VALID_SLOTS
+    _MASKED_IN_VALID_SLOTS = v
+
+
 @torch.compile()
 def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     w0: torch.Tensor,
@@ -257,7 +272,7 @@ def ar_fast_weight_swish_glu_weight_norm_mini_batch(
     return output, w0, w1, w2
 
 
-def _apply_rotary_pairs_impl(x, coeff_cos, coeff_sin):
+def _apply_rotary_pairs_impl(x, coeff_cos, coeff_sin, inverse: bool = False):
     """Rotate adjacent feature pairs of row-major tokens (port of
     lact_nvs/lact_ttt_cam.apply_rotary_pairs).
 
@@ -271,8 +286,12 @@ def _apply_rotary_pairs_impl(x, coeff_cos, coeff_sin):
     x_rot = x[..., : 2 * P].reshape(*x.shape[:-1], P, 2)
     x1 = x_rot[..., 0].float()
     x2 = x_rot[..., 1].float()
-    y1 = x1 * coeff_cos - x2 * coeff_sin
-    y2 = x1 * coeff_sin + x2 * coeff_cos
+    if inverse:
+        y1 = x1 * coeff_cos + x2 * coeff_sin
+        y2 = x2 * coeff_cos - x1 * coeff_sin
+    else:
+        y1 = x1 * coeff_cos - x2 * coeff_sin
+        y2 = x1 * coeff_sin + x2 * coeff_cos
     y = torch.stack([y1, y2], dim=-1).reshape(*x.shape[:-1], 2 * P)
     if 2 * P == x.shape[-1]:
         return y.to(x.dtype)
@@ -1117,7 +1136,7 @@ class ARFastWeightSwiGLU(nn.Module):
         self.qk_norm = qk_norm
         self.eps = eps
 
-        assert cam_phase_mode in ("none", "plucker")
+        assert cam_phase_mode in ("none", "plucker", "capet")
         self.cam_phase_mode = cam_phase_mode
         self.ttt_input_rope = ttt_input_rope
         self.ttt_single_chunk = ttt_single_chunk
@@ -1141,8 +1160,9 @@ class ARFastWeightSwiGLU(nn.Module):
             P_h = max(1, int(d_h_total * ttt_hrope_frac / 2.0))
             assert 2 * P_h <= d_h_total, f"ttt_hrope_frac too large: {ttt_hrope_frac}"
             self.h_rope_dim = 2 * P_h
-            if cam_phase_mode == "plucker":
-                # 6 Plucker coords x nf_h freqs = h_rope_dim/2 pairs (768 -> 6x64)
+            if cam_phase_mode in ("plucker", "capet"):
+                # 6 coords x nf_h freqs = h_rope_dim/2 pairs (768 -> 6x64). The coords are
+                # the Plucker pair (d, o x d), or for capet the 3D point and the direction.
                 nf_h = (self.h_rope_dim // 2) // 6
                 self.cam_num_freqs_h = nf_h
                 self.register_buffer(
@@ -1184,7 +1204,7 @@ class ARFastWeightSwiGLU(nn.Module):
             else:
                 self.register_buffer("in_inv_freq", ladder_in, persistent=False)
         elif ttt_input_rope:
-            assert cam_phase_mode == "plucker", "ttt_input_rope requires camera phases"
+            assert cam_phase_mode in ("plucker", "capet"), "ttt_input_rope requires camera phases"
             # 6 coords x nf freqs, leaving >= 2*6 dims untouched (768 -> 6x63 = 378 pairs)
             nf_in = (fw_head_dim - 2 * 6) // (2 * 6)
             self.cam_num_freqs_in = nf_in
@@ -1194,7 +1214,27 @@ class ARFastWeightSwiGLU(nn.Module):
                 self.cam_gain_in = nn.Parameter(gain_in)
             else:
                 self.register_buffer("cam_gain_in", gain_in, persistent=False)
-        
+
+        #### CaPET extras over the Plucker sites (the NVS final recipe):
+        ####  * the coordinate is the 3D point o + t d at a PREDICTED depth, paired with
+        ####    the ray direction -- still 6 coord groups, so the ladders above are reused;
+        ####  * t = t_c exp(2.5 tanh(s / 2.5)) with s one channel of this layer's own value
+        ####    projection times a zero-initialised gain (no depth network); that channel is
+        ####    removed from v. Zero init matters: an O(1) random channel would scatter every
+        ####    point over t_c * [1/12, 12] at init and nothing bootstraps (NVS F87).
+        ####  * a v/o carrier rotates v by the point phases on the update and rotates the
+        ####    output back on the apply.
+        if cam_phase_mode == "capet":
+            nf_vo = (fw_head_dim - 2 * 3) // (2 * 3)
+            self.cam_num_freqs_vo = nf_vo
+            self.register_buffer("cam_omega_vo", make_cam_ladder(nf_vo), persistent=False)
+            gain_vo = torch.ones(3, nf_vo)
+            if ttt_learnable_freqs:
+                self.cam_gain_vo = nn.Parameter(gain_vo)
+            else:
+                self.register_buffer("cam_gain_vo", gain_vo, persistent=False)
+            self.capet_depth_gain = nn.Parameter(torch.zeros(1))
+
         # layersx
         self.q = nn.Linear(dim, dim)
         self.k = nn.Linear(dim, dim)
@@ -1489,9 +1529,36 @@ class ARFastWeightSwiGLU(nn.Module):
         if self.ttt_t5:
             with torch.autocast(device_type="cuda", enabled=False):
                 fk = fast_k.float()
-                fast_k = ((fk - fk.mean(dim=1, keepdim=True))
-                          / torch.sqrt(fk.var(dim=1, unbiased=False, keepdim=True) + 1.0)
-                          ).to(fast_k.dtype)
+                if os.environ.get("TTT_MASKED_IN", "0") == "1":
+                    # Masked key InstanceNorm (F72 follow-up): compute the
+                    # sequence statistics over POPULATED tokens only, excluding
+                    # the future/empty slots. At training every slot is populated
+                    # so this reduces to the plain IN; at AR generation the later
+                    # slots carry no real content, and masking restores the
+                    # training-time normalization for the real tokens. The
+                    # populated-slot mask is set by the generation eval; under
+                    # full attention the future slots' keys are NOT zero (leaked),
+                    # so nonzero-key detection is only a fallback.
+                    s_len = fk.shape[1]
+                    vs = _MASKED_IN_VALID_SLOTS
+                    if vs is not None and s_len % vs.shape[0] == 0:
+                        tok = vs.to(device=fk.device, dtype=fk.dtype).repeat_interleave(
+                            s_len // vs.shape[0])
+                        valid = tok.view(1, s_len, 1)                # [1, s, 1]
+                    else:
+                        valid = (fk.abs().sum(dim=-1, keepdim=True) > 1e-6).float()
+                    cnt = valid.sum(dim=1, keepdim=True).clamp(min=1.0)          # [.,1,1]
+                    mean = (fk * valid).sum(dim=1, keepdim=True) / cnt
+                    var = ((fk - mean).pow(2) * valid).sum(dim=1, keepdim=True) / cnt
+                    if os.environ.get("TTT_MASKED_IN_DEBUG", "0") == "1":
+                        print(f"[maskedIN] valid {int(valid.sum().item()/max(valid.shape[0],1))}/"
+                              f"{s_len} tokens (slots={None if vs is None else int(vs.sum().item())}/"
+                              f"{None if vs is None else vs.shape[0]})", flush=True)
+                    fast_k = ((fk - mean) / torch.sqrt(var + 1.0)).to(fast_k.dtype)
+                else:
+                    fast_k = ((fk - fk.mean(dim=1, keepdim=True))
+                              / torch.sqrt(fk.var(dim=1, unbiased=False, keepdim=True) + 1.0)
+                              ).to(fast_k.dtype)
             H_g, W_g = int(grid_sizes[0, 1].item()), int(grid_sizes[0, 2].item())
             fast_q = fast_q + self._dwc(self.q_dwc, fast_q, H_g, W_g)
             fast_k = fast_k + self._dwc(self.k_dwc, fast_k, H_g, W_g)
@@ -1507,10 +1574,27 @@ class ARFastWeightSwiGLU(nn.Module):
 
         #### PRA input site: camera Plucker rotary on fast q/k after l2 norm.
         cam_coords = None
+        cam_pt3 = None
         if cam_coords6 is not None and self.cam_phase_mode == "plucker":
             cam_coords = cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]
             cam_coords = cam_coords.float()
             assert cam_coords.shape[0] == b and cam_coords.shape[1] == s
+        elif cam_coords6 is not None and self.cam_phase_mode == "capet":
+            # [b, L, 7] = (ray origin, unit direction, foot depth t_c)
+            cc = (cam_coords6 if cam_coords6.dim() == 3 else cam_coords6[None]).float()
+            assert cc.shape[0] == b and cc.shape[1] == s and cc.shape[2] == 7, cc.shape
+            with torch.autocast(device_type="cuda", enabled=False):
+                ray_o, ray_d, t_c = cc[..., 0:3], cc[..., 3:6], cc[..., 6:7]
+                # depth channel: first fast head, channel 0, before any activation
+                s_dep = self.capet_depth_gain * fast_v.reshape(
+                    b, self.num_fw_heads, s, -1)[:, 0, :, 0:1].float()
+                t_pred = t_c.clamp_min(0.02) * torch.exp(2.5 * torch.tanh(s_dep / 2.5))
+                cam_pt3 = ray_o + t_pred.clamp_min(0.02) * ray_d
+                cam_coords = torch.cat([cam_pt3, ray_d], dim=-1)
+            # remove that channel from the value it was read from (head 0 only)
+            v_mask = fast_v.new_ones(self.num_fw_heads, 1, fast_v.shape[-1])
+            v_mask[0, 0, 0] = 0.0
+            fast_v = fast_v * v_mask.repeat(b, 1, 1)
 
         if self.ttt_input_rope and self.cam_phase_mode == "none":
             # grid-carrier input rope (Q43): phases via the same carrier trick as the
@@ -1549,6 +1633,17 @@ class ARFastWeightSwiGLU(nn.Module):
                 in_sin = in_sin.repeat_interleave(self.num_fw_heads, dim=0)
             fast_q = apply_rotary_pairs(fast_q, in_cos, in_sin)
             fast_k = apply_rotary_pairs(fast_k, in_cos, in_sin)
+
+        #### CaPET v/o carrier: phase the stored value by its own point, so the retrieved
+        #### value carries the relative rotation exp(i(theta_i - theta_j)) once the output
+        #### is rotated back by the query's point below.
+        vo_cos = vo_sin = None
+        if self.cam_phase_mode == "capet" and cam_pt3 is not None:
+            with torch.autocast(device_type="cuda", enabled=False):
+                vo_cos, vo_sin = cam_phase_tables(cam_pt3, self.cam_omega_vo, self.cam_gain_vo)
+                vo_cos = vo_cos.repeat_interleave(self.num_fw_heads, dim=0)
+                vo_sin = vo_sin.repeat_interleave(self.num_fw_heads, dim=0)
+            fast_v = apply_rotary_pairs(fast_v, vo_cos, vo_sin)
 
         # fw_q = rearrange(fast_q, 'b s n_h d -> (b n_h) s d')
         # fw_k = rearrange(fast_k, 'b s n_h d -> (b n_h) s d')
@@ -1614,7 +1709,7 @@ class ARFastWeightSwiGLU(nn.Module):
             elif self.ttt_hidden_rope:
                 assert self.update_every == self.mini_batch_size * 2, \
                     "hidden-rope carrier currently mirrors the no-repeat rope path"
-                if self.cam_phase_mode == "plucker" and cam_coords is not None:
+                if self.cam_phase_mode in ("plucker", "capet") and cam_coords is not None:
                     # Camera Plucker phases replace the grid-carrier phases.
                     assert b == 1, "camera hidden phases assume batch_size 1"
                     with torch.autocast(device_type="cuda", enabled=False):
@@ -1719,6 +1814,9 @@ class ARFastWeightSwiGLU(nn.Module):
                     self.cur_w1 = fw_w1
                     self.cur_w2 = fw_w2
 
+
+        if vo_cos is not None:
+            fw_x = apply_rotary_pairs(fw_x, vo_cos, vo_sin, inverse=True)
 
         ttt_x = self.output_norm(fw_x)
         ttt_x = rearrange(ttt_x, '(b n_h) s d -> b s (n_h d)', n_h=self.num_fw_heads)

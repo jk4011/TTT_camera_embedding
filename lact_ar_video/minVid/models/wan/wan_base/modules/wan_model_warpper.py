@@ -107,7 +107,8 @@ class WanAttentionBlock(nn.Module):
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
             cam12(Tensor, optional): [B, L, 12] per-token relative extrinsics
                 (ccv cam_encoder path).
-            cam_coords6(Tensor, optional): [b_true, L_total, 6] per-token
+            cam_coords6(Tensor, optional): [b_true, L_total, 6] per-token Plucker, or
+                [b_true, L_total, 7] (ray origin, direction, foot depth) for capet;
                 Plucker coords for the hybrid attention's camera rotary.
         """
         assert e.dtype == torch.float32

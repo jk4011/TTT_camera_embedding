@@ -45,6 +45,7 @@ from eval_ccv_common import (
     ssim_per_frame,
 )
 from minVid.utils.io_utils import save_video
+from minVid.models.blocks.ar_lact_swa_repeat import set_masked_in_valid_slots
 
 GEN_SEED_BASE = 424242  # per-clip generation seed = GEN_SEED_BASE + index
 
@@ -87,6 +88,11 @@ def generate_video(model, gt_latent, text_embeds, n_steps, shift, seed,
             ar_input[noisy_slot] = x
             ar_t.zero_()
             ar_t[noisy_slot] = sig * model.num_train_timestep
+            if os.environ.get("TTT_MASKED_IN", "0") == "1":
+                # populated interleave slots = those with real content (future
+                # slots are still exactly zero in ar_input); drives masked key-IN
+                valid_slots = (ar_input.reshape(n_slots, -1).abs().sum(-1) > 0)
+                set_masked_in_valid_slots(valid_slots)
             with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                 flow_pred, _ = model.generator(
                     ar_input.clone(),
@@ -104,6 +110,7 @@ def generate_video(model, gt_latent, text_embeds, n_steps, shift, seed,
             else:
                 ar_input[noisy_slot + 1] = x
         ar_t.zero_()
+    set_masked_in_valid_slots(None)  # clear masked-IN state after this clip
     return gen_latent, time.time() - tic
 
 

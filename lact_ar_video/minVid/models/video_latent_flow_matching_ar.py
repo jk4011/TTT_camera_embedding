@@ -27,7 +27,7 @@ from minVid.utils.config_utils import instantiate_from_config, ObjectParamConfig
 from einops import rearrange, repeat
 import math
 from minVid.utils.logit_normal_weighting import logit_normal_integral
-from minVid.models.blocks.cam_phase_builder import build_ccv_cam_inputs
+from minVid.models.blocks.cam_phase_builder import build_ccv_cam_inputs, build_ccv_capet_inputs
 
 from minVid.models.wan.wan_base.distributed import sp_support
 import torch.distributed as dist
@@ -351,7 +351,7 @@ class VideoLatentFlowMatching(nn.Module):
 
         # camera conditioning (built once per step, fp32, no_grad)
         cam12_arg, coords_arg = None, None
-        if self.use_cam_encoder or self.cam_phase_mode == "plucker":
+        if self.use_cam_encoder or self.cam_phase_mode in ("plucker", "capet"):
             with torch.no_grad(), torch.autocast(device_type="cuda", enabled=False):
                 cam12_per_frame, coords6 = build_ccv_cam_inputs(
                     data_dict["c2w_src"][0].float(),
@@ -365,6 +365,16 @@ class VideoLatentFlowMatching(nn.Module):
                 cam12_arg = cam12_per_frame[None]  # [1, F_total, 12]
             if self.cam_phase_mode == "plucker":
                 coords_arg = coords6[None]  # [1, L_total, 6]
+            elif self.cam_phase_mode == "capet":
+                with torch.no_grad(), torch.autocast(device_type="cuda", enabled=False):
+                    coords_arg = build_ccv_capet_inputs(
+                        data_dict["c2w_src"][0].float(),
+                        data_dict["c2w_tgt"][0].float(),
+                        data_dict["K"][0].float(),
+                        latent_hw=(h_lat // 2, w_lat // 2),
+                        n_latent_f=tgt_latent.shape[1],
+                        ar_window_f=self.ar_window_size,
+                    )[None]  # [1, L_total, 7] = (o, d, t_c)
 
         flow_pred, extra_info_list = self.generator(
             ar_input.clone(),

@@ -688,3 +688,22 @@ poses from VGGT or GLOMAP) AND FVD.
   current 0.54% mean relative error, bf16 math 0.66% -- the error is dominated by h ALREADY being bf16, so the
   upcast buys almost nothing, while bf16 math is 50% faster and 32% lighter. Validate with 300 steps from the same
   checkpoint (loss curve) before adopting.
+
+- 2026-09-19 23:40 CaPET speed CLOSED (RESULTS_DOSSIER F94). The 14:40 entry above was wrong about the cause:
+  rotating the hidden activation is only +2.7 ms of the hidden site's +10.4; the rest was autograd bookkeeping
+  for the shared cos/sin tables, and the largest single factor was reading interleaved pairs as two stride-2
+  gathers. Three Triton kernels in `tttlrm_ref/model/capet_kernel.py` take the layer from +20.3 ms to +5.3 ms
+  and real training from 1.34x to **1.057x** of No Encoding (2.545 vs 2.408 s/step, 1 GPU, same config).
+  The pair layout stays interleaved, so the RUNNING tttLRM CaPET cell (gpus 2,3, ~9.6k/15k at 23:30) and every
+  NVS checkpoint remain valid; that cell was NOT restarted (saving ~1 h was not worth the resume risk, and this
+  trainer's restarts have always been from step 0).
+- 2026-09-19 23:36 item 6 (CCV) STARTED, one cell per GPU, 15k steps:
+  * gpu0 `ccv_base_re` (No Encoding, config abl_ccv_base.yaml) -- relaunched after the 22:31 crash, which was a
+    stale `TTT_camera_embedding` path in the ccv configs (api_keys.yaml); all ccv configs repointed.
+  * gpu1 `ccv_capet_re` (config abl_ccv_capet.yaml) -- the full recipe ported into minVid: coords are now
+    (ray origin, direction, foot depth) instead of Plucker, the point is formed at a depth predicted from one
+    channel of the layer's own value projection (that channel masked out of v), the existing input/hidden
+    ladders are reused unchanged (still 6 coord groups: point | direction), and a v/o carrier rotates v by the
+    point phases and rotates the output back. `ttt_hrope_frac: 1.0` so the hidden site codes the WHOLE hidden
+    width as in NVS (the earlier video runs used 0.5).
+  Still to do for item 6: the ReCamMaster-lineage metric pipeline (RotErr/TransErr/CamMC + FVD) for tab:ccv.
