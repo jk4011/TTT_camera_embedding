@@ -749,3 +749,16 @@ poses from VGGT or GLOMAP) AND FVD.
   step ~3.7k / ~3.2k) and pick it up then. They were deliberately NOT restarted now: ccv_capet_re has not yet
   written its first checkpoint (first save is step 249), so a restart would send it back to step 0.
   New ETA to the final checkpoint: base 09-21 16:15, CaPET 09-21 22:00, assuming no allocation gap.
+- 2026-09-21 17:25 NEW ALLOCATION (DCTN-0918150526, up since 09:57, ends ~09-23 09:57). The previous one ended
+  ~09-20 10:00; every GPU sat idle until 17:20 because the node1_gpu* locks from the dead allocation were still
+  on disk (the queue treats `node1_` as live). Cleared by hand after checking no process held a card. Resumed:
+  * gpu0 ccv_base_re from checkpoint 3749 (10.36 s/step) -> step 14000 at ~09-22 22:50
+  * gpu1 ccv_capet_re from checkpoint 3249 (11.49 s/step) -> ~09-23 03:40
+  * gpu2,3 tttlrm scratch_prope from latest.pt at step 5000 (3.21 s/step) -> ~09-22 02:30
+  * PE queue relaunched; ccv_prope, tttlrm_rayrope, ccv_rayrope wait in that order.
+  CORRECTION to the 00:30 entry: `keep_last_iter` does NOT keep the last four checkpoints.
+  `clear_old_checkpoints` computes its cutoff from the loop variable left over from an UNSORTED `os.listdir`,
+  not from the newest step, so it has pruned 1 directory in 15 calls. Every checkpoint is kept (6.4 GB each,
+  ~360 GB per ccv run at 14k). Harmless for now -- lustre has 69 T free and it guarantees step 13999 survives --
+  and deliberately not fixed while four runs depend on that directory.
+  Overleaf: token re-supplied by the user and stored with `git credential approve`; tab:recon pushed.
