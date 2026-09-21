@@ -54,6 +54,11 @@ while IFS= read -r line; do
     echo "$(date '+%F %T') [pe-queue] $LABEL already done, skipping" >> $LOG
     continue
   fi
+  # a job still running from an earlier queue instance (e.g. after a reorder) is not re-run
+  if [ -f "$STATE/$LABEL.running" ]; then
+    echo "$(date '+%F %T') [pe-queue] $LABEL is running elsewhere, skipping" >> $LOG
+    continue
+  fi
   echo "$(date '+%F %T') [pe-queue] $LABEL waiting for $N gpu(s)" >> $LOG
   PICK=""
   while :; do
@@ -62,17 +67,24 @@ while IFS= read -r line; do
     if [ "$CNT" -ge "$N" ]; then PICK=$(echo $AVAIL | cut -d' ' -f1-$N | tr ' ' ','); break; fi
     sleep 120
   done
+  # re-check after the wait: the job may have finished in another instance meanwhile
+  if [ -f "$STATE/$LABEL" ]; then
+    echo "$(date '+%F %T') [pe-queue] $LABEL finished elsewhere while waiting, skipping" >> $LOG
+    continue
+  fi
   for g in ${PICK//,/ }; do echo "pe:$LABEL" > "$LOCKS/${HOST}_gpu$g"; done
   echo "$(date '+%F %T') [pe-queue] $LABEL start on gpu(s) $PICK" >> $LOG
   # started in the background so the NEXT job can claim cards this one does not need:
   # jobs still START in queue order, they just do not serialise behind a 40 h neighbour
   (
+    touch "$STATE/$LABEL.running"
     export PE_QUEUE_OWNED=1
     eval "${CMD//\{GPUS\}/$PICK}" >> $LOG 2>&1
     RC=$?
     for g in ${PICK//,/ }; do rm -f "$LOCKS/${HOST}_gpu$g"; done
     echo "$(date '+%F %T') [pe-queue] $LABEL exited rc=$RC" >> $LOG
     [ $RC -eq 0 ] && touch "$STATE/$LABEL"
+    rm -f "$STATE/$LABEL.running"
   ) &
   sleep 60          # let the job actually take the card before the next job polls
 done < "$QUEUE"

@@ -773,3 +773,9 @@ poses from VGGT or GLOMAP) AND FVD.
   * ccv jobs deadlocked in the queue: run_ccv_start.sh waits for its card's lock to clear, and the queue had
     just written that lock. The queue now exports PE_QUEUE_OWNED=1 and the wrapper skips the wait.
   scratch_prope resumed from step 5000 and is past 5010.
+- 2026-09-21 17:41 USER DECISION: RayRoPE 3D moved ahead of PRoPE ccv. New order: tttlrm_prope (running) ->
+  tttlrm_rayrope (gpu 2,3 when prope frees them, ~02:30; 15k x 3.05 s ~ 12.7 h -> ~09-22 15:10) -> ccv_prope ->
+  ccv_rayrope (1 card each, as cards free). The old order left one card idle ~20 h waiting for a second one.
+  Reordered without touching the running cell: only the old queue's main loop was killed (by PID); its job
+  subshell, which owns scratch_prope, was left alive and still writes its own done marker. The runner now skips
+  a job with a `<label>.running` marker and re-checks the done marker after its GPU wait.
