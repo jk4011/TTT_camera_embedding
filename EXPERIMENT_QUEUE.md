@@ -750,8 +750,10 @@ poses from VGGT or GLOMAP) AND FVD.
   written its first checkpoint (first save is step 249), so a restart would send it back to step 0.
   New ETA to the final checkpoint: base 09-21 16:15, CaPET 09-21 22:00, assuming no allocation gap.
 - 2026-09-21 17:25 NEW ALLOCATION (DCTN-0918150526, up since 09:57, ends ~09-23 09:57). The previous one ended
-  ~09-20 10:00; every GPU sat idle until 17:20 because the node1_gpu* locks from the dead allocation were still
-  on disk (the queue treats `node1_` as live). Cleared by hand after checking no process held a card. Resumed:
+  ~09-20 10:00. The GPUs sat idle until 17:20 because no Claude session was running to relaunch anything
+  (the session was resumed late). Separately, the node1_gpu* locks from the dead allocation were still on disk
+  and would have blocked the queue even with a session up (it treated `node1_` as live); cleared by hand after
+  checking no process held a card, and the queue now drops any lock older than /proc/1. Resumed:
   * gpu0 ccv_base_re from checkpoint 3749 (10.36 s/step) -> step 14000 at ~09-22 22:50
   * gpu1 ccv_capet_re from checkpoint 3249 (11.49 s/step) -> ~09-23 03:40
   * gpu2,3 tttlrm scratch_prope from latest.pt at step 5000 (3.21 s/step) -> ~09-22 02:30
@@ -762,3 +764,12 @@ poses from VGGT or GLOMAP) AND FVD.
   ~360 GB per ccv run at 14k). Harmless for now -- lustre has 69 T free and it guarantees step 13999 survives --
   and deliberately not fixed while four runs depend on that directory.
   Overleaf: token re-supplied by the user and stored with `git credential approve`; tab:recon pushed.
+- 2026-09-21 17:30 three launcher bugs found on the relaunch, all fixed:
+  * tttLRM died at its first step: gsplat JIT-builds its CUDA backend into ~/.cache/torch_extensions, which
+    the reset wiped (`cannot import name 'csrc' from 'gsplat'`). run_tttlrm_pair.sh now exports
+    TORCH_EXTENSIONS_DIR to the lustre build (`.cache_torchext_tttlrm`, loads without recompiling).
+  * that crash reached the queue as rc=0 and was MARKED DONE (the wrapper exited with its lock cleanup's rc),
+    so a resubmitted queue would have skipped the cell forever. Both wrappers now `exit $RC` of the training.
+  * ccv jobs deadlocked in the queue: run_ccv_start.sh waits for its card's lock to clear, and the queue had
+    just written that lock. The queue now exports PE_QUEUE_OWNED=1 and the wrapper skips the wait.
+  scratch_prope resumed from step 5000 and is past 5010.

@@ -19,10 +19,17 @@ mkdir -p "$STATE" "$LOCKS"
 # Locks from dead allocations would otherwise block every card forever, and a lock written
 # under the OTHER prefix is invisible to a check that assumes one of them -- which is how a
 # tttLRM cell and the tab:recon evaluation both landed on gpu2 on 2026-09-20.
+# A lock older than this container is from a dead allocation BY DEFINITION, whatever its
+# prefix: our launchers always write `node1_`, so a prefix check alone kept every card blocked
+# for 7 h after the 2026-09-21 reallocation. /proc/1's mtime is the container start.
+BOOT=/proc/1
 for f in "$LOCKS"/*_gpu*; do
   [ -e "$f" ] || continue
   pre=$(basename "$f"); pre=${pre%_gpu*}
-  [ "$pre" = "$HOST" ] || [ "$pre" = "$REALHOST" ] || rm -f "$f"
+  if { [ "$pre" != "$HOST" ] && [ "$pre" != "$REALHOST" ]; } || [ ! "$f" -nt "$BOOT" ]; then
+    echo "$(date '+%F %T') [pe-queue] clearing stale lock $(basename "$f") ($(cat "$f" 2>/dev/null))" >> $LOG
+    rm -f "$f"
+  fi
 done
 
 free_gpus() {
@@ -60,6 +67,7 @@ while IFS= read -r line; do
   # started in the background so the NEXT job can claim cards this one does not need:
   # jobs still START in queue order, they just do not serialise behind a 40 h neighbour
   (
+    export PE_QUEUE_OWNED=1
     eval "${CMD//\{GPUS\}/$PICK}" >> $LOG 2>&1
     RC=$?
     for g in ${PICK//,/ }; do rm -f "$LOCKS/${HOST}_gpu$g"; done
