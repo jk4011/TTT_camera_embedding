@@ -4087,3 +4087,27 @@ second backbone" (+0.26 dB, t=13), not as "beats the attention-native encodings"
 Eval hygiene: the verification in inference.py now checks the PRoPE/RayRoPE code paths directly (the old
 checks passed for them trivially); both cells passed. The ladder's "no VERIFIED line" warning for base_re is a
 naming artefact (it only exempts cells whose last `_` token is "base"); base_re has no encoding to verify.
+
+## F97 (2026-09-22): the tttLRM CaPET port aimed its scene focus 40-49 deg off -- F95/F96's CaPET row is INVALID
+Audit prompted by F96 (CaPET tying PRoPE on tttLRM, the reverse of NVS). Recipe checked item by item against
+lact_nvs (`dp_chan_pdir_vo_both`): axis basis (identity for 3 dirs), ladder form and range (pi*2^[-1,4],
+omega_scale 1), coverage, gain init, depth channel (value head 0 channel 0, pre-silu, zero-init gain,
+t_c*exp(2.5 tanh(s/2.5))), carrier coordinates (point at the PREDICTED depth, 3 coords, 75% of v), fejer_h off
+-- all match. ONE thing does not: `set_point_info` took each input view's optical axis from patch `tpv//2`,
+which is row Hp//2 COLUMN 0, the leftmost patch of the middle row; lact_nvs uses `c2w[..., 2]`.
+Measured on 28 held-out DL3DV scenes (`tttlrm_ref/_diag_focus.py`):
+| | port (as trained) | true optical axis |
+|---|---|---|
+| axis error | 40-49 deg (median 47.7) | 0 |
+| focus error, cameras in [-1, 1] | median 0.75-0.89 | 0 |
+| tokens clamped onto the camera (t_c <= 0.02) | median 13-18%, up to 53% | median 0% |
+| median foot depth t_c | 0.37-0.39 | 0.69-0.78 |
+So the 3D point sat at about half its depth and a sixth of the tokens coded the camera ORIGIN, the coordinate
+the NVS ablation found harmful on all three datasets (F92). The depth channel can rescale t only by e^{+-2.5}
+of a wrong t_c and starts at zero gain.
+Ruled out: the Triton kernels written after the cell trained. Re-evaluating the same checkpoint on the eager path
+it trained with gives 15.538 / 0.3758 / 0.6258 against 15.538 / 0.3758 / 0.6257.
+Not affected: the ccv port (`scene_focus` uses `c2w[:, :3, 2]`), the NVS runs, and tttLRM PRoPE / RayRoPE
+(they do not use a focus).
+Fix: `cam.focus_legacy` (true only in configs/scratch_capet.yaml, so the old cell re-evaluates as trained);
+the corrected cell is configs/scratch_capet_axis.yaml and needs retraining (15k steps, 2 GPUs, ~11 h).
