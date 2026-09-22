@@ -4058,3 +4058,32 @@ PRoPE and RayRoPE cells are training (user request 2026-09-20, `lact_nvs/PE_QUEU
 SAME site as the NVS paper rows -- the fast weights' q/k/v/o, not attention, which in this model is per-view and
 would make a relative-camera code an identity. Measured cost per step on one GPU: No Encoding 2.41, CaPET 2.55,
 RayRoPE 3.05, PRoPE 3.31.
+
+## F96 (2026-09-22): tab:recon with all four encodings -- on tttLRM CaPET does NOT beat PRoPE
+Same protocol as F95 (from scratch, 15k steps, 8+8 views at 272x480, seed 137, DL3DV-140). Paired over the 140
+common scenes; 95% bootstrap intervals (4000 resamples). These capture TEST-SET noise only: every cell is one
+training seed, and NVS seed noise is ~0.1 dB (F18), so a PSNR gap inside ~0.1 is not a ranking.
+| method | PSNR | SSIM | LPIPS |
+|---|---|---|---|
+| No Encoding | 15.279 | 0.3665 | 0.6395 |
+| PRoPE | **15.556** | 0.3746 | **0.6154** |
+| RayRoPE | 15.417 | **0.3779** | 0.6265 |
+| CaPET | 15.538 | 0.3758 | 0.6257 |
+| paired delta | PSNR | SSIM | LPIPS |
+|---|---|---|---|
+| CaPET - No Enc | +0.259 [+0.222, +0.299] | +0.009 | -0.014 [-0.016, -0.012] |
+| PRoPE - No Enc | +0.278 [+0.234, +0.322] | +0.008 | -0.024 [-0.026, -0.022] |
+| RayRoPE - No Enc | +0.139 [+0.105, +0.172] | +0.011 | -0.013 |
+| CaPET - PRoPE | -0.019 [-0.071, +0.032] (tie) | +0.001 (tie) | **+0.010 [+0.008, +0.013]** (PRoPE better, 81% of scenes) |
+| CaPET - RayRoPE | +0.121 [+0.076, +0.168] | -0.002 | -0.001 (tie) |
+Reading: every encoding helps tttLRM; CaPET beats RayRoPE on PSNR and ties PRoPE on PSNR/SSIM, but PRoPE wins
+LPIPS by 0.010, which is larger than any other pairwise LPIPS gap here. This is the OPPOSITE of the NVS table,
+where CaPET beat PRoPE by 0.90 / 0.55 / 0.60 dB on RE10K / Objaverse / DL3DV-u (F93).
+Candidate explanation, UNTESTED: in tttLRM the self-attention is per-view and carries no positional encoding at
+all, so PRoPE's two image-coordinate ropes are the only within-view 2D position code any layer gets; the LVSM
+trunk in NVS differs. The NVS attribution cell `prope_imgrope` (PRoPE with the projective block set to identity)
+would separate the two halves if ported. Caveat for the paper: "3D reconstruction" can be claimed as "helps a
+second backbone" (+0.26 dB, t=13), not as "beats the attention-native encodings".
+Eval hygiene: the verification in inference.py now checks the PRoPE/RayRoPE code paths directly (the old
+checks passed for them trivially); both cells passed. The ladder's "no VERIFIED line" warning for base_re is a
+naming artefact (it only exempts cells whose last `_` token is "base"); base_re has no encoding to verify.
