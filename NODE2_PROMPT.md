@@ -1,6 +1,6 @@
 # NODE2_PROMPT.md — node2의 살아있는 지시 파일 (node1이 갱신, node2가 실행)
 
-마지막 갱신: **2026-09-24 20:40 KST (node1)** — **T4-abs 취소, T4-lin으로 교체**: 깊이를 value 채널이 아니라
+마지막 갱신: **2026-09-24 20:50 KST (node1)** — **T4-lin을 동시 3셀에서 '한 번에 한 셀'로 변경** (§3 첫 항목). 그 전: **T4-abs 취소, T4-lin으로 교체**: 깊이를 value 채널이 아니라
 RayRoPE처럼 **x에서 선형 층 하나**로 예측한다(사용자 결정). 모든 셀 `--actckpt`. §3을 위에서부터 실행할 것.
 이전 지시(2026-09-01 vi/orbit 프로그램)는 모두 종료되었다. 필요하면 `git log -p NODE2_PROMPT.md`로 본다.
 
@@ -55,21 +55,31 @@ value 채널 게인 0개, t_c를 NaN으로 채워도 손실·그래디언트가 
   ```
   `outputs/*_dpabs_pdir_*` 폴더는 지우지 않는다(node1이 정리한다). GPU 메모리가 0 근처로 내려간 것을 확인한다.
 
-- **[PENDING] T4-lin**: 9셀 실행. 실행기가 `EXTRA_ARGS=--actckpt`를 스스로 켠다. 데이터셋별 레인 세 개가 동시에
-  돌고(카드에 항상 3셀), 각 레인이 `both → in → h` 순서로 진행한다. 끝난 셀은 건너뛰고 체크포인트에서 이어가므로
-  **리셋 뒤에도 같은 두 명령을 다시 실행하면 된다.**
-  ```bash
-  cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs
-  GPU=0 NODE=node2 nohup setsid bash run_table4_lin.sh > /dev/null 2>&1 &
-  nohup setsid bash report_table4_lin.sh > /dev/null 2>&1 &
-  ```
-  진행 기록: `lact_nvs/outputs/queue_table4_lin.log`. 결과: `NODE2_RESULTS.md`의 `## T4-lin`(보고 스크립트가 append).
+- **[PENDING] T4-lin 동시 실행 정지 → 순차 실행으로 교체 (20:50 추가, 가장 먼저)**: 재 보니 이 작은 모델은 한 셀만으로
+  B200을 거의 다 쓴다. 3셀을 같이 올리면 셀당 속도가 약 1/3로 떨어져 전체 처리량이 늘지 않고, LPIPS가 켜지는 5k부터는
+  `--actckpt` 없이는 메모리도 안 맞는다(그 재계산 비용이 또 붙는다). node1 실측: RE10K 셀 하나를 단독·actckpt 없이 돌리면
+  **8.5 it/s**(3셀 동시 + actckpt일 때는 2.2). 그래서 한 번에 한 셀씩, actckpt 없이 돌린다.
+  1. 20:21에 띄운 `run_table4_lin.sh`(동시 3레인)와 그 셀들을 **PID로** 정지한다. `report_table4_lin.sh`는 **그대로 둔다**
+     (같은 9셀 이름을 계속 감시한다). 예:
+     ```bash
+     A="table4_lin"; B=".sh"; ps -eo pid,args | awk -v p="$A$B" 'index($0,p) && !index($0,"awk") && !index($0,"report_")'
+     A="dplin_pdir"; ps -eo pid,args | awk -v p="$A" 'index($0,p) && !index($0,"awk")'      # 확인 후 kill <PID...>
+     ```
+     셀 폴더는 지우지 않아도 된다(10k 체크포인트 전이라 실행기가 처음부터 다시 시작한다).
+  2. 순차 실행기를 띄운다. 행 순서(입력+은닉 → 입력만 → 은닉만), 행 안에서는 re10k → gobj → dl3dvu:
+     ```bash
+     cd /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs
+     GPU=0 NODE=node2 nohup setsid bash run_table4_lin_seq.sh > /dev/null 2>&1 &
+     ```
+     진행 기록: `lact_nvs/outputs/queue_table4_lin.log` (`[seq]` 줄). 리셋 뒤에는 같은 명령 + 보고 스크립트를 다시 띄운다.
+  3. **확인**: 한 번에 train.py가 한 셀분만 떠 있는지, `/proc/<pid>/cmdline`에 `--actckpt`가 **없는지**, `Iter` 줄의 it/s가
+     RE10K·gobj 8 안팎(LPIPS 전)인지 본다. 5k 직후 메모리가 여유 있는지도 한 번 본다(단독이면 약 55–70 GB).
+  - **예상 시간**: 셀당 RE10K·gobj 약 1.6시간, dl3dvu 약 2.3시간 → 한 행 약 5.5시간, **9셀 약 16시간**.
 
-- **시작 확인 (필수)**: 5분 안에 세 `train.log`에 `Iter …` 줄, 로그 앞부분 `cam_mode`에 `dpt_lin+dpt_abs`,
-  `ps`의 train.py 인자에 `--actckpt`가 있는지 본다. **5,000스텝(LPIPS 시작) 직후에 한 번 더** 세 셀 모두 살아 있고
-  메모리가 여유 있는지 확인한다(node1 기준 3셀 + actckpt = LPIPS 전 약 30 GB).
-- **예상 속도**: node1에서 3셀 + actckpt로 LPIPS 전 re10k·gobj 4.5, dl3dvu 3.2 it/s. LPIPS 후에는 그보다 느리다.
-  대략 re10k·gobj 레인 10시간, dl3dvu 레인 14시간 안팎으로 본다.
+- **[SUPERSEDED 20:50] T4-lin (동시 3레인판)**: 위 순차판으로 대체. 아래는 기록용.
+  9셀 실행. 실행기가 `EXTRA_ARGS=--actckpt`를 스스로 켠다. 데이터셋별 레인 세 개가 동시에
+  돌고, 각 레인이 `both → in → h` 순서로 진행한다. (`run_table4_lin.sh`, 더 이상 쓰지 않음)
+
 - 상태 태그는 node2가 직접 고친다: `[PENDING]` → `[RUNNING node2 <시각>]` → `[DONE]` / `[FAILED <원인>]`.
 
 ## 4. node2 → node1 (node2가 여기에 적는다)
@@ -124,3 +134,6 @@ node2는 답을 받기 전까지 re10k·gobj 두 셀만 계속 돌린다.
 바꾸기로 해서 **T4-abs는 전부 취소**하고 **T4-lin**으로 간다(§3). 새 실행기는 처음부터 `--actckpt`를 켠다
 (④와 같은 설정, 비교 셀과 일치). node1도 같은 OOM을 맞기 직전이었다 — 방금 `--actckpt`로 다시 띄웠다.
 공유 잠금 파일 문제(먼저 끝난 레인이 잠금을 지움)는 node2 전용 카드라 그대로 둔다.
+
+### node1 (2026-09-24 20:50 KST)
+동시 실행을 순차 실행으로 바꿨다(§3 첫 항목). node1의 Table 3 세 셀도 같은 방식(`run_seq.sh`)으로 방금 다시 띄웠다.

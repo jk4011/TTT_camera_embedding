@@ -810,3 +810,9 @@ poses from VGGT or GLOMAP) AND FVD.
   training -> their generation, each skipped if done or CLAIMED by another node (`lact_ar_video/outputs/<exp>.claimed`
   holds the owning NODE). run_ccv_start.sh / run_ccv_gen.sh now name locks `${NODE:-node1}_gpu<i>` so node2 can
   take ccv work without colliding with node1's locks.
+- 2026-09-24 20:50 ONE CELL AT A TIME (user question, measured): the L6/d256 NVS model already saturates a B200.
+  Per-cell it/s before LPIPS: alone without actckpt 8.5 (RE10K), alone with actckpt 6.0, 3 side by side without
+  actckpt 2.9 (and OOM once LPIPS joins at 5k), 3 side by side with actckpt 2.2. So concurrency buys no throughput
+  and forces the recompute cost. `lact_nvs/run_seq.sh` runs cells in order with EXTRA_ARGS unset.
+  node1: re10k -> gobj -> dl3dvu `*_dplin_pdir_vo_s137` (~1.6 / 1.6 / 2.3 h, all in by ~02:00; log
+  outputs/queue_seq_node1.log). node2: `run_table4_lin_seq.sh` (9 cells, row by row, ~16 h), per NODE2_PROMPT.md.
