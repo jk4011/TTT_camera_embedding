@@ -4188,3 +4188,16 @@ Measured on the 64 held-out ccv pairs (`lact_ar_video/minVid/_diag_ccv_focus.py`
 F97 diagnostic). The trained ccv CaPET cell carries this; NOT fixed.
 Candidate fix (recipe change, needs retraining): when t_c falls below a floor, fall back to the prior's default
 depth (1 unit in normalised scene coordinates) instead of clamping to 0.02; or use the NVS `vergence` focus mode.
+
+## F100 (2026-09-24): table:ablation_design's non-orthogonal rows were 2-site, not 3-site -- re-running
+Caught by the user before the table was filled. Every rotary row of table:ablation_design carries the v/o
+transport (`foot_in+h_foot+...+vo_rope`), but the Extrinsic and Projection cells from F90 are `mat_in+h_mat`:
+input and hidden only. The code forced that -- `mat_in`/`h_mat` asserted they were standalone -- so the
+2026-09-18 study could not have included a carrier. Filling the table from those runs would have compared
+three placements against two.
+Fix: `mat_vo`, the matrix analogue of the phase carrier, wired exactly as `prope_orig` wires its projective one
+(v <- M^-1 v on the update, o <- M o on the apply, so the retrieved value carries M_j M_i^-1, the same relative
+map the q/k and hidden sites carry). Verified active: with identical weights, switching it on moves the output
+by 3.4% relative; forward and backward are finite.
+Re-running all six cells (ext / proj x RE10K / gObjaverse / DL3DV-u) with `mat_in+h_mat+mat_vo` at the table's
+protocol (seed 137, 8-view / 30k). The 2-site numbers stay in F90 as the carrier ablation of the matrix codes.

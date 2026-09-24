@@ -1157,7 +1157,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  # NO v/o) and the hidden site (h_mat: update M^-1 h, apply M^T h). mat_kind picks M:
                  # 'proj' = lift(K) w2c (PRoPE, non-orthogonal), 'ext' = w2c SE(3) (GTA, non-orthogonal
                  # through the translation), 'rot' = [R 0; 0 1] (the orthogonal part, control).
-                 "mat_in", "h_mat",
+                 "mat_in", "h_mat", "mat_vo",
                  #   pmix : coordinate-design ablation (2026-09-18, user). The point-site code is built from
                  #   the halves listed in `p_coords` (subset/order of pt = 3D point at the predicted depth,
                  #   dir = ray direction d, cam = camera origin o - p*), each on the SAME dirs/ladder with its
@@ -1182,7 +1182,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  #   dpt_chan : one channel of the token's own value projection (parameter-free)
                  #   dpt_mem  : one channel of the fast-weight OUTPUT of a first foot-coded pass
                  #              (parameter-free, TTT-native: depth read out of the scene memory)
-                 "dpt_mlp", "dpt_chan", "dpt_mem", "dpt_abs",
+                 "dpt_mlp", "dpt_chan", "dpt_mem", "dpt_abs", "dpt_lin",
                  # pdir: point + DIRECTION code (RayRoPE's pairing): the foot/point half keeps its
                  # ladder, a second 3-coordinate half carries the ray direction d on the same
                  # ladder with its own gains -- the direction half of Plucker without the moment.
@@ -1201,7 +1201,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         unknown = self.cam_modes - known
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
-        dpt_modes = self.cam_modes & {"dpt_mlp", "dpt_chan", "dpt_mem"}
+        dpt_modes = self.cam_modes & {"dpt_mlp", "dpt_chan", "dpt_mem", "dpt_lin"}
         if "dpt_abs" in self.cam_modes:
             assert dpt_modes, "dpt_abs changes the depth BASE, it needs a dpt_* depth source"
         assert len(dpt_modes) <= 1, "one depth source at a time"
@@ -1279,6 +1279,14 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             # nn.Linear (N(0, 0.02), zero bias). Custom inits therefore live in _post_init(), which the model
             # calls after that pass (added 2026-09-10; the F87/F88 dpt_mlp cells ran with N(0,0.02) instead of
             # exact zeros on this layer -- |s| ~ 0.1 at init, materially the same start).
+        if "dpt_lin" in self.cam_modes:
+            # RayRoPE's depth projection without its sigma band (user, 2026-09-24): ONE linear layer on
+            # the layer input x (the tensor to_qkv reads), one depth per token shared by the heads.
+            # Zero weight and bias -> s = 0 -> t = 1 (with dpt_abs) at init, and unlike the value
+            # channel (g * w_v.x with g = 0) its direction gets a gradient from the first step.
+            # The zeros are (re)applied in _post_init, after LaCTLVSM's global re-init.
+            self.dpt_lin = nn.Linear(dim, 1)
+            nn.init.zeros_(self.dpt_lin.weight); nn.init.zeros_(self.dpt_lin.bias)
         if "dpt_chan" in self.cam_modes:
             # value projection, head 0, channel 0 (pre-silu) is read as log-depth ratio and
             # zeroed in v (the channel is dedicated to depth; no depth network)
@@ -1312,7 +1320,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         # qk_rope_cam machinery for the input rotary site.
         # The camera recipe may ride on a deeper inner model: `fw3l+foot_in+h_foot+dpt_chan+pdir+vo_rope`
         # etc. (2026-09-19, paper table:diverse_fast_weight). Everything else stays standalone.
-        _INNER_OK = {"foot_in", "h_foot", "dpt_chan", "dpt_mlp", "pdir", "pmix", "vo_rope", "iso", "sharedf"}
+        _INNER_OK = {"foot_in", "h_foot", "dpt_chan", "dpt_mlp", "dpt_lin", "dpt_abs", "pdir", "pmix", "vo_rope", "iso", "sharedf"}
         self.fw3l = bool(self.cam_modes & {"fw3l", "fw3l_rot2", "fw3l_rot3"})
         if self.fw3l:
             assert not (self.cam_modes - {"fw3l", "fw3l_rot2", "fw3l_rot3"} - _INNER_OK), \
@@ -1368,8 +1376,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         self.seg_h_modes = {"h_shell", "h_shell_iso", "h_pt_gt", "h_pt_gt_in", "h_anchor", "h_foot", "h_layer_pt", "h_near"}
         self.n_anchor = 3   # fixed chord fractions 0.25 / 0.5 / 0.75 (H3b, no learned depth)
         hidden_fams = {"h_pra", "h_dpra", "h_strat", "h_img", "h_rot", "h_ga", "h_bump", "h_qh", "h_epi", "h_bf", "h_mat"} | self.seg_h_modes
-        if self.cam_modes & {"mat_in", "h_mat"}:
-            assert not (self.cam_modes - {"mat_in", "h_mat"}), "mat_in / h_mat are a standalone matrix-only embedding"
+        if self.cam_modes & {"mat_in", "h_mat", "mat_vo"}:
+            assert not (self.cam_modes - {"mat_in", "h_mat", "mat_vo"}), \
+                "mat_in / h_mat / mat_vo are a standalone matrix-only embedding"
             assert mat_kind in ("proj", "ext", "rot"), mat_kind
             assert head_dim % 4 == 0 and (head_dim * inter_multi) % 4 == 0
         self.mat_kind = mat_kind
@@ -2245,6 +2254,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         """Custom initialisations that must survive LaCTLVSM's global self.apply(_init_weights)."""
         if hasattr(self, "dpt_head"):
             nn.init.zeros_(self.dpt_head[2].weight); nn.init.zeros_(self.dpt_head[2].bias)
+        if hasattr(self, "dpt_lin"):
+            nn.init.zeros_(self.dpt_lin.weight); nn.init.zeros_(self.dpt_lin.bias)
         if hasattr(self, "rr_dhead"):
             nn.init.zeros_(self.rr_dhead.weight)                     # RayRoPE: zero-init depth projection
             with torch.no_grad():
@@ -2402,10 +2413,12 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             x = x * (1 + self.film_g(c)) + self.film_b(c)
 
         qkv = self.to_qkv(x)
-        if modes & {"dpt_mlp", "dpt_chan"}:
+        if modes & {"dpt_mlp", "dpt_chan", "dpt_lin"}:
             with torch.autocast(device_type=x.device.type, enabled=False):
                 if "dpt_mlp" in modes:
                     s_dpt = self.dpt_head(x.float())                                  # [b, L, 1]
+                elif "dpt_lin" in modes:
+                    s_dpt = self.dpt_lin(x.float())                                   # [b, L, 1]
                 else:
                     s_dpt = self.dpt_gain * qkv[..., self._dpt_col:self._dpt_col + 1].clone().float()  # pre-silu value channel
                 info[self._dpt_key] = self._dpt_depth(info, s_dpt)
@@ -2558,6 +2571,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 v = apply_tiled_mat4(v, P_inv_h, tpv, span)
                 prope_raw_P_h = P_h
 
+        mat_vo_M = None
         if "mat_in" in modes:
             # matrix-only input embedding: exact relative bilinear form <M_j^T q, M_i^-1 k> = q^T (M_j M_i^-1) k,
             # no re-normalisation (a non-orthogonal M leaves the unit sphere), q/k only -- v and o untouched.
@@ -2565,6 +2579,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 M, M_inv = self._mat_pair(info)
             q = apply_tiled_mat4(q, to_heads(M, nh).transpose(-1, -2), tpv, self.head_dim)
             k = apply_tiled_mat4(k, to_heads(M_inv, nh), tpv, self.head_dim)
+            if "mat_vo" in modes:
+                # the matrix analogue of the vo_rope carrier, wired exactly as prope_orig
+                # wires its projective one: store the value in the shared frame (M_i^-1 v)
+                # and map it into the query's frame on the way out (M_j o), so the retrieved
+                # value carries M_j M_i^-1 -- the same relative map the q/k sites carry.
+                v = apply_tiled_mat4(v, to_heads(M_inv, nh), tpv, self.head_dim)
+                mat_vo_M = to_heads(M, nh)
 
         cfr_R = None
         if "cfr_in" in modes:
@@ -3184,6 +3205,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             output = apply_block_rot(output, ff_F, transpose=False)        # F o : to the query frame
         if hh_H is not None and "hh_vo" in modes:
             output = apply_block_rot(output, hh_H)     # H is its own inverse
+        if mat_vo_M is not None:
+            output = apply_tiled_mat4(output, mat_vo_M, tpv, self.head_dim)
         if vo_rope_coeffs is not None:
             output = (_ck.rot_fwd(output, vo_rope_coeffs[0], vo_rope_coeffs[1], inverse=True)
                       if _fused_ok(info) else
