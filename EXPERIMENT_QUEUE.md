@@ -828,3 +828,4 @@ poses from VGGT or GLOMAP) AND FVD.
   and forces the recompute cost. `lact_nvs/run_seq.sh` runs cells in order with EXTRA_ARGS unset.
   node1: re10k -> gobj -> dl3dvu `*_dplin_pdir_vo_s137` (~1.6 / 1.6 / 2.3 h, all in by ~02:00; log
   outputs/queue_seq_node1.log). node2: `run_table4_lin_seq.sh` (9 cells, row by row, ~16 h), per NODE2_PROMPT.md.
+- 2026-09-24 21:20 USER DECISIONS (30 h left): NVS finishes with dpt_lin+dpt_abs (Table 3/4/6); tttLRM CaPET retrained with it on the 2-GPU node; ccv training stopped (RayRoPE/PRoPE abandoned), the existing t_c ccv CaPET is evaluated. Full plan: the '2026-09-24 21:20 KST' section at the top.
