@@ -4201,3 +4201,20 @@ map the q/k and hidden sites carry). Verified active: with identical weights, sw
 by 3.4% relative; forward and backward are finite.
 Re-running all six cells (ext / proj x RE10K / gObjaverse / DL3DV-u) with `mat_in+h_mat+mat_vo` at the table's
 protocol (seed 137, 8-view / 30k). The 2-site numbers stay in F90 as the carrier ablation of the matrix codes.
+
+## F99 (2026-09-24): fixing the tttLRM focus did NOT help -- the corrected CaPET cell is slightly WORSE
+`scratch_capet_axis` = the F97-corrected port (true optical axes), otherwise identical to `scratch_capet`, 15k steps
+(last 750 on one GPU with grad_accum 2: same effective batch 8). DL3DV-140, paired over 140 scenes, bootstrap 95%:
+| capet_axis minus | PSNR | LPIPS |
+|---|---|---|
+| capet (mis-aimed focus) | -0.052 [-0.078, -0.026] | +0.009 [+0.008, +0.010] (worse) |
+| No Encoding | +0.207 [+0.162, +0.252] | -0.005 [-0.007, -0.003] |
+| PRoPE | -0.071 [-0.127, -0.018] | +0.019 [+0.016, +0.022] (worse) |
+| RayRoPE | +0.068 [+0.019, +0.118] | +0.008 [+0.006, +0.010] (worse) |
+Means: capet_axis 15.486 / 0.3755 / 0.6347 (capet 15.538 / 0.3758 / 0.6257). Single training seed per cell, so the
+PSNR gap to the buggy cell (0.05) is inside plausible seed noise; the LPIPS gap (0.009, t=13 on the test set) is not
+obviously so. Either way the F97 hypothesis -- "the mis-aimed focus is why CaPET only ties PRoPE on tttLRM" -- is
+REJECTED: with the focus corrected CaPET falls further behind PRoPE (LPIPS 0.019). The depth anchor does not look
+like the lever on this backbone. The PRoPE image-rope hypothesis (F96) is untested. tab:recon stays blank.
+If the method moves to the linear absolute-depth head (dpt_lin), the tttLRM port needs that variant too (its
+DepthChannel is the value-channel source) and a retrain.

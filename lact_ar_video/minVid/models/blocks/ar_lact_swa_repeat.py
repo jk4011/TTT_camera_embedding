@@ -1159,6 +1159,7 @@ class ARFastWeightSwiGLU(nn.Module):
                  ttt_input_rope: bool = False,   # PRA input site: rotary on fast q/k post-l2norm
                  cam_phase_mode: str = "none",   # none | plucker (camera phases for the rotary sites)
                  capet_abs_depth: bool = False,  # capet: absolute depth (base 1) instead of t_c x factor
+                 capet_depth_head: str = "chan", # capet depth source: "chan" (a value channel) | "lin" (Linear on x)
                  src_latent_f: int = 0,          # ccv: latent frames of the clean SRC prefix (0 = off)
                  ttt_single_chunk: bool = False, # NVS-style single-chunk update schedule
                  ttt_t5: bool = False,  # T5 conversion (arXiv:2605.02772): per-head
@@ -1311,7 +1312,16 @@ class ARFastWeightSwiGLU(nn.Module):
                 self.cam_gain_vo = nn.Parameter(gain_vo)
             else:
                 self.register_buffer("cam_gain_vo", gain_vo, persistent=False)
-            self.capet_depth_gain = nn.Parameter(torch.zeros(1))
+            assert capet_depth_head in ("chan", "lin"), capet_depth_head
+            self.capet_depth_head = capet_depth_head
+            if capet_depth_head == "lin":
+                # RayRoPE's depth projection without its sigma band (user, 2026-09-24): one linear map of the
+                # block input x (the tensor q/k/v are projected from) to one depth per token. Raw zero
+                # Parameters rather than nn.Linear, so no module-type init pass can re-draw them.
+                self.capet_depth_w = nn.Parameter(torch.zeros(1, dim))
+                self.capet_depth_b = nn.Parameter(torch.zeros(1))
+            else:
+                self.capet_depth_gain = nn.Parameter(torch.zeros(1))
 
         # layersx
         self.q = nn.Linear(dim, dim)
@@ -1763,9 +1773,12 @@ class ARFastWeightSwiGLU(nn.Module):
             assert cc.shape[0] == b and cc.shape[1] == s and cc.shape[2] == 7, cc.shape
             with torch.autocast(device_type="cuda", enabled=False):
                 ray_o, ray_d, t_c = cc[..., 0:3], cc[..., 3:6], cc[..., 6:7]
-                # depth channel: first fast head, channel 0, before any activation
-                s_dep = self.capet_depth_gain * fast_v.reshape(
-                    b, self.num_fw_heads, s, -1)[:, 0, :, 0:1].float()
+                if self.capet_depth_head == "lin":
+                    s_dep = F.linear(x.float(), self.capet_depth_w.float(), self.capet_depth_b.float())  # [b, s, 1]
+                else:
+                    # depth channel: first fast head, channel 0, before any activation
+                    s_dep = self.capet_depth_gain * fast_v.reshape(
+                        b, self.num_fw_heads, s, -1)[:, 0, :, 0:1].float()
                 if self.capet_abs_depth:
                     # ABSOLUTE depth (NVS `dpt_abs`, 2026-09-24): base 1 in the canonical scene frame.
                     # t_c is never read, so a panning source camera no longer collapses every point
@@ -1775,10 +1788,11 @@ class ARFastWeightSwiGLU(nn.Module):
                     t_pred = t_c.clamp_min(0.02) * torch.exp(2.5 * torch.tanh(s_dep / 2.5))
                 cam_pt3 = ray_o + t_pred.clamp_min(0.02) * ray_d
                 cam_coords = torch.cat([cam_pt3, ray_d], dim=-1)
-            # remove that channel from the value it was read from (head 0 only)
-            v_mask = fast_v.new_ones(self.num_fw_heads, 1, fast_v.shape[-1])
-            v_mask[0, 0, 0] = 0.0
-            fast_v = fast_v * v_mask.repeat(b, 1, 1)
+            if self.capet_depth_head == "chan":
+                # remove that channel from the value it was read from (head 0 only)
+                v_mask = fast_v.new_ones(self.num_fw_heads, 1, fast_v.shape[-1])
+                v_mask[0, 0, 0] = 0.0
+                fast_v = fast_v * v_mask.repeat(b, 1, 1)
         elif self.cam_phase_mode == "capet":
             # a capet run with no coordinates would train as plain No Encoding and look
             # like a result rather than a wiring bug

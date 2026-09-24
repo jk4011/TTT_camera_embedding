@@ -6,6 +6,11 @@ torch.manual_seed(0)
 cfg_path, poison = sys.argv[1], sys.argv[2] == "nan"
 mc = omegaconf.OmegaConf.load(cfg_path)
 net = LaCTLVSM(**mc).cuda()
+_heads = [m.dpt_lin for m in net.modules() if hasattr(m, "dpt_lin")]
+if _heads:
+    print(f"dpt_lin heads: {len(_heads)}, max|w| after construction = {max(float(h.weight.abs().max()) for h in _heads):.3g}, "
+          f"max|b| = {max(float(h.bias.abs().max()) for h in _heads):.3g}, "
+          f"value-channel gains present: {sum(hasattr(m, 'dpt_gain') for m in net.modules())}")
 _orig = M.compute_camera_info
 def _poisoned(*a, **k):
     info = _orig(*a, **k)
