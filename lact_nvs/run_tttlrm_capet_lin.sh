@@ -30,7 +30,9 @@ main() {
     [ $RC -ne 0 ] && exit $RC
   fi
   echo "$(date '+%F %T') tttlrm $TAG: tab:recon evaluation" >> $LOG
-  CELLS=capet_lin STEPS=15000 GPU=0 bash eval_scratch_ladder.sh >> $LOG 2>&1
+  # ALLOW_SHARED_GPU=1: another project may hold a little memory on this card; without it the eval
+  # refuses to start whenever more than 1 GB is in use (it still refuses below 30 GB free).
+  ALLOW_SHARED_GPU=1 CELLS=capet_lin STEPS=15000 GPU=0 bash eval_scratch_ladder.sh >> $LOG 2>&1
   echo "$(date '+%F %T') tttlrm $TAG: evaluation finished ($(ls evaluation/scratch_capet_lin_step15000 2>/dev/null | wc -l)/140 scenes)" >> $LOG
 }
 main "$@"
