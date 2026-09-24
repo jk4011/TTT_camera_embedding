@@ -4169,3 +4169,22 @@ shows (F98 follow-up).
 FAIRNESS NOTE for the paper: these fused kernels exist only for CaPET. Reporting 14.1 for CaPET next to 17.1
 for PRoPE would be comparing implementation effort, not methods. Either report the stock column for all four
 (CaPET is already the cheapest of the three) or state explicitly that only ours is fused.
+
+## F98 (2026-09-24): CaPET's focus degenerates when the input cameras do not look at a common region
+p* is the least-squares point nearest the INPUT views' optical axes, and t_c = (p* - o).d is clamped at 0.02.
+When the axes do not converge, p* can sit at or behind a camera; its rays then get t_c <= 0.02 and the point
+collapses onto the camera centre, where the learned scale (x e^{+-2.5}) cannot lift it past ~0.24.
+- Nearly parallel axes (forward walks): handled -- the lambda prior puts p* ~1 unit ahead of the mean camera.
+- A pure PAN is the bad case: every axis passes through the same centre, so for a wide pan p* IS that centre.
+Measured on the 64 held-out ccv pairs (`lact_ar_video/minVid/_diag_ccv_focus.py`; p* from the SRC trajectory):
+| source camera | pairs | tokens collapsed |
+|---|---|---|
+| translates | 45 | 0% in every pair |
+| pure rotation, pan <= 18 deg | 13 | SRC 0%; TGT 0% in 10, 26-43% in 3 |
+| pure rotation, pan 22-26 deg | 3 | SRC 0%; TGT 11-95% |
+| pure rotation, pan >= 30 deg | 3 | SRC 100%, TGT 86-100% |
+5 / 64 pairs (8%) have more than half their tokens collapsed; on those CaPET degrades to a camera-origin code
+(the coordinate F92 found harmful). DL3DV has a few such scenes too (up to 27-50% collapsed with the correct axis,
+F97 diagnostic). The trained ccv CaPET cell carries this; NOT fixed.
+Candidate fix (recipe change, needs retraining): when t_c falls below a floor, fall back to the prior's default
+depth (1 unit in normalised scene coordinates) instead of clamping to 0.02; or use the NVS `vergence` focus mode.
