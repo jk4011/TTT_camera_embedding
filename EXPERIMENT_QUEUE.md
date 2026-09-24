@@ -11,6 +11,18 @@ its contents (old conda env, video working clone, ccv checkpoints+logs,
 MultiCamVideo original); everything has been rebuilt under `26msit001_A`
 (venv envs/lvsm + repo .venv_llm, datasets/ for Wan ckpt + MultiCamVideo).
 
+## 2026-09-24 21:20 KST -- final 30 h plan (user decisions; deadline ~2026-09-26 03:00)
+- **NVS finishes with the final recipe** `dpt_lin+dpt_abs` (depth from a zero-init Linear on x, absolute, no p*):
+  node1 Table 3 CaPET row (re10k/gobj/dl3dvu `*_dplin_pdir_vo_s137`, run_seq, ~03:00 09-25), node2 Table 4 (9 cells,
+  `run_table4_lin_seq.sh`, ~17:00 09-25), node1 then Table 6 (`re10k_fw_{mlp2,fw3l,fw4l}_capetlin_s137`, ~11:30 09-25).
+- **tttLRM**: CaPET row retrained with the final recipe on the 2-GPU allocation (`run_tttlrm_capet_lin.sh`,
+  `NODE_2GPU_PROMPT.md`; 2.7 s/step x 15k = ~11.3 h + eval). tttLRM scales ~linearly 1 -> 2 GPUs (5.8 -> 2.7 s/step).
+- **ccv: no more training.** RayRoPE / PRoPE cells ABANDONED at 9249 / 8249 steps. The EXISTING ccv CaPET checkpoint
+  (`ccv_capet_re`, older t_c depth) is evaluated as is: generation 42/64 -> 64, camera accuracy. node1 chain5 does it
+  right after the NVS cells (~03:00-05:40), so node2 does not need to. tab:ccv = No Encoding vs CaPET.
+- Forked session's node: Table 5 Extrinsic/Projection rows with v/o (run_mat_vo_six.sh, ~10:00 09-25). Its cells
+  write the lock `node1_gpu0` from its own node, so node1's chain5 uses `NODE=node1m`.
+
 ## Q1. Absolute-adaptation probe  [DONE 2026-07-07 -> F23: 21.634 vs base 21.745 (within noise); PRA-relative isolates +1.34 dB]
 Requested 2026-07-07 (paper Sec "What stays absolute" support).
 - Design: full TTT-RoPE recipe, but replace every token's phase coordinates
