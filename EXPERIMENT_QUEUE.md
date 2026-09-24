@@ -779,3 +779,15 @@ poses from VGGT or GLOMAP) AND FVD.
   Reordered without touching the running cell: only the old queue's main loop was killed (by PID); its job
   subshell, which owns scratch_prope, was left alive and still writes its own done marker. The runner now skips
   a job with a `<label>.running` marker and re-checks the done marker after its GPU wait.
+- 2026-09-24 17:25 SINGLE-GPU ALLOCATION (DCTN-0924135117, started ~16:10, ends ~09-26 16:10). State at reset:
+  scratch_capet_axis 14,360/15,000 (resumed from 14,250 on 1 GPU with grad_accum 2 -> effective batch 8, the same
+  as the 2-GPU cells: `configs/scratch_capet_axis_1gpu.yaml`, same checkpoint dir); ccv_prope 8,249, ccv_rayrope
+  9,249 (checkpoints); ccv generation: base 64/64, capet 42/64. `lact_nvs/run_one_gpu_chain.sh` runs the rest on
+  gpu0 in order, each step idempotent (resubmit after a reset):
+  capet_axis finish (~18:30) -> tab:recon eval, 4 cells (~18:45) -> ccv capet generation, 22 pairs (~01:30) ->
+  ccv rayrope training (~16:00 09-25) -> ccv prope training (~10:30 09-26) -> rayrope / prope generation
+  (19 h each). Camera metrics run on CPU in the background after each generation (gen pass only; the GT floor
+  is shared).
+- 2026-09-24 ccv camera accuracy, No Encoding (64 held-out pairs, `campose_ccv_base_re_13999`):
+  generated RotErr 20.3 deg / TransErr 0.442 / CamMC 0.601, 47 of 64 scored (17 SfM failures, registration 79%);
+  REAL target video (floor) 3.1 deg / 0.165 / 0.135, 58 of 64 scored. The metric resolves well above its floor.

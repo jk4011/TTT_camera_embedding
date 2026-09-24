@@ -32,8 +32,8 @@ import numpy as np
 import torch
 from PIL import Image
 
-from minVid.data.multicam_pair_dataset import (
-    MultiCamPairDataset, normalize_with_mean_pose,
+from eval_ccv_common import (
+    DEFAULT_PAIRS_JSON, load_config, load_or_build_pairs, make_pair_dataset,
 )
 
 
@@ -61,10 +61,9 @@ def main():
                          "gives the floor stage 2 reads the generated numbers against)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--n_pairs", type=int, default=0, help="0 = all pairs in the dir")
-    ap.add_argument("--data_root", default=None)
-    ap.add_argument("--cam_root", default=None)
-    ap.add_argument("--num_pairs", type=int, default=2000, help="pair-index size (must match training)")
-    ap.add_argument("--index_seed", type=int, default=42)
+    ap.add_argument("--config", default="configs/ar/abl_ccv_base.yaml",
+                    help="only its dataset_train params are used")
+    ap.add_argument("--pairs", default=DEFAULT_PAIRS_JSON)
     ap.add_argument("--skip_gt", action="store_true")
     args = ap.parse_args()
 
@@ -77,22 +76,21 @@ def main():
             recs = recs[:args.n_pairs]
     os.makedirs(args.out, exist_ok=True)
 
-    kw = {}
-    if args.data_root:
-        kw["data_root"] = args.data_root
-    if args.cam_root:
-        kw["cam_root"] = args.cam_root
-    ds = MultiCamPairDataset(num_pairs=args.num_pairs, index_seed=args.index_seed, **kw)
-    by_key = {(p[1], p[2], p[3]): i for i, p in enumerate(ds.pairs)}
+    # the evaluated pairs are the HELD-OUT list, which is disjoint from the training pair
+    # index -- building the dataset from that index would not contain a single one of them
+    cfg = load_config(args.config)
+    pairs = load_or_build_pairs(args.pairs, cfg)["pairs"]
+    ds = make_pair_dataset(cfg, pairs)
+    by_key = {(p["relpath"], p["src_cam"], p["tgt_cam"]): i for i, p in enumerate(pairs)}
     if recs is None:
-        recs = [{"index": i, "relpath": p[1], "src_cam": p[2], "tgt_cam": p[3]}
-                for i, p in enumerate(ds.pairs[:args.from_dataset])]
+        recs = [{"index": i, "relpath": p["relpath"], "src_cam": p["src_cam"],
+                 "tgt_cam": p["tgt_cam"]} for i, p in enumerate(pairs[:args.from_dataset])]
 
     out = {"pairs": [], "pose_frame_ids": list(range(0, ds.num_frames, ds.pose_stride))}
     for rec in recs:
         tag = tag_of(rec)
         key = (rec["relpath"], rec["src_cam"], rec["tgt_cam"])
-        assert key in by_key, f"pair {key} is not in the dataset index"
+        assert key in by_key, f"pair {key} is not in the held-out list"
         item = ds[by_key[key]]
 
         n_gen = 0
