@@ -15,10 +15,11 @@
    ```bash
    NODE=node4 nohup setsid bash /NHNHOME/WORKSPACE/26msit001_A/jinhyeok/TTT_rope/lact_nvs/run_tttlrm_capet_lin.sh >/dev/null 2>&1 &
    ```
-4. 5분 뒤 확인: `grep BATCH-COMPOSITION tttlrm_ref/outputs/scratch_capet_lin.log`에 `world_size=2 x grad_accum=1 x bs_per_gpu=4`,
-   `tail -1 tttlrm_ref/outputs/scratch_capet_lin/train_log.jsonl`의 `s_per_step`이 약 2.7이면 정상이다.
+4. 5분 뒤 확인: `grep BATCH-COMPOSITION tttlrm_ref/outputs/scratch_capet_lin.log`가 1 GPU면 `world_size=1 x grad_accum=2 x bs_per_gpu=4`
+   (2 GPU면 `world_size=2 x grad_accum=1`), `tail -1 tttlrm_ref/outputs/scratch_capet_lin/train_log.jsonl`의 `s_per_step`이
+   1 GPU 약 5.8 (2 GPU 약 2.7)이면 정상이다.
 
 ## 예상
-- 학습 15,000스텝 × 2.7초 ≈ 11.3시간, 평가(DL3DV 140장면) 약 0.5시간.
+- 학습 15,000스텝: 1 GPU × 5.8초 ≈ 24시간 (2 GPU × 2.7초 ≈ 11.3시간), 평가(DL3DV 140장면) 약 0.5시간.
 - 진행 로그: `lact_nvs/outputs/queue_tttlrm.log`, 결과: `tttlrm_ref/evaluation/scratch_capet_lin_step15000/` (140개가 차면 끝).
-- 이 노드에서 다른 일은 돌리지 않는다. 한 셀이 두 GPU를 다 쓴다. 쌍체 통계와 표 작성은 node1이 한다.
+- 이 노드에서 다른 일은 돌리지 않는다. 한 셀이 노드의 GPU를 다 쓴다. 쌍체 통계와 표 작성은 node1이 한다.
