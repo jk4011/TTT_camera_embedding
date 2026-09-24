@@ -4111,3 +4111,25 @@ Not affected: the ccv port (`scene_focus` uses `c2w[:, :3, 2]`), the NVS runs, a
 (they do not use a focus).
 Fix: `cam.focus_legacy` (true only in configs/scratch_capet.yaml, so the old cell re-evaluates as trained);
 the corrected cell is configs/scratch_capet_axis.yaml and needs retraining (15k steps, 2 GPUs, ~11 h).
+
+## F98 (2026-09-24): table:cost -- the camera embeddings are free in FLOPs and cost ~55% of the forward in time
+Small model (L6 / d256 / patch 16), one forward of the evaluation setting (8 input + 4 target views, 256x256,
+batch 1) on an otherwise idle B200. Script: `scratchpad/cost_table.py` (cells interleaved, median of 20).
+| method | params | camera-specific params | FLOPs | time |
+|---|---|---|---|---|
+| No Encoding | 9,645,842 | 0 | 93.01 G | 11.0 ms |
+| PRoPE | 9,645,842 | 0 | 93.12 G | 17.4 ms |
+| RayRoPE | 9,648,926 | 3,084 (a Linear(256,2) depth head per layer) | 93.06 G | 17.3 ms |
+| CaPET | 9,648,692 | 2,850 (ladder gains + a depth gain per layer) | 93.14 G | 16.6 ms |
+Three things worth stating in the paper:
+1. **No method adds meaningful parameters.** PRoPE adds none (its matrices come from the cameras); RayRoPE and
+   CaPET add ~3k, i.e. 0.03% of the model.
+2. **FLOPs are flat (+0.14% at most).** The rotaries are elementwise, so they do not enter a matmul FLOP count
+   at all; PRoPE's tiled 4x4 blocks do, and they are still only +0.11 G. A FLOP table alone would say these
+   embeddings are free, which the wall clock contradicts.
+3. **Wall clock is where they cost**, and all three cost about the same: +6.4 / +6.3 / +5.6 ms on an 11.0 ms
+   forward. CaPET is the cheapest of the three. Only 1.4 ms of that is the shared `compute_camera_info`
+   preprocessing (measured separately); the rest is per-layer work over 6 layers.
+MEASUREMENT NOTE: FLOPs must be counted with `TORCH_COMPILE_DISABLE=1`. With compilation on, the profiler
+cannot see inside compiled regions and the same four cells report 182 / 178 / 93 / 176 G purely according to
+which kernel each mode happens to route through -- a ranking that is an artefact, not a cost.
