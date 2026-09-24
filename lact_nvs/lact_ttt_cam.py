@@ -1182,7 +1182,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                  #   dpt_chan : one channel of the token's own value projection (parameter-free)
                  #   dpt_mem  : one channel of the fast-weight OUTPUT of a first foot-coded pass
                  #              (parameter-free, TTT-native: depth read out of the scene memory)
-                 "dpt_mlp", "dpt_chan", "dpt_mem",
+                 "dpt_mlp", "dpt_chan", "dpt_mem", "dpt_abs",
                  # pdir: point + DIRECTION code (RayRoPE's pairing): the foot/point half keeps its
                  # ladder, a second 3-coordinate half carries the ray direction d on the same
                  # ladder with its own gains -- the direction half of Plucker without the moment.
@@ -1202,6 +1202,8 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if unknown:
             raise ValueError(f"unknown cam_mode(s) {unknown}")
         dpt_modes = self.cam_modes & {"dpt_mlp", "dpt_chan", "dpt_mem"}
+        if "dpt_abs" in self.cam_modes:
+            assert dpt_modes, "dpt_abs changes the depth BASE, it needs a dpt_* depth source"
         assert len(dpt_modes) <= 1, "one depth source at a time"
         if "rayrope_ttt" in self.cam_modes:
             # RayRoPE port. Faithful parts: 'd_pj+0_3d' positions (point at the predicted depth, projected
@@ -1264,7 +1266,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if dpt_modes or "pdir" in self.cam_modes:
             assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
             assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg", "pmix", "vo_rope",
-                                          "mlp2", "fw3l", "fw4l"} - dpt_modes), \
+                                          "mlp2", "fw3l", "fw4l", "dpt_abs"} - dpt_modes), \
                 "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf, vo_rope)"
             if "vo_rope" in self.cam_modes:
                 assert "dpt_mem" not in self.cam_modes, "vo_rope carrier at the predicted depth needs a single-pass depth (mlp/chan)"
@@ -2205,6 +2207,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         """Per-token depth t = t_c * exp(s), s soft-clamped to +-2.5 (t in [t_c/12, 12 t_c]);
         s = 0 reproduces point-RoPE's foot depth. s: [b, L, 1] fp32 -> t [b, L, 1] fp32."""
         s = 2.5 * torch.tanh(s.float() / 2.5)
+        if "dpt_abs" in self.cam_modes:
+            # ABSOLUTE depth (2026-09-24): base 1 in normalised scene units, like RayRoPE's head
+            # at init, so t in [0.08, 12]. No scene focus p*: nothing depends on which input views
+            # are present, and a camera that only pans no longer collapses its points (F98).
+            return torch.exp(s)
         return info["tok_tc"].float().clamp_min(0.02) * torch.exp(s)
 
     def _foot_pass(self, info, q0, k0, v, lr0, lr1, lr2, w0, w1, w2, ttt_op_order, tc, dtype):

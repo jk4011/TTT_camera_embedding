@@ -791,3 +791,13 @@ poses from VGGT or GLOMAP) AND FVD.
 - 2026-09-24 ccv camera accuracy, No Encoding (64 held-out pairs, `campose_ccv_base_re_13999`):
   generated RotErr 20.3 deg / TransErr 0.442 / CamMC 0.601, 47 of 64 scored (17 SfM failures, registration 79%);
   REAL target video (floor) 3.1 deg / 0.165 / 0.135, 58 of 64 scored. The metric resolves well above its floor.
+- 2026-09-24 19:00 USER: drop the scene focus p* -> ABSOLUTE depth. `dpt_abs` flag (lact_ttt_cam._dpt_depth): t = exp(2.5
+  tanh(s/2.5)), base 1 in normalised scene units (RayRoPE's head also starts at d = 1), no sigma band. Config
+  `config/dp_abs_pdir_vo_both.yaml` = the final recipe + dpt_abs, nothing else changed. Proven p*-free: with t_c
+  poisoned to NaN the dpt_abs model's loss and every gradient stay finite and the loss equals the clean one
+  (0.2582), while the original recipe goes NaN with 142 non-finite gradients (`lact_nvs/_smoke_dpt_abs.py`).
+  Cells on gpu0 together (seed 137, standard protocol): re10k/gobj/dl3dvu_dpabs_pdir_vo_s137; compare paired
+  against *_dpchan_pdir_vo_s137. The ccv chain waits for their eval.json; tab:recon eval of the corrected tttLRM
+  CaPET cell runs alongside now.
+  The chain had stalled 25 min: its `pgrep -f "train_cam.py configs/scratch_capet_axis"` matched the launching
+  shell, whose argv carried that text. Completion is now read from files only.
