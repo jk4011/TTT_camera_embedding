@@ -117,6 +117,22 @@ def apply_block_rot(x, R, transpose=False):
 
 
 
+# CAPET_FUSED=1 swaps the point-code phase build and the input/carrier rotations for the
+# Triton kernels written for the tttLRM port (capet_kernel.py). Forward only: it asserts
+# no_grad, so it is for measurement and inference, never training. Mathematically the same
+# code -- the phase uses the hardware SFU (~1e-7 here, stored bf16 anyway) and each rotation
+# becomes one kernel instead of the handful the eager path launches.
+_CAPET_FUSED = os.environ.get("CAPET_FUSED", "0") == "1"
+if _CAPET_FUSED:
+    import capet_kernel as _ck
+
+
+def _fused_ok(info):
+    o = info.get("tok_o")
+    return (_CAPET_FUSED and not torch.is_grad_enabled() and o is not None
+            and o.is_cuda and _ck.available(o, info["tok_d"], None, None))
+
+
 def _prope_rope_coeffs(positions, feat_dim, device):
     """Official PRoPE image-coordinate RoPE coefficients (freq_base 100,
     split pairing): positions [L] -> (cos, sin) [L, feat_dim//2]."""
@@ -2141,6 +2157,13 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                     cs.append(c0); ss.append(s0)
                 c, sn = torch.cat(cs, -1), torch.cat(ss, -1)
                 return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
+            if (_fused_ok(info) and dirs.shape[0] == 3 and self._pdir_coord == "dir"
+                    and "pdirg" not in modes and "pdir" in modes
+                    and torch.equal(dirs, torch.eye(3, device=dirs.device, dtype=dirs.dtype))):
+                gd_ = self.gain_dir_in if site == "in" else self.gain_dir_h
+                c, sn = _ck.phase_fwd(info["tok_o"], info["tok_d"], tc,
+                                      om[None] * gn, om[None] * gd_, torch.bfloat16)
+                return to_heads(c, self.num_heads), to_heads(sn, self.num_heads)
             c, sn = self._seg_dirs_coeffs(info, tc, tc, dirs, om, gn)
             if "pdir" in modes:
                 # + direction half: phases of d projected on the same dirs / ladder, own gains
@@ -2739,8 +2762,11 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
         elif modes & self.seg_in_modes and "dpt_mem" not in modes:
             ec, es = self._point_site_coeffs(info, "in")
-            q = apply_rotary_pairs(q, ec, es)
-            k = apply_rotary_pairs(k, ec, es)
+            if _fused_ok(info):
+                q, k = _ck.rot_fwd(q, ec, es), _ck.rot_fwd(k, ec, es)
+            else:
+                q = apply_rotary_pairs(q, ec, es)
+                k = apply_rotary_pairs(k, ec, es)
             q = q / (q.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
             k = k / (k.norm(dim=2, keepdim=True) + 1e-5).to(x.dtype)
             if "sweep_in" in modes:
@@ -2785,10 +2811,17 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 # phase carrier on the FOOT POINT: matched pairs have delta x_c ~ 0, so the
                 # carrier phase is near-identity exactly where it matters (unlike ray coords).
                 # (with a dpt_* mode the per-token predicted depth replaces the foot depth t_c)
-                xc_tok = info["tok_o"] + info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02).to(info["tok_o"].dtype) * info["tok_d"]
-                th = (xc_tok[..., None] * (self.omega_vo[None, None, None]
-                                           * self.gain_vo[None, None])).flatten(2)
-                vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)
+                if _fused_ok(info):
+                    _t = info.get(self._dpt_key, info["tok_tc"]).to(info["tok_o"].dtype)
+                    vc_, vs_ = _ck.phase_fwd(info["tok_o"], info["tok_d"], _t,
+                                             self.omega_vo[None] * self.gain_vo, None,
+                                             torch.bfloat16)
+                    vcos, vsin = to_heads(vc_, nh), to_heads(vs_, nh)
+                else:
+                    xc_tok = info["tok_o"] + info.get(self._dpt_key, info["tok_tc"]).clamp_min(0.02).to(info["tok_o"].dtype) * info["tok_d"]
+                    th = (xc_tok[..., None] * (self.omega_vo[None, None, None]
+                                               * self.gain_vo[None, None])).flatten(2)
+                    vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)
             elif self.vo_coords == "pmix":
                 parts = []
                 for half in self._pmix:
@@ -2809,7 +2842,7 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
                 vcos, vsin = to_heads(th.cos(), nh), to_heads(th.sin(), nh)
             else:
                 vcos, vsin = self._rope_coeffs(info, self.omega_vo, self.gain_vo)
-            v = apply_rotary_pairs(v, vcos, vsin)
+            v = _ck.rot_fwd(v, vcos, vsin) if _fused_ok(info) else apply_rotary_pairs(v, vcos, vsin)
             vo_rope_coeffs = (vcos, vsin)
 
         with torch.autocast(device_type="cuda", enabled=False):
@@ -3145,7 +3178,9 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
         if hh_H is not None and "hh_vo" in modes:
             output = apply_block_rot(output, hh_H)     # H is its own inverse
         if vo_rope_coeffs is not None:
-            output = apply_rotary_pairs(output, vo_rope_coeffs[0], vo_rope_coeffs[1], inverse=True)
+            output = (_ck.rot_fwd(output, vo_rope_coeffs[0], vo_rope_coeffs[1], inverse=True)
+                      if _fused_ok(info) else
+                      apply_rotary_pairs(output, vo_rope_coeffs[0], vo_rope_coeffs[1], inverse=True))
         if "vo_rel" in modes:
             output = apply_block_rot(output, R_tok, transpose=True)
         if "prope_ttt" in modes:

@@ -4148,3 +4148,24 @@ Checks run before reporting F98:
   large fraction of them -- the same absolute work is 5.7% of a d=768 x 24-layer step.
 PRoPE and RayRoPE pay the same on this backbone (+58% / +57%), so the table's message -- no extra parameters,
 no extra FLOPs, and CaPET the cheapest of the three in wall clock -- does not depend on which backbone is timed.
+
+## F99 (2026-09-24): the fused kernels ported to the NVS layer -- CaPET 16.3 -> 14.1 ms (+51% -> +31%)
+User request: port the tttLRM Triton kernels into `lact_nvs` and measure, no retraining. Inference runs under
+no_grad, so only the FORWARD kernels are needed (no custom backward): `CAPET_FUSED=1` swaps the point-code
+phase build and the input / carrier rotations for `lact_nvs/capet_kernel.py`. Default off, and it asserts
+`not torch.is_grad_enabled()`, so no training path can reach it.
+| | No Encoding | PRoPE | RayRoPE | CaPET |
+|---|---|---|---|---|
+| stock | 10.8 ms | 17.1 | 17.0 | 16.3 (+51%) |
+| CaPET fused | 10.8 ms | 17.1 | 17.0 | **14.1 (+31%)** |
+The three control cells are unchanged to 0.1 ms, which is what makes the CaPET row trustworthy.
+Equivalence: with `muon_update_steps=0` the fused and stock forwards agree to 2.9e-3 relative (bf16 rounding).
+With Muon on it is 2.4e-2, the same amplification measured in F94 -- Newton-Schulz turns rounding into 1e-2, so
+the layer output cannot be compared bit-wise.
+Where the remaining +3.3 ms is: GPU kernel time is only +0.71 ms (3.93 -> 4.64 ms; it was +1.60 before fusing).
+The other ~2.6 ms is CPU-side launch and python per layer. At d=256 x 6 layers the whole forward is 3.93 ms of
+GPU work, so this backbone is launch-bound and no kernel work can reach the +5.7% the d=768 x 24-layer tttLRM
+shows (F98 follow-up).
+FAIRNESS NOTE for the paper: these fused kernels exist only for CaPET. Reporting 14.1 for CaPET next to 17.1
+for PRoPE would be comparing implementation effort, not methods. Either report the stock column for all four
+(CaPET is already the cheapest of the three) or state explicitly that only ours is fused.
