@@ -1,4 +1,5 @@
 #!/bin/bash
+# Locks are <NODE>_gpu<i> (default node1) so two nodes sharing this lustre tree never collide.
 # tab:ccv generation: waits for a ccv cell's step-13999 checkpoint AND for its trainer to have
 # released the card, then generates the held-out pairs with the protocol every earlier ccv eval
 # used (40 Euler steps, guide 1.0, per-pair seed 424242 + index, ccv_holdout_pairs_64.json).
@@ -20,8 +21,8 @@ main() {
   export PATH="/usr/local/cuda/bin:$REPO/.venv_llm/bin:$PATH"
   export TRITON_CACHE_DIR="$REPO/.cache_triton" TORCHINDUCTOR_CACHE_DIR="$REPO/.cache_inductor"
   export PYTHONPATH="$REPO/lact_ar_video${PYTHONPATH:+:$PYTHONPATH}"
-  until [ -d "$CKPT" ] && [ ! -f "$LOCKS/node1_gpu$GPU" ]; do sleep 120; done
-  echo "gen:$EXP" > "$LOCKS/node1_gpu$GPU"
+  until [ -d "$CKPT" ] && [ ! -f "$LOCKS/${NODE:-node1}_gpu$GPU" ]; do sleep 120; done
+  echo "gen:$EXP" > "$LOCKS/${NODE:-node1}_gpu$GPU"
   echo "$(date '+%F %T') ccv gen $EXP@13999 starting on gpu$GPU" >> $LOG
   mkdir -p "$OUT"
   cd $REPO/lact_ar_video/minVid
@@ -30,7 +31,7 @@ main() {
     --steps 40 --guide_scale 1.0 >> "$OUT/gen.log" 2>&1
   local RC=$?
   echo "$(date '+%F %T') ccv gen $EXP exited rc=$RC ($(ls "$OUT"/*_gen.mp4 2>/dev/null | wc -l) videos)" >> $LOG
-  rm -f "$LOCKS/node1_gpu$GPU"
+  rm -f "$LOCKS/${NODE:-node1}_gpu$GPU"
   exit $RC
 }
 main "$@"

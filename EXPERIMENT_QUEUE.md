@@ -801,3 +801,12 @@ poses from VGGT or GLOMAP) AND FVD.
   CaPET cell runs alongside now.
   The chain had stalled 25 min: its `pgrep -f "train_cam.py configs/scratch_capet_axis"` matched the launching
   shell, whose argv carried that text. Completion is now read from files only.
+- 2026-09-24 19:40 USER DECISION: when the three NVS dpt_abs cells finish (~01:00-02:30), RETRAIN the ccv CaPET cell
+  with absolute depth. `configs/ar/abl_ccv_capet_abs.yaml` = abl_ccv_capet + `capet_abs_depth: true` (block flag:
+  t = exp(2.5 tanh(s/2.5)), t_c never read), exp `ccv_capetabs_re`, stop 14000, ~45 h on one GPU.
+  `lact_nvs/run_one_gpu_chain2.sh` (NODE=node1) replaced chain v1 (its main loop was killed by PID; the tab:recon
+  eval it had started kept running). Guard, as agreed: if mean(dpt_abs - t_c) NVS PSNR over the three datasets
+  < -0.15 dB, it takes the t_c branch instead (finish the old CaPET generation). Then ccv rayrope -> prope
+  training -> their generation, each skipped if done or CLAIMED by another node (`lact_ar_video/outputs/<exp>.claimed`
+  holds the owning NODE). run_ccv_start.sh / run_ccv_gen.sh now name locks `${NODE:-node1}_gpu<i>` so node2 can
+  take ccv work without colliding with node1's locks.

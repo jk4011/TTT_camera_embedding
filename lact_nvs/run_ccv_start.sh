@@ -1,4 +1,5 @@
 #!/bin/bash
+# Locks are <NODE>_gpu<i> (default node1) so two nodes sharing this lustre tree never collide.
 # Paper item 6 (CCV): start the camera-controlled video cells as soon as GPUs free, so nothing idles.
 # One cell per GPU (the protocol the earlier ccv runs used). The baseline needs no new code, so it
 # starts first; the CaPET cell is launched by run_ccv_capet.sh once its port is verified.
@@ -17,8 +18,8 @@ export PYTHONPATH="$REPO/lact_ar_video${PYTHONPATH:+:$PYTHONPATH}"
 mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR" "$HF_HOME"
 GPU=$1; VARIANT=$2; EXP=$3
 # the PE queue claims the card BEFORE launching us, so waiting on its lock would deadlock
-[ "${PE_QUEUE_OWNED:-0}" = "1" ] || until [ ! -f $LOCKS/node1_gpu$GPU ]; do sleep 120; done
-echo "ccv:$EXP" > $LOCKS/node1_gpu$GPU
+[ "${PE_QUEUE_OWNED:-0}" = "1" ] || until [ ! -f $LOCKS/${NODE:-node1}_gpu$GPU ]; do sleep 120; done
+echo "ccv:$EXP" > $LOCKS/${NODE:-node1}_gpu$GPU
 echo "$(date '+%F %T') ccv $EXP starting on gpu$GPU (config abl_ccv_${VARIANT}.yaml)" >> $LOG
 cd minVid
 CUDA_VISIBLE_DEVICES=$GPU $REPO/.venv_llm/bin/python -m torch.distributed.run \
@@ -27,5 +28,5 @@ CUDA_VISIBLE_DEVICES=$GPU $REPO/.venv_llm/bin/python -m torch.distributed.run \
   >> $REPO/lact_ar_video/outputs/${EXP}.log 2>&1
 RC=$?
 echo "$(date '+%F %T') ccv $EXP exited rc=$RC" >> $LOG
-rm -f $LOCKS/node1_gpu$GPU
+rm -f $LOCKS/${NODE:-node1}_gpu$GPU
 exit $RC

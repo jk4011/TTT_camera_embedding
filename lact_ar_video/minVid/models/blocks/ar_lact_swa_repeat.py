@@ -1158,6 +1158,7 @@ class ARFastWeightSwiGLU(nn.Module):
                  ttt_freq_tilt: float = 0.1,
                  ttt_input_rope: bool = False,   # PRA input site: rotary on fast q/k post-l2norm
                  cam_phase_mode: str = "none",   # none | plucker (camera phases for the rotary sites)
+                 capet_abs_depth: bool = False,  # capet: absolute depth (base 1) instead of t_c x factor
                  src_latent_f: int = 0,          # ccv: latent frames of the clean SRC prefix (0 = off)
                  ttt_single_chunk: bool = False, # NVS-style single-chunk update schedule
                  ttt_t5: bool = False,  # T5 conversion (arXiv:2605.02772): per-head
@@ -1184,6 +1185,8 @@ class ARFastWeightSwiGLU(nn.Module):
 
         assert cam_phase_mode in ("none", "plucker", "capet", "prope", "rayrope")
         self.cam_phase_mode = cam_phase_mode
+        self.capet_abs_depth = bool(capet_abs_depth)
+        assert not self.capet_abs_depth or cam_phase_mode == "capet", "capet_abs_depth needs cam_phase_mode capet"
         self.ttt_input_rope = ttt_input_rope
         self.ttt_single_chunk = ttt_single_chunk
         self.ttt_t5 = ttt_t5
@@ -1763,7 +1766,13 @@ class ARFastWeightSwiGLU(nn.Module):
                 # depth channel: first fast head, channel 0, before any activation
                 s_dep = self.capet_depth_gain * fast_v.reshape(
                     b, self.num_fw_heads, s, -1)[:, 0, :, 0:1].float()
-                t_pred = t_c.clamp_min(0.02) * torch.exp(2.5 * torch.tanh(s_dep / 2.5))
+                if self.capet_abs_depth:
+                    # ABSOLUTE depth (NVS `dpt_abs`, 2026-09-24): base 1 in the canonical scene frame.
+                    # t_c is never read, so a panning source camera no longer collapses every point
+                    # onto its centre (8% of held-out pairs, RESULTS_DOSSIER F98).
+                    t_pred = torch.exp(2.5 * torch.tanh(s_dep / 2.5))
+                else:
+                    t_pred = t_c.clamp_min(0.02) * torch.exp(2.5 * torch.tanh(s_dep / 2.5))
                 cam_pt3 = ray_o + t_pred.clamp_min(0.02) * ray_d
                 cam_coords = torch.cat([cam_pt3, ray_d], dim=-1)
             # remove that channel from the value it was read from (head 0 only)
