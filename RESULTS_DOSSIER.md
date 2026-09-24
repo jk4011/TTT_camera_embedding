@@ -4133,3 +4133,18 @@ Three things worth stating in the paper:
 MEASUREMENT NOTE: FLOPs must be counted with `TORCH_COMPILE_DISABLE=1`. With compilation on, the profiler
 cannot see inside compiled regions and the same four cells report 182 / 178 / 93 / 176 G purely according to
 which kernel each mode happens to route through -- a ranking that is an artefact, not a cost.
+**F98 follow-up (user asked why this is not the ~5% of F94).** Two different backbones and two different
+implementations; both numbers are right.
+| | backbone | implementation | what was timed | overhead |
+|---|---|---|---|---|
+| F94 | tttLRM, d=768, 24 layers, 16 views x 2040 tokens | fused Triton kernels (capet_kernel.py) | training step | **+5.7%** |
+| F98 | NVS, d=256, 6 layers, 12 views x 256 tokens | the stock lact_nvs path (eager tables + rotary) | eval forward | **+51%** |
+Checks run before reporting F98:
+* compilation was ON (no launcher or eval.py disables it, and dynamo compiled 9 graphs in the warmup). With
+  `TORCH_COMPILE_DISABLE=1` every cell slows ~30% and the RATIO is unchanged: 15.1 / 22.1 / 22.5 / 22.9 ms.
+* not a batch-size artefact: the ratio holds at batch 1 / 4 / 16 (+51% / +53% / +43% for CaPET).
+* GPU kernel time alone is 3.93 ms (No Encoding) vs 5.53 ms (CaPET), i.e. +41%; the rest of the wall-clock gap
+  is the extra kernel launches. At d=256 the backbone's own matmuls are so cheap that a per-token rotary is a
+  large fraction of them -- the same absolute work is 5.7% of a d=768 x 24-layer step.
+PRoPE and RayRoPE pay the same on this backbone (+58% / +57%), so the table's message -- no extra parameters,
+no extra FLOPs, and CaPET the cheapest of the three in wall clock -- does not depend on which backbone is timed.
