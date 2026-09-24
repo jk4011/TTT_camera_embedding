@@ -15,8 +15,8 @@ MultiCamVideo original); everything has been rebuilt under `26msit001_A`
 - **NVS finishes with the final recipe** `dpt_lin+dpt_abs` (depth from a zero-init Linear on x, absolute, no p*):
   node1 Table 3 CaPET row (re10k/gobj/dl3dvu `*_dplin_pdir_vo_s137`, run_seq, ~03:00 09-25), node2 Table 4 (9 cells,
   `run_table4_lin_seq.sh`, ~17:00 09-25), node1 then Table 6 (`re10k_fw_{mlp2,fw3l,fw4l}_capetlin_s137`, ~11:30 09-25).
-- **tttLRM**: CaPET row retrained with the final recipe on the 2-GPU allocation (`run_tttlrm_capet_lin.sh`,
-  `NODE_2GPU_PROMPT.md`; 2.7 s/step x 15k = ~11.3 h + eval). tttLRM scales ~linearly 1 -> 2 GPUs (5.8 -> 2.7 s/step).
+- **tttLRM**: CaPET row retrained with the final recipe on node4 (1 GPU, came before the queued 2-GPU allocation; ~24 h) (`run_tttlrm_capet_lin.sh`,
+  `NODE4_PROMPT.md`; 2.7 s/step x 15k = ~11.3 h + eval). tttLRM scales ~linearly 1 -> 2 GPUs (5.8 -> 2.7 s/step).
 - **ccv: no more training.** RayRoPE / PRoPE cells ABANDONED at 9249 / 8249 steps. The EXISTING ccv CaPET checkpoint
   (`ccv_capet_re`, older t_c depth) is evaluated as is: generation 42/64 -> 64, camera accuracy. node1 chain5 does it
   right after the NVS cells (~03:00-05:40), so node2 does not need to. tab:ccv = No Encoding vs CaPET.
