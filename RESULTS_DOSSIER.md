@@ -4277,3 +4277,24 @@ Consequence: Fig. 5's Objaverse dip from 16 to 32 views is the target change, no
 | 32 | 22.29 | 22.17 | 22.39 | 22.29 | 22.61 |
 Every method improves monotonically. CaPET - No Enc at V=8: +0.39 fixed vs +0.38 standard, so the duplicate target
 inflates the absolute Objaverse numbers of every method (duplicate target ~+2.5 dB over the others) but not the gap.
+
+## F102 (2026-09-25): v/o carrier ALONE is the best placement on Objaverse (+0.40 dB over the full 3:1 recipe)
+table:ablation_position's missing row, at the current recipe (`dpt_lin+dpt_abs+vo_rope`, point-only carrier,
+seed 137, 8-view/30k). The carrier-only model is bit-identical under the 1:1 and 3:1 configs (the split acts only
+on the input/hidden sites), so one cell per dataset.
+| placement | RE10K | DL3DV-u | Objaverse | average PSNR |
+|---|---|---|---|---|
+| none | 21.61 | 16.42 | 22.21 | 20.08 |
+| input+hidden+v/o (table row) | **23.41** | **17.00** | 22.59 (1:1) / 22.67 (3:1) | 21.00 |
+| **v/o only** | 23.26 | 16.93 | **23.06** | **21.08** |
+Paired per scene (bootstrap 95%): Objaverse v/o-only minus full 3:1 **+0.396 [+0.358, +0.433], t=20.7, 85% of
+scenes**; minus full 1:1 +0.469 (t=24.8); minus No Encoding +0.849 (t=37.9). RE10K -0.152 (t=-6.1), DL3DV -0.076
+(t=-5.1). Single seed, but the Objaverse gap is four times the ~0.1 dB seed noise.
+Reading: on the wide-baseline orbit, coding the fast-weight ADDRESS (input/hidden sites) costs ~0.4 dB relative to
+transporting the value alone -- the same direction as F87/F92's "ray phases blur the address at wide baseline",
+now isolated by placement rather than by coordinate. On the two narrow-baseline datasets the address sites add
+0.08-0.15 dB on top of the carrier. v/o-only also takes the Objaverse SSIM/LPIPS columns and the DL3DV LPIPS
+column (0.467 vs 0.468).
+NOT yet in the paper: inserting this row moves the Objaverse and average-PSNR bolds away from the full recipe,
+which contradicts the table's current story. Decision left to the user. Superseded attempt at the old value-
+channel depth: re10k_dpchan_voonly_s137 = 22.370 (vs that recipe's full 22.95).
