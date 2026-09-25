@@ -4218,3 +4218,22 @@ REJECTED: with the focus corrected CaPET falls further behind PRoPE (LPIPS 0.019
 like the lever on this backbone. The PRoPE image-rope hypothesis (F96) is untested. tab:recon stays blank.
 If the method moves to the linear absolute-depth head (dpt_lin), the tttLRM port needs that variant too (its
 DepthChannel is the value-channel source) and a retrain.
+
+## F101 (2026-09-25): table:ablation_design complete -- the non-orthogonal codes fall BELOW No Encoding
+Six cells, `mat_in+h_mat+mat_vo` (the camera matrix alone at all three CaPET placements), seed 137, 8-view/30k,
+the table's protocol on all three datasets. Averages are the mean over the three datasets.
+| geometry | orth. | RE10K | Objaverse | DL3DV-u | average PSNR |
+|---|---|---|---|---|---|
+| No Encoding | -- | 21.61 | 22.21 | 16.42 | 20.08 |
+| Extrinsic (w2c) | no | 21.36 | 22.18 | 16.32 | **19.95** |
+| Projection (lift(K) w2c) | no | 21.37 | 22.23 | 16.20 | **19.93** |
+| Ray | yes | 23.05 | 21.67 | 16.69 | 20.47 |
+| Ray + camera origin | yes | 23.00 | 20.73 | 16.60 | 20.11 |
+| Ray + 3D point (ours) | yes | 22.95 | 22.80 | 16.98 | **20.91** |
+Both non-orthogonal codes are WORSE than no encoding at all on the average, while all three orthogonal codes are
+better -- the cleanest statement of the orthogonality claim the paper has, and it now holds with the carrier
+included, so it cannot be explained by the matrix codes using fewer placements (F100).
+The carrier itself changes little for these codes: RE10K 21.386 -> 21.364 (ext) and 21.362 -> 21.368 (proj)
+against the 2-site cells of F90, i.e. the damage is done at the q/k and hidden sites.
+Per-dataset: the matrix codes lose most on DL3DV-u (-0.10 / -0.22 vs no encoding) and RE10K (-0.25 / -0.24),
+and are flat on the orbit, where even the rotary Ray code loses (F93's regime split).
