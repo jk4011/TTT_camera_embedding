@@ -30,6 +30,7 @@ p.add_argument("--min_frames", type=int, default=40)
 p.add_argument("--targets", type=str, default="7,12,32,37")
 p.add_argument("--views", type=int, nargs="+", default=[4, 8, 16, 32])
 p.add_argument("--out", required=True)
+p.add_argument("--full", action="store_true", help="also SSIM and LPIPS (eval.py's), with per-scene arrays")
 args = p.parse_args()
 T = [int(x) for x in args.targets.split(",")]
 
@@ -38,6 +39,25 @@ sd = torch.load(args.load, map_location="cpu", weights_only=False)
 model.load_state_dict(sd["model"] if "model" in sd else sd); model.eval()
 
 res = {"targets": T, "psnr": {}, "per_view_psnr": {}}
+if args.full:   # eval.py's metrics (eval.py itself runs on import, so its SSIM is copied here verbatim)
+    import torch.nn.functional as F
+    import lpips as lpips_lib
+    lpips_model = lpips_lib.LPIPS(net="vgg").cuda().eval()
+
+    def ssim_fn(a, b):
+        coords = torch.arange(11, dtype=torch.float32, device=a.device) - 5
+        g = torch.exp(-(coords**2) / (2 * 1.5**2))
+        g = (g / g.sum()).outer(g / g.sum())
+        w = g.expand(a.size(1), 1, 11, 11)
+        mu_a = F.conv2d(a, w, groups=a.size(1)); mu_b = F.conv2d(b, w, groups=a.size(1))
+        var_a = F.conv2d(a * a, w, groups=a.size(1)) - mu_a**2
+        var_b = F.conv2d(b * b, w, groups=a.size(1)) - mu_b**2
+        cov = F.conv2d(a * b, w, groups=a.size(1)) - mu_a * mu_b
+        c1, c2 = 0.01**2, 0.03**2
+        s_ = ((2 * mu_a * mu_b + c1) * (2 * cov + c2)) / ((mu_a**2 + mu_b**2 + c1) * (var_a + var_b + c2))
+        return s_.flatten(1).mean(dim=1)
+    res.update({"ssim": {}, "lpips": {}, "per_scene_psnr": {}, "per_scene_ssim": {}, "per_scene_lpips": {}})
+
 for V in args.views:
     orig = Re10KDataset._select_indices
 
@@ -51,7 +71,7 @@ for V in args.views:
                       pose_norm_mode="mean", window=128, min_frames=args.min_frames, eval_mode=True,
                       num_input_views=V, num_target_views=len(T), max_scenes=args.num_scenes)
     bs = 8 if V <= 8 else (4 if V <= 16 else 2)
-    ps, pv = [], []
+    ps, pv, ss, ll = [], [], [], []
     with torch.no_grad():
         for d in DataLoader(ds, batch_size=bs, shuffle=False, num_workers=8):
             d = {k: v.cuda() for k, v in d.items()}
@@ -62,8 +82,16 @@ for V in args.views:
             mse_v = ((r - g) ** 2).flatten(2).mean(2)            # [b, 4]
             ps.extend((-10 * torch.log10(mse_v.mean(1))).tolist())
             pv.extend((-10 * torch.log10(mse_v)).tolist())
+            if args.full:
+                b = r.size(0)
+                ll.extend(lpips_model(r.flatten(0, 1), g.flatten(0, 1), normalize=True).reshape(b, -1).mean(1).tolist())
+                ss.extend(ssim_fn(r.flatten(0, 1), g.flatten(0, 1)).reshape(b, -1).mean(1).tolist())
     Re10KDataset._select_indices = orig
     res["psnr"][V] = float(np.mean(ps)); res["per_view_psnr"][V] = np.mean(pv, 0).tolist()
+    if args.full:
+        res["ssim"][V] = float(np.mean(ss)); res["lpips"][V] = float(np.mean(ll))
+        res["per_scene_psnr"][V] = ps; res["per_scene_ssim"][V] = ss; res["per_scene_lpips"][V] = ll
+        print(f"V={V:2d} SSIM {res['ssim'][V]:.4f} LPIPS {res['lpips'][V]:.4f}", flush=True)
     print(f"V={V:2d} n={len(ps)} PSNR {res['psnr'][V]:.3f}  per target " +
           " ".join(f"{t}:{x:.2f}" for t, x in zip(T, res["per_view_psnr"][V])), flush=True)
 json.dump(res, open(args.out, "w"), indent=1)

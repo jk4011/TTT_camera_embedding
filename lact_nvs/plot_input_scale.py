@@ -21,7 +21,8 @@ ARMS = [   # label, colour, per-dataset experiment names (re10k, gobj, dl3dvu)
     ("PRoPE",       "#3182bd", ("re10k_prope_s137", "gobj_prope_s137", "dl3dvu_prope_s137")),
     ("RayRoPE",     "#fd8d3c", ("re10k_rayropew_s137", "gobj_rayropew_s137", "dl3dvu_rayropew_s137")),
     # final recipe (linear depth layer, dpt_lin+dpt_abs), 2026-09-25; run_vsweep_capetlin.sh
-    ("CaPET (ours)", "#d62728", ("re10k_dplin_pdir_vo_s137", "gobj_dplin_pdir_vo_s137",
+    # Objaverse: the ray:point = 1:3 split of the rotary budget (dp_lin_pdir31_vo_both.yaml, user 2026-09-25)
+    ("CaPET (ours)", "#d62728", ("re10k_dplin_pdir_vo_s137", "gobj_dplin31_pdir_vo_s137",
                                  "dl3dvu_dplin_pdir_vo_s137")),
 ]
 PANELS = [("RealEstate10K", 0), ("DL3DV", 2), ("Objaverse", 1)]   # paper order (user, 2026-09-25)
@@ -34,6 +35,14 @@ args = p.parse_args()
 
 
 def psnr(exp, v):
+    # Objaverse: FIXED targets 7, 12, 32, 37 (eval_fixed_targets.py, F103). The standard selection moves the
+    # targets with the input count and always keeps one target that duplicates an input view.
+    if exp.startswith("gobj"):
+        f = f"outputs/{exp}/eval_fixedT_nv.json"
+        try:
+            return json.load(open(f))["psnr"][str(v)]
+        except Exception:
+            return None
     f = f"outputs/{exp}/eval_paper_nv{v}.json"
     if not os.path.exists(f):
         return None
