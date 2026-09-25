@@ -35,4 +35,11 @@ node4는 GPU 1장짜리 노드다. 이 노드의 일은 **tttLRM tab:recon의 Ca
 - 다른 노드의 작업은 건드리지 않는다. node1은 NVS와 CCV 평가, node2는 Table 4, 셋째 노드(fork 세션)는 Table 5를 맡고 있다.
 
 ## 상태 (node4가 갱신)
-- (시작 시각, 5분 확인 결과, 종료 시각을 여기에 적는다)
+- 2026-09-24 21:23:34 KST 시작 (node4, GPU 0, `scratch_capet_lin_1gpu.yaml`). 시작 전 GPU 비어 있음 (0 MiB), 체크포인트 폴더 없음(새로 시작).
+- 5분 확인 (21:29): 정상. `BATCH-COMPOSITION: world_size=1 x grad_accum=2 x bs_per_gpu=4 = effective batch 8`, step 40에서 `s_per_step` 5.28 (예상 5.8보다 약간 빠름), GPU 47.7 GB / 99%. 오류 없음 (train_cam.py:349 `float(v)` requires_grad UserWarning만 찍힘, 무해).
+- 예상 종료: 15,000 × ~5.3 s ≈ 22 h → 학습 25일 19:30~21:30경, 이후 평가 ~0.5 h.
+- 학습 종료: 2026-09-25 19:13:26 KST, rc=0, 15000 steps in 21.82 h (`step15000.pt`, `final.pt` 저장). 19:13 평가 시작.
+- 평가 종료: 2026-09-25 19:52:38 KST, 140/140 장면, `rotary VERIFIED ACTIVE` 확인. **capet_lin 16.089 / 0.3958 / 0.5979** (PSNR/SSIM/LPIPS).
+  - 쌍체 vs PRoPE: PSNR +0.533 ± 0.031 (137/140), SSIM +0.021, LPIPS −0.018. vs base_re: +0.811 (138/140). vs RayRoPE +0.672, vs capet(이전) +0.552.
+  - 주의: `CELLS=capet_lin` 평가가 `tttlrm_ref/scratch_metrics_step15000.json`/`scratch_per_scene_step15000.csv`를 한 셀짜리로 덮어썼다. node4가 6셀(base_re, prope, rayrope, capet, capet_axis, capet_lin)로 다시 집계해 그 두 파일과 `*_six.*`에 썼다. `*_five.*`(09-24 20:20)는 그대로 둠.
+- node4 작업 끝. GPU 0 비어 있음.

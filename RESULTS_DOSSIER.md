@@ -4298,3 +4298,32 @@ column (0.467 vs 0.468).
 NOT yet in the paper: inserting this row moves the Objaverse and average-PSNR bolds away from the full recipe,
 which contradicts the table's current story. Decision left to the user. Superseded attempt at the old value-
 channel depth: re10k_dpchan_voonly_s137 = 22.370 (vs that recipe's full 22.95).
+
+## F104 (2026-09-25): tab:recon filled -- with the final recipe CaPET beats every encoding on tttLRM (+0.53 dB over PRoPE)
+`scratch_capet_lin` = the final recipe `foot_in+h_foot+dpt_lin+dpt_abs+pdir+vo_rope` (depth from a zero-init Linear on
+the layer input, absolute depth, no scene focus) ported to tttLRM, trained from scratch on node4: 1 GPU x grad_accum 2
+x bs 4 = effective batch 8 (the other cells: 2 GPUs x bs 4), 15k steps in 21.8 h (5.23 s/step), seed 777 like every
+tab:recon cell (F96 says seed 137; the configs say 777). Same protocol as F95/F96: DL3DV-140, 8+8 views at 272x480,
+eval_scratch_ladder.sh, `rotary VERIFIED ACTIVE` present. Means over the 140 common scenes:
+| method | PSNR | SSIM | LPIPS |
+|---|---|---|---|
+| No Encoding | 15.279 | 0.3665 | 0.6395 |
+| PRoPE | 15.556 | 0.3746 | 0.6154 |
+| RayRoPE | 15.417 | 0.3779 | 0.6265 |
+| CaPET (old port, value-channel depth; F95) | 15.538 | 0.3758 | 0.6257 |
+| CaPET-axis (F99) | 15.486 | 0.3755 | 0.6347 |
+| **CaPET final recipe (capet_lin)** | **16.089** | **0.3958** | **0.5979** |
+Paired deltas of capet_lin, 95% bootstrap (4000 resamples; test-set noise only, one training seed per cell):
+| capet_lin minus | PSNR | SSIM | LPIPS | PSNR better |
+|---|---|---|---|---|
+| No Encoding | +0.811 [+0.745, +0.881] | +0.029 [+0.025, +0.034] | -0.042 [-0.044, -0.039] | 138/140 |
+| PRoPE | +0.533 [+0.474, +0.596] | +0.021 [+0.018, +0.025] | -0.018 [-0.020, -0.015] | 137/140 |
+| RayRoPE | +0.672 [+0.613, +0.739] | +0.018 [+0.015, +0.021] | -0.029 [-0.031, -0.026] | 139/140 |
+| CaPET old port | +0.552 [+0.494, +0.613] | +0.020 [+0.017, +0.024] | -0.028 [-0.030, -0.026] | 136/140 |
+Reading: the gap to PRoPE (0.53 dB) is ~5x the NVS seed noise (F18), so this is a ranking, unlike F96's tie.
+F99 had rejected the scene-focus fix as the lever; the switch to the linear absolute-depth head is what moved
+tttLRM (+0.55 dB over the old port, +0.60 over capet_axis). Training PSNR already separated from ~4k steps on
+(18.2 vs PRoPE 17.0 at 10-11k), unlike capet_axis whose training lead did not survive eval.
+Paper: tab:recon filled (No Encoding / PRoPE / RayRoPE / CaPET = capet_lin) and a results sentence in Sec. 5.4.
+Files: `tttlrm_ref/scratch_metrics_step15000_six.json` + `scratch_per_scene_step15000_six.csv` (also copied to the
+un-suffixed names, which the CELLS=capet_lin eval had overwritten with a 1-cell summary; `*_five.*` unchanged).

@@ -17,6 +17,8 @@ MultiCamVideo original); everything has been rebuilt under `26msit001_A`
   `run_table4_lin_seq.sh`, ~17:00 09-25), node1 then Table 6 (`re10k_fw_{mlp2,fw3l,fw4l}_capetlin_s137`, ~11:30 09-25).
 - **tttLRM**: CaPET row retrained with the final recipe on node4 (1 GPU, came before the queued 2-GPU allocation; ~24 h) (`run_tttlrm_capet_lin.sh`,
   `NODE4_PROMPT.md`; 2.7 s/step x 15k = ~11.3 h + eval). tttLRM scales ~linearly 1 -> 2 GPUs (5.8 -> 2.7 s/step).
+  **DONE 2026-09-25 19:52** (train 21.8 h, eval 140/140): capet_lin 16.089 / 0.3958 / 0.5979, +0.53 dB over PRoPE
+  (137/140 scenes) -> F104; tab:recon filled on Overleaf.
 - **ccv: no more training.** RayRoPE / PRoPE cells ABANDONED at 9249 / 8249 steps. The EXISTING ccv CaPET checkpoint
   (`ccv_capet_re`, older t_c depth) is evaluated as is: generation 42/64 -> 64, camera accuracy. node1 chain5 does it
   right after the NVS cells (~03:00-05:40), so node2 does not need to. tab:ccv = No Encoding vs CaPET.
