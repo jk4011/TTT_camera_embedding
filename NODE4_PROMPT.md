@@ -43,3 +43,7 @@ node4는 GPU 1장짜리 노드다. 이 노드의 일은 **tttLRM tab:recon의 Ca
   - 쌍체 vs PRoPE: PSNR +0.533 ± 0.031 (137/140), SSIM +0.021, LPIPS −0.018. vs base_re: +0.811 (138/140). vs RayRoPE +0.672, vs capet(이전) +0.552.
   - 주의: `CELLS=capet_lin` 평가가 `tttlrm_ref/scratch_metrics_step15000.json`/`scratch_per_scene_step15000.csv`를 한 셀짜리로 덮어썼다. node4가 6셀(base_re, prope, rayrope, capet, capet_axis, capet_lin)로 다시 집계해 그 두 파일과 `*_six.*`에 썼다. `*_five.*`(09-24 20:20)는 그대로 둠.
 - node4 작업 끝. GPU 0 비어 있음.
+- **2026-09-25 21:25 KST 추가 실험 (사용자 요청): point-only tttLRM** `scratch_capet_pt` — 최종 레시피에서 `pdir`만 뺌
+  (`foot_in+h_foot+dpt_lin+dpt_abs+vo_rope`, num_freqs 128 / num_freqs_h 512 = 예산 전부를 point에, lact_nvs `dp_lin_pt_vo_both`와 같은 규칙).
+  `lact_nvs/run_tttlrm_capet_pt.sh` (재실행하면 이어짐; 평가 후 7셀 요약을 다시 집계). 5분 확인 정상: 1x2x4, step 50에서 5.28 s/step, 47.7 GB.
+  예상: 학습 26일 19:15경, 평가 포함 ~19:55.
