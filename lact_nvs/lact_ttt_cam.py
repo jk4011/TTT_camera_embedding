@@ -1264,7 +1264,10 @@ class CamFastWeightGluMLPMultihead(FastWeightGluMLPMultihead):
             self.pdir_theta0 = float(pdir_theta0) * math.pi / 180.0
             self.pdir_gate = pdir_gate      # soft: exp(-(theta/theta0)^2); hard: 1[theta < theta0]
         if dpt_modes or "pdir" in self.cam_modes:
-            assert self.cam_modes & {"foot_in", "h_foot"}, "dpt_* / pdir modify the foot (point-RoPE) codes"
+            # the v/o carrier with vo_coords 'foot' IS a point code (it phases v by the point at
+            # the predicted depth), so a carrier-only cell is a legal placement ablation
+            assert self.cam_modes & {"foot_in", "h_foot", "vo_rope"}, \
+                "dpt_* / pdir modify the foot (point-RoPE) codes"
             assert not (self.cam_modes - {"foot_in", "h_foot", "iso", "sharedf", "pdir", "pdirg", "pmix", "vo_rope",
                                           "mlp2", "fw3l", "fw4l", "dpt_abs"} - dpt_modes), \
                 "dpt_* / pdir only with foot_in / h_foot (+iso, sharedf, vo_rope)"
