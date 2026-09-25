@@ -4237,3 +4237,26 @@ The carrier itself changes little for these codes: RE10K 21.386 -> 21.364 (ext) 
 against the 2-site cells of F90, i.e. the damage is done at the q/k and hidden sites.
 Per-dataset: the matrix codes lose most on DL3DV-u (-0.10 / -0.22 vs no encoding) and RE10K (-0.25 / -0.24),
 and are flat on the orbit, where even the rotary Ray code loses (F93's regime split).
+
+## F101 (2026-09-25): final recipe (linear depth layer) across the NVS tables; ccv CaPET evaluated
+Recipe `foot_in+h_foot+dpt_lin+dpt_abs+pdir+vo_rope` (depth from a zero-init Linear(dim,1) on the layer input x,
+absolute t = exp(2.5 tanh(s/2.5)), no scene focus). Seed 137, standard 8-view / 30k protocol.
+| cell | RE10K | DL3DV-u | Objaverse (gobj) | avg (shown) |
+|---|---|---|---|---|
+| value-channel CaPET (old, *_dpchan_pdir_vo) | 22.949 | 16.978 | 22.796 | 20.91 |
+| **linear-depth CaPET (*_dplin_pdir_vo)** | **23.411** | **17.002** | 22.594 | **21.00** |
+Paired new - old: RE10K +0.462 (t=+17.5, 90%), DL3DV +0.024 (t=+1.3), Objaverse -0.202 (t=-13.6, 27%).
+New vs No Encoding +1.802 / +0.579 / +0.380; vs RayRoPE (sigma0=3 world) +0.979 / +0.212 / +0.333, all t > 11.
+Sites (Table 4, dplin): in 22.54/16.76/22.42, h 22.94/16.88/22.65, in+h 22.99/16.98/22.53, +v/o 23.41/17.00/22.59;
+on Objaverse hidden-only is best, and in+h over h is only +0.01 on average (20.82 -> 20.83).
+Inner models (Table 6, CaPET dplin vs No Encoding, both seed 137): SwiGLU 23.41 vs 21.61 (+1.80), 2-layer MLP 23.74 vs
+20.51 (+3.23, t=+57.8, 256/256 scenes), 3-layer 23.59 vs 21.70 (+1.89, new cell re10k_fw3l_base_s137), 4-layer 23.55
+vs 21.67 (+1.88). The earlier No Encoding column mixed 3-seed means and seed-95 cells; now all seed 137.
+Matrix codes at CaPET's three placements (Table 5, run_mat_vo_six.sh): Extrinsic avg 19.95, Projection 19.93, both
+below No Encoding (20.08). Cost: CaPET 9,650,228 params / 93.13 GFLOPs (lact_nvs/_cost_table.py reproduces the
+other rows exactly). Input-view sweep (Fig. 5): CaPET-lin lead over No Encoding 1.8 -> 2.4 dB (RE10K, 8 -> 32 views).
+ccv (existing value-channel CaPET, 14k steps; RayRoPE/PRoPE ccv cells abandoned for time): over the 43 pairs COLMAP
+registers for both, RotErr 19.44 -> 17.10 deg (lower in 29/43, paired t=-1.5), CamMC 0.589 -> 0.544, TransErr
+0.468 -> 0.481 (22 translating pairs); FVD (eval_ccv_fvd.py, I3D, 5 x 16-frame clips x 64 pairs) 557.7 -> 354.4.
+GT floor: RotErr 3.1 deg. CORRECTION: the 09-19 qualitative figure's RealEstate10K rows showed other scenes than
+their PSNR insets (render 21.52 vs inset 26.78); all qualitative figures are now checked against eval.json.
