@@ -47,6 +47,12 @@ p.add_argument("--out", required=True)
 p.add_argument("--inputs", type=str, default="0,2,4,6", help="which of the 8 input views to show")
 p.add_argument("--select", default="image_psnr", choices=["image_psnr", "scene_ssim"])
 p.add_argument("--against", default="RayRoPE", help="baseline the image_psnr lead is measured against")
+p.add_argument("--pick", type=str, default="", help="comma list of scene ids to show, in this order (image_psnr: "
+               "each scene's best target); overrides the top-n choice")
+p.add_argument("--exclude", type=str, default="", help="comma list of scene ids to leave out of the top-n choice")
+p.add_argument("--latex_labels", action="store_true",
+               help="no titles in the image; write <out>_labels.tex, a row of column names set in the "
+                    "document font, aligned to the image columns (user 2026-09-25: labels below, roman)")
 args = p.parse_args()
 cfgd = DATA[args.dataset]
 exps = [(lab, cfg, cfgd["base"] if "{p}" not in e else e.format(p=cfgd["prefix"])) for lab, cfg, e in METHODS]
@@ -75,7 +81,10 @@ if args.select == "image_psnr":
     lead_v = pv["CaPET (ours)"] - pv[args.against]              # per image, against one baseline
     best_v = lead_v.argmax(1)                                   # at most one image per scene: its best
     lead = lead_v[np.arange(len(best_v)), best_v]
-    scene_ids = [int(i) for i in np.argsort(-lead)[:args.n]]
+    excl = {int(x) for x in args.exclude.split(",") if x}
+    scene_ids = [int(i) for i in np.argsort(-lead) if int(i) not in excl][:args.n]
+    if args.pick:
+        scene_ids = [int(x) for x in args.pick.split(",")]
     tview_sel = [int(best_v[i]) for i in scene_ids]
     print("images (scene, target):", list(zip(scene_ids, tview_sel)))
     print(f"PSNR lead over {args.against} (dB):", " ".join(f"{lead[i]:+.2f}" for i in scene_ids))
@@ -163,17 +172,31 @@ for si, sid in enumerate(scene_ids):
     print(f"scene {sid:4d} target {t}: PSNR " + " ".join(f"{l.split()[0]} {pv[l][sid, t]:.2f}" for l, _, _ in exps))
 
 # PDF via PIL, which stores RGB pages as JPEG (the matplotlib route embedded ~8.5 MB of raw pixels).
-# Titles are sized to read as ~7 pt when the figure is set at the 5.5 in text width.
-from PIL import ImageDraw, ImageFont
-import matplotlib.font_manager as fm
-fpx = max(12, int(round(Wtot / 5.5 * 7 / 72)))
-font = ImageFont.truetype(fm.findfont("DejaVu Sans"), fpx)
-top = int(fpx * 1.7)
-page = Image.new("RGB", (Wtot, Htot + top), "white")
-page.paste(Image.fromarray(canvas), (0, top))
-dr = ImageDraw.Draw(page)
-for ci, c in enumerate(cols):
-    tw = dr.textlength(c, font=font)
-    dr.text((xs[ci] + (cw - tw) / 2, (top - fpx) / 2 - fpx * 0.1), c, fill="black", font=font)
-page.save(args.out, "PDF", resolution=Wtot / 5.5, quality=92)
-print("saved ->", args.out, f"({os.path.getsize(args.out) / 1e6:.1f} MB)")
+if args.latex_labels:
+    Image.fromarray(canvas).save(args.out, "PDF", resolution=Wtot / 5.5, quality=92)
+    lab_tex = {"CaPET (ours)": r"\textbf{CaPET (ours)}"}
+    parts = []
+    for ci, c in enumerate(cols):
+        parts.append(r"\makebox[%.4f\linewidth]{%s}" % (cw / Wtot, lab_tex.get(c, c)))
+        if ci < len(cols) - 1:
+            parts.append(r"\hspace{%.4f\linewidth}" % ((gap_in if ci == 0 else gap) / Wtot))
+    tex = os.path.splitext(args.out)[0] + "_labels.tex"
+    with open(tex, "w") as f:
+        f.write("% written by lact_nvs/qual_by_dataset.py: column names under the image, document font\n")
+        f.write(r"\par\vspace{2pt}\noindent{\small" + "%\n" + "%\n".join(parts) + "%\n}" + r"\par" + "\n")
+    print("saved ->", args.out, f"({os.path.getsize(args.out) / 1e6:.1f} MB) and", tex)
+else:
+    # Titles are sized to read as ~7 pt when the figure is set at the 5.5 in text width.
+    from PIL import ImageDraw, ImageFont
+    import matplotlib.font_manager as fm
+    fpx = max(12, int(round(Wtot / 5.5 * 7 / 72)))
+    font = ImageFont.truetype(fm.findfont("DejaVu Sans"), fpx)
+    top = int(fpx * 1.7)
+    page = Image.new("RGB", (Wtot, Htot + top), "white")
+    page.paste(Image.fromarray(canvas), (0, top))
+    dr = ImageDraw.Draw(page)
+    for ci, c in enumerate(cols):
+        tw = dr.textlength(c, font=font)
+        dr.text((xs[ci] + (cw - tw) / 2, (top - fpx) / 2 - fpx * 0.1), c, fill="black", font=font)
+    page.save(args.out, "PDF", resolution=Wtot / 5.5, quality=92)
+    print("saved ->", args.out, f"({os.path.getsize(args.out) / 1e6:.1f} MB)")
