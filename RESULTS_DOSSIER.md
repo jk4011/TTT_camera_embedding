@@ -4327,3 +4327,19 @@ tttLRM (+0.55 dB over the old port, +0.60 over capet_axis). Training PSNR alread
 Paper: tab:recon filled (No Encoding / PRoPE / RayRoPE / CaPET = capet_lin) and a results sentence in Sec. 5.4.
 Files: `tttlrm_ref/scratch_metrics_step15000_six.json` + `scratch_per_scene_step15000_six.csv` (also copied to the
 un-suffixed names, which the CELLS=capet_lin eval had overwritten with a 1-cell summary; `*_five.*` unchanged).
+
+## F103 (2026-09-26, interim): POINT-ONLY at all three placements -- the ray half helps only on RE10K
+`dp_lin_pt_vo_both`: the current recipe with the ray-direction half removed and its budget given to the point
+(input 3x42 = 126 pairs, hidden 3x84 = 252, carrier unchanged), seed 137, 8-view/30k.
+| | RE10K | DL3DV-u | Objaverse |
+|---|---|---|---|
+| point + ray, all sites (table row; Objaverse 3:1) | **23.41** | 17.00 | 22.67 |
+| **point only, all sites** | 23.28 | **17.12** | 22.90 |
+| v/o only (F102) | 23.26 | 16.93 | **23.06** |
+Paired, point-only minus point+ray: RE10K **-0.131** (t=-6.2), DL3DV **+0.113** (t=+8.7, 79% of scenes),
+Objaverse **+0.235** (t=+14.0, 74%). Point-only minus v/o-only: RE10K +0.022 (t=0.8, tie), DL3DV +0.189 (t=13.1),
+Objaverse -0.161 (t=-9.3).
+Reading: the ray-direction half earns its place only on RE10K. On DL3DV and Objaverse it costs 0.11-0.24 dB, and
+on Objaverse the address sites cost a further 0.16 dB even without it. The per-dataset optimum is therefore
+point+ray / all sites (RE10K), point / all sites (DL3DV), point / v/o only (Objaverse) -- three different recipes.
+Point-only hidden+v/o (`dp_lin_pt_hvo`) is running and separates the input site's share.
