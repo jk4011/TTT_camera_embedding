@@ -23,11 +23,11 @@ COLS = ["No Encoding", "GTA", "PRoPE", "RayRoPE", "CaPET (ours)", "GT"]
 # eval.json of each row's methods, for the PSNR inset (per scene, mean over target views)
 EVAL = {
     "re10k": ["base_s137_re", "re10k_gta_s137", "re10k_prope_s137", "re10k_rayropew_s137",
-              "re10k_dpchan_pdir_vo_s137"],
+              "re10k_dplin_pdir_vo_s137"],
     "gobj": ["gobj_base_s137_re", "gobj_gta_s137", "gobj_prope_s137", "gobj_rayropew_s137",
-             "gobj_dpchan_pdir_vo_s137"],
+             "gobj_dplin_pdir_vo_s137"],
     "dl3dvu": ["dl3dvu_base_s137_re", "dl3dvu_gta_s137", "dl3dvu_prope_s137",
-               "dl3dvu_rayropew_s137", "dl3dvu_dpchan_pdir_vo_s137"],
+               "dl3dvu_rayropew_s137", "dl3dvu_dplin_pdir_vo_s137"],
 }
 
 p = argparse.ArgumentParser()
