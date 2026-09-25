@@ -4238,7 +4238,7 @@ against the 2-site cells of F90, i.e. the damage is done at the q/k and hidden s
 Per-dataset: the matrix codes lose most on DL3DV-u (-0.10 / -0.22 vs no encoding) and RE10K (-0.25 / -0.24),
 and are flat on the orbit, where even the rotary Ray code loses (F93's regime split).
 
-## F101 (2026-09-25): final recipe (linear depth layer) across the NVS tables; ccv CaPET evaluated
+## F102 (2026-09-25): final recipe (linear depth layer) across the NVS tables; ccv CaPET evaluated
 Recipe `foot_in+h_foot+dpt_lin+dpt_abs+pdir+vo_rope` (depth from a zero-init Linear(dim,1) on the layer input x,
 absolute t = exp(2.5 tanh(s/2.5)), no scene focus). Seed 137, standard 8-view / 30k protocol.
 | cell | RE10K | DL3DV-u | Objaverse (gobj) | avg (shown) |
