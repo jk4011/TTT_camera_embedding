@@ -59,7 +59,7 @@ plt.rcParams.update({"font.family": "serif",
                      "mathtext.fontset": "stix", "font.size": 13.5,
                      "axes.titlesize": 14.5, "axes.labelsize": 14, "xtick.labelsize": 13, "ytick.labelsize": 13,
                      "pdf.fonttype": 42, "ps.fonttype": 42})   # embed TrueType, not Type 3 (venue font checks)
-fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.4))
+fig, axes = plt.subplots(1, 3, figsize=(11.0, 2.35))   # short, it sits in the main text (user 2026-09-25)
 for ax, (title, di) in zip(axes, PANELS):
     for label, colour, exps in ARMS:
         xs, ys = [], []
@@ -79,7 +79,7 @@ for ax, (title, di) in zip(axes, PANELS):
     ax.set_xscale("log", base=2)
     ax.set_xticks(args.views)
     ax.set_xticklabels([str(v) for v in args.views])
-    ax.set_xlabel("input views")
+    ax.set_xlabel("input views", labelpad=1)
     ax.set_title(title)
     ax.grid(alpha=0.25, lw=0.5)
     for s in ("top", "right"):
@@ -88,8 +88,8 @@ axes[0].set_ylabel("PSNR")
 h, l = axes[0].get_legend_handles_labels()
 if l:
     fig.legend(h, l, loc="upper center", ncol=len(l), frameon=False, fontsize=13.5,
-               bbox_to_anchor=(0.5, 1.08))
-fig.tight_layout()
+               bbox_to_anchor=(0.5, 1.13), handlelength=1.6, columnspacing=1.6, borderaxespad=0.0)
+fig.tight_layout(pad=0.3, w_pad=1.2)
 os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
 fig.savefig(args.out, bbox_inches="tight")
 print("saved ->", args.out)
