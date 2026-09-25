@@ -1,8 +1,11 @@
 """Per-dataset qualitative figures (user, 2026-09-25): one figure per dataset, 10 scenes each.
 
-Scene choice: the held-out scenes where CaPET's SSIM leads the BEST baseline by the most, read from
-the per-scene SSIM already stored in every eval.json (min over baselines of CaPET - baseline).
-Target view shown: the one of the 4 targets with the largest such lead, measured on the renders.
+Selection (--select):
+  image_psnr (default, user 2026-09-25): rank every held-out TARGET IMAGE by CaPET's PSNR lead over ONE
+      baseline (--against, default RayRoPE) on that image (per_scene_per_view_psnr of the eval.json
+      files), keep at most one image per scene, show the top n.
+  scene_ssim (the first version): rank scenes by the per-scene (4-target mean) SSIM lead over the best
+      baseline, then show the target with the largest SSIM lead measured on the renders.
 Columns: 4 of the 8 input views (inputs 0, 2, 4, 6) at half size in a 2x2 block, then No Encoding,
 GTA, PRoPE, RayRoPE, CaPET, GT. No metric insets.
 Alignment check: the renders' per-scene SSIM is compared with eval.json and printed; the dataset is
@@ -42,6 +45,8 @@ p.add_argument("--dataset", required=True, choices=list(DATA))
 p.add_argument("--n", type=int, default=10)
 p.add_argument("--out", required=True)
 p.add_argument("--inputs", type=str, default="0,2,4,6", help="which of the 8 input views to show")
+p.add_argument("--select", default="image_psnr", choices=["image_psnr", "scene_ssim"])
+p.add_argument("--against", default="RayRoPE", help="baseline the image_psnr lead is measured against")
 args = p.parse_args()
 cfgd = DATA[args.dataset]
 exps = [(lab, cfg, cfgd["base"] if "{p}" not in e else e.format(p=cfgd["prefix"])) for lab, cfg, e in METHODS]
@@ -61,14 +66,24 @@ def ssim_fn(a, b):   # eval.py's SSIM (11x11 Gaussian, sigma 1.5), [N, C, H, W] 
     return s.flatten(1).mean(dim=1)
 
 
-# ---- scene choice from the stored per-scene SSIM
+# ---- selection from the metrics stored in every eval.json
 import json
-ss = {lab: np.array(json.load(open(f"outputs/{e}/eval.json"))["per_scene_ssim"]) for lab, _, e in exps}
-ours = ss["CaPET (ours)"]
-lead = ours - np.max(np.stack([ss[l] for l, _, _ in exps[:-1]]), axis=0)
-scene_ids = [int(i) for i in np.argsort(-lead)[:args.n]]
-print("scenes:", scene_ids)
-print("SSIM lead over the best baseline:", " ".join(f"{lead[i]:+.3f}" for i in scene_ids))
+EV = {lab: json.load(open(f"outputs/{e}/eval.json")) for lab, _, e in exps}
+ss = {lab: np.array(EV[lab]["per_scene_ssim"]) for lab, _, _ in exps}
+pv = {lab: np.array(EV[lab]["per_scene_per_view_psnr"]) for lab, _, _ in exps}      # [scenes, 4]
+if args.select == "image_psnr":
+    lead_v = pv["CaPET (ours)"] - pv[args.against]              # per image, against one baseline
+    best_v = lead_v.argmax(1)                                   # at most one image per scene: its best
+    lead = lead_v[np.arange(len(best_v)), best_v]
+    scene_ids = [int(i) for i in np.argsort(-lead)[:args.n]]
+    tview_sel = [int(best_v[i]) for i in scene_ids]
+    print("images (scene, target):", list(zip(scene_ids, tview_sel)))
+    print(f"PSNR lead over {args.against} (dB):", " ".join(f"{lead[i]:+.2f}" for i in scene_ids))
+else:
+    lead = ss["CaPET (ours)"] - np.max(np.stack([ss[l] for l, _, _ in exps[:-1]]), axis=0)
+    scene_ids = [int(i) for i in np.argsort(-lead)[:args.n]]
+    print("scenes:", scene_ids)
+    print("SSIM lead over the best baseline:", " ".join(f"{lead[i]:+.3f}" for i in scene_ids))
 
 # ---- render
 n_in, n_tg = 8, 4
@@ -96,12 +111,19 @@ for lab, cfg, e in exps:
     renders[lab] = r.cpu()
     ssv[lab] = ssim_fn(r.flatten(0, 1), gt.flatten(0, 1)).reshape(S, n_tg).cpu()
     err = np.abs(ssv[lab].mean(1).numpy() - ss[lab][scene_ids]).max()
-    print(f"{lab:13s} render-vs-eval.json per-scene SSIM max |diff| = {err:.4f}")
-    assert err < 0.01, "renders do not match eval.json: scene indices are misaligned"
+    psv = (-10.0 * torch.log10(((r - gt) ** 2).flatten(2).mean(2))).cpu().numpy()      # [S, 4]
+    perr = np.abs(psv - pv[lab][scene_ids]).max()
+    print(f"{lab:13s} render-vs-eval.json max |diff|: per-scene SSIM {err:.4f}, per-image PSNR {perr:.3f} dB")
+    # a misaligned scene is off by several dB; on white-background objects the MSE is tiny and one image's
+    # PSNR moves ~0.4 dB with the bf16 batch composition (Objaverse), so the PSNR bound is loose
+    assert err < 0.01 and perr < 1.0, "renders do not match eval.json: scene indices are misaligned"
     del model; torch.cuda.empty_cache()
 
-base_best = torch.stack([ssv[l] for l, _, _ in exps[:-1]]).max(0).values        # [S, n_tg]
-tview = (ssv["CaPET (ours)"] - base_best).argmax(1).tolist()
+if args.select == "image_psnr":
+    tview = tview_sel
+else:
+    base_best = torch.stack([ssv[l] for l, _, _ in exps[:-1]]).max(0).values        # [S, n_tg]
+    tview = (ssv["CaPET (ours)"] - base_best).argmax(1).tolist()
 
 # ---- compose: one raster grid, column titles drawn by matplotlib
 H, W = cfgd["image_size"]
@@ -123,7 +145,8 @@ x = 0
 for ci in range(len(cols)):
     xs.append(x)
     x += cw + (gap_in if ci == 0 else gap)
-os.makedirs(f"outputs/_fig_ssim/{args.dataset}", exist_ok=True)
+png_dir = f"outputs/_fig_{args.select}/{args.dataset}"
+os.makedirs(png_dir, exist_ok=True)
 for si, sid in enumerate(scene_ids):
     y = si * (H + gap)
     # 2x2 block of half-size inputs
@@ -136,8 +159,8 @@ for si, sid in enumerate(scene_ids):
     for ci, lab in enumerate(cols[1:], start=1):
         img = u8(gt[si, t].cpu()) if lab == "GT" else u8(renders[lab][si, t])
         canvas[y:y + H, xs[ci]:xs[ci] + W] = img
-        Image.fromarray(img).save(f"outputs/_fig_ssim/{args.dataset}/scene{sid:04d}_t{t}_{lab}.png")
-    print(f"scene {sid:4d} target {t}: SSIM " + " ".join(f"{l.split()[0]} {ssv[l][si, t]:.3f}" for l, _, _ in exps))
+        Image.fromarray(img).save(f"{png_dir}/scene{sid:04d}_t{t}_{lab}.png")
+    print(f"scene {sid:4d} target {t}: PSNR " + " ".join(f"{l.split()[0]} {pv[l][sid, t]:.2f}" for l, _, _ in exps))
 
 # PDF via PIL, which stores RGB pages as JPEG (the matplotlib route embedded ~8.5 MB of raw pixels).
 # Titles are sized to read as ~7 pt when the figure is set at the 5.5 in text width.
