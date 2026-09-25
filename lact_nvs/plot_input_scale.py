@@ -52,7 +52,15 @@ def psnr(exp, v):
         return None
 
 
-fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.1))
+# Roman type like the paper body (Liberation Serif = Times metrics), a bit larger than before, and the legend as a
+# vertical list in its own column on the left (user 2026-09-25), so it never covers the PSNR label.
+plt.rcParams.update({"font.family": "serif",
+                     "font.serif": ["Liberation Serif", "Nimbus Roman", "STIXGeneral", "DejaVu Serif"],   # Times metrics, TrueType
+                     "mathtext.fontset": "stix", "font.size": 12.5,
+                     "axes.titlesize": 13.5, "axes.labelsize": 13, "xtick.labelsize": 12, "ytick.labelsize": 12,
+                     "pdf.fonttype": 42, "ps.fonttype": 42})   # embed TrueType, not Type 3 (venue font checks)
+fig, axes = plt.subplots(1, 3, figsize=(12.6, 3.3))
+fig.subplots_adjust(left=0.215, right=0.995, bottom=0.17, top=0.9, wspace=0.26)
 for ax, (title, di) in zip(axes, PANELS):
     for label, colour, exps in ARMS:
         xs, ys = [], []
@@ -73,16 +81,15 @@ for ax, (title, di) in zip(axes, PANELS):
     ax.set_xticks(args.views)
     ax.set_xticklabels([str(v) for v in args.views])
     ax.set_xlabel("input views")
-    ax.set_title(title, fontsize=10)
+    ax.set_title(title)
     ax.grid(alpha=0.25, lw=0.5)
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
 axes[0].set_ylabel("PSNR")
 h, l = axes[0].get_legend_handles_labels()
 if l:
-    fig.legend(h, l, loc="upper center", ncol=len(l), frameon=False, fontsize=9,
-               bbox_to_anchor=(0.5, 1.06))
-fig.tight_layout()
+    fig.legend(h, l, loc="center left", frameon=False, fontsize=12.5, labelspacing=1.3,
+               handlelength=2.0, borderaxespad=0.0, bbox_to_anchor=(0.0, 0.53))
 os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
 fig.savefig(args.out, bbox_inches="tight")
 print("saved ->", args.out)
