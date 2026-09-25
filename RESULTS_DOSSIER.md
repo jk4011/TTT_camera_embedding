@@ -4260,3 +4260,20 @@ registers for both, RotErr 19.44 -> 17.10 deg (lower in 29/43, paired t=-1.5), C
 0.468 -> 0.481 (22 translating pairs); FVD (eval_ccv_fvd.py, I3D, 5 x 16-frame clips x 64 pairs) 557.7 -> 354.4.
 GT floor: RotErr 3.1 deg. CORRECTION: the 09-19 qualitative figure's RealEstate10K rows showed other scenes than
 their PSNR insets (render 21.52 vs inset 26.78); all qualitative figures are now checked against eval.json.
+
+## F103 (2026-09-25): Objaverse (G-Objaverse) eval protocol -- duplicate views and moving targets
+The 40 renders per object are NOT a sequence: 0-24 upper ring (elev ~25 deg, 15 deg azimuth steps, **24 == 0**),
+25 top, 26 bottom, 27-39 lower ring (elev -2 deg, 30 deg steps, **39 == 27**) -- same camera and same image
+(mean |diff| < 0.25/255). The eval selection (data_re10k._select_indices) moves the 4 targets off the inputs, so
+the target set changes with V: V=4/8 -> 5,15,24,34; V=16 -> 6,15,24,35; V=32 -> 7,17,27,37, and in every case
+one target duplicates an input (24 = input 0; at V=32 27 = input 39). At V=32 the inputs also hold both 0 and 24.
+Consequence: Fig. 5's Objaverse dip from 16 to 32 views is the target change, not the model. With FIXED targets
+7,12,32,37 (never inputs, no duplicates; lact_nvs/eval_fixed_targets.py, outputs/gobj_*/eval_fixedT_nv.json):
+| V | No Enc | GTA | PRoPE | RayRoPE | CaPET |
+|---|---|---|---|---|---|
+| 4 | 17.95 | 18.05 | 18.39 | 18.14 | 18.38 |
+| 8 | 21.98 | 21.88 | 22.10 | 22.00 | 22.37 |
+| 16 | 22.23 | 22.12 | 22.35 | 22.25 | 22.56 |
+| 32 | 22.29 | 22.17 | 22.39 | 22.29 | 22.61 |
+Every method improves monotonically. CaPET - No Enc at V=8: +0.39 fixed vs +0.38 standard, so the duplicate target
+inflates the absolute Objaverse numbers of every method (duplicate target ~+2.5 dB over the others) but not the gap.
