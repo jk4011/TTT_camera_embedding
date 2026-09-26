@@ -4343,3 +4343,24 @@ Reading: the ray-direction half earns its place only on RE10K. On DL3DV and Obja
 on Objaverse the address sites cost a further 0.16 dB even without it. The per-dataset optimum is therefore
 point+ray / all sites (RE10K), point / all sites (DL3DV), point / v/o only (Objaverse) -- three different recipes.
 Point-only hidden+v/o (`dp_lin_pt_hvo`) is running and separates the input site's share.
+
+## F104 (2026-09-26): placement x coordinate, 4 recipes x 3 datasets -- the table's recipe is the WORST on average
+All at the current linear-head depth, seed 137, 8-view/30k. "pt" = point only (the ray budget given to the point).
+| recipe | RE10K | DL3DV-u | Objaverse | **average** |
+|---|---|---|---|---|
+| pt+ray, input+hidden+v/o (table row; Objaverse 3:1) | **23.41** | 17.00 | 22.67 | 21.03 |
+| pt, input+hidden+v/o | 23.28 | **17.12** | 22.90 | 21.10 |
+| **pt, hidden+v/o** | 23.32 | 17.03 | 22.98 | **21.11** |
+| v/o only (point carrier) | 23.26 | 16.93 | **23.06** | 21.08 |
+Paired effects (point-only cells; t in parentheses):
+* **hidden site** (pt hidden+v/o minus v/o only): RE10K +0.064 (3.2), DL3DV +0.104 (8.9), Objaverse **-0.083 (-6.1)**.
+* **input site** (pt all minus pt hidden+v/o): RE10K -0.043 (-2.1), DL3DV **+0.085 (7.5)**, Objaverse **-0.078 (-4.9)**.
+* **ray half** (F103): RE10K **+0.131 (6.2)**, DL3DV -0.113 (-8.7), Objaverse -0.235 (-14.0).
+Reading: every ingredient helps on some dataset and hurts on another, and the signs track baseline width -- the
+wide-baseline orbit prefers the fewest address codes (v/o only > hidden+v/o > all sites), the forward-walking
+RE10K is the only place the ray half pays, DL3DV wants the point at every site. The recipe the tables currently
+use (point+ray everywhere, with a 3:1 split tuned for Objaverse) is last on the three-dataset average.
+**Point-only hidden+v/o** is the best single recipe that needs no per-dataset tuning: never last, -0.09 dB from
+the best on RE10K, within 0.03 of the best on DL3DV, +0.31 over the table row on Objaverse (t=17.4). The top
+three rows are within 0.03 dB on average, i.e. a tie at one seed; the gap to the table's recipe (0.07-0.08) is
+not, on the dataset that drives it (Objaverse, t=17).
